@@ -12,22 +12,20 @@ return new class extends Migration {
     {
         Schema::create('users', function (Blueprint $table) {
             $table->id();
-            $table->string('name')->nullable();
-            $table->string('first_name')->nullable(); // الاسم الأول
-            $table->string('last_name')->nullable(); // الاسم الثاني
-            $table->string('username')->unique()->nullable(); // اسم المستخدم
-            $table->string('email')->unique();
+            $table->string('phone')->unique();
             $table->string('password');
-            $table->string('phone')->nullable(); // رقم الهاتف
-            $table->string('position')->nullable(); // المسمى الوظيفي (اختياري)
-            $table->string('settings')->nullable(); // إعدادات المستخدم (اختياري)
-            $table->timestamp('last_login_at')->nullable(); // آخر تسجيل دخول
+            $table->string('email')->unique()->nullable();
+            $table->string('username')->unique()->nullable();
+            $table->string('nickname')->nullable();
+            $table->string('full_name')->nullable();
+            $table->string('position')->nullable();
+            $table->string('settings')->nullable();
+            $table->timestamp('last_login_at')->nullable();
             $table->timestamp('email_verified_at')->nullable();
+            $table->decimal('balance', 10, 2)->default(0);
+            $table->string('status')->default('1');
             $table->foreignId('created_by')->nullable()->constrained('users')->onDelete('set null');
-            $table->enum('type', ['system_owner', 'company_owner', 'sales', 'accounting', 'client', 'user'])->default('user');
-            $table->decimal('balance', 10, 2)->default(0); // الرصيد
-            $table->enum('status', ['active', 'inactive'])->default('active'); // حالة المستخدم
-            $table->foreignId('company_id')->nullable()->constrained()->onDelete('set null'); // معرف الشركة (اختياري)
+            $table->foreignId('company_id')->nullable()->constrained()->onDelete('set null');
             $table->rememberToken();
             $table->timestamps();
         });

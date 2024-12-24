@@ -4,8 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration
-{
+return new class extends Migration {
     /**
      * Run the migrations.
      */
@@ -13,14 +12,15 @@ return new class extends Migration
     {
         Schema::create('companies', function (Blueprint $table) {
             $table->id();
-            $table->string('name'); // اسم الشركة
-            $table->text('description'); // نبذة مختصرة
-            $table->string('field'); // المجال أو التخصص
-            $table->string('owner_name'); // اسم صاحب الشركة
-            $table->string('address'); // عنوان الشركة
-            $table->string('phone'); // رقم الهاتف
-            $table->string('email')->unique(); // البريد الإلكتروني
-            $table->timestamps(); 
+            $table->string('name');
+            $table->text('description');
+            $table->string('field');
+            $table->string('owner_name');
+            $table->string('address');
+            $table->string('phone');
+            $table->string('email')->unique();
+            $table->integer('created_by')->nullable();
+            $table->timestamps();
         });
     }
 

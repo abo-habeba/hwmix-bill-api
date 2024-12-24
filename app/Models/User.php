@@ -3,7 +3,12 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Traits\RolePermissions;
+use App\Traits\Scopes;
+use Exception;
+use App\Traits\Filterable;
 use Laravel\Sanctum\HasApiTokens;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Traits\HasRoles;
 use Illuminate\Notifications\Notifiable;
 use App\Traits\Translations\Translatable;
@@ -13,7 +18,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable, Translatable, HasRoles, HasApiTokens;
+    use HasFactory, Notifiable, Translatable, HasRoles, HasApiTokens, Filterable, Scopes, RolePermissions;
 
     /**
      * The attributes that are mass assignable.
@@ -21,9 +26,8 @@ class User extends Authenticatable
      * @var array<int, string>
      */
     protected $fillable = [
-        'name',
-        'first_name',
-        'last_name',
+        'nickname',
+        'full_name',
         'username',
         'email',
         'password',
@@ -32,10 +36,9 @@ class User extends Authenticatable
         'settings',
         'last_login_at',
         'email_verified_at',
-        'type',
+        'company_id',
         'balance',
         'status',
-        'company_id',
     ];
 
     // علاقة Polymorphic مع جدول الترجمة
@@ -65,14 +68,121 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
-    public function getRoles()
+    // public function getRoles()
+    // {
+    //     return $this->roles()->pluck('name');
+    // }
+    // public function rolesWithPermissionsNames()
+    // {
+    //     // جلب الأدوار مع الصلاحيات، ثم إرجاع الأدوار مع أسماء الصلاحيات فقط
+    //     $rols = $this->roles->get();
+    //     return $rols->map(function ($role) {
+    //         // فقط الحصول على أسماء الصلاحيات
+    //         $role->permissions = $role->permissions->pluck('name');
+    //         return $role;
+    //     });
+    // }
+
+    public function getRolesWithPermissions()
     {
-        return $this->roles()->pluck('name');
+        // جلب الأدوار مع الصلاحيات
+        return $this->roles()->with('permissions')->get()->map(function ($role) {
+            return [
+                'id' => $role->id,
+                'name' => $role->name,
+                'guard_name' => $role->guard_name,
+                'created_by' => $role->created_by,
+                'company_id' => $role->company_id,
+                'permissions' => $role->permissions->pluck('name'), // جلب أسماء الصلاحيات فقط
+                'created_at' => $role->created_at,
+                'updated_at' => $role->updated_at,
+            ];
+        });
     }
+
 
     // دالة لإرجاع الصلاحيات
     public function getPermissions()
     {
         return $this->permissions()->pluck('name');
     }
+
+    // المعاملات التي قام بها المستخدم
+    public function transactions()
+    {
+        return $this->hasMany(Transaction::class, 'user_id');
+    }
+
+    // المستخدمين الذين أنشأهم هذا المستخدم
+    public function createdUsers()
+    {
+        return $this->hasMany(User::class, 'created_by');
+    }
+
+    // تحويل
+    public function transferTo(User $targetUser, $amount)
+    {
+        DB::transaction(function () use ($targetUser, $amount) {
+            if ($this->balance < $amount) {
+                throw new Exception('Insufficient balance.');
+            }
+
+            // خصم من الرصيد الحالي
+            $this->balance -= $amount;
+            $this->save();
+
+            // إضافة إلى رصيد المستخدم المستهدف
+            $targetUser->balance += $amount;
+            $targetUser->save();
+
+            // تسجيل العملية
+            Transaction::create([
+                'user_id' => $this->id,
+                'target_user_id' => $targetUser->id,
+                'type' => 'transfer',
+                'amount' => $amount,
+                'description' => "Transfer to user ID {$targetUser->id}",
+            ]);
+        });
+    }
+
+
+    // إيداع الرصيد
+    public function deposit($amount)
+    {
+        DB::transaction(function () use ($amount) {
+            $this->balance += $amount;
+            $this->save();
+
+            // تسجيل العملية
+            Transaction::create([
+                'user_id' => $this->id,
+                'type' => 'deposit',
+                'amount' => $amount,
+                'description' => 'Deposit to account',
+            ]);
+        });
+    }
+
+    //  سحب الرصيد
+    public function withdraw($amount)
+    {
+        DB::transaction(function () use ($amount) {
+            if ($this->balance < $amount) {
+                throw new Exception('Insufficient balance.');
+            }
+
+            $this->balance -= $amount;
+            $this->save();
+
+            // تسجيل العملية
+            Transaction::create([
+                'user_id' => $this->id,
+                'type' => 'withdraw',
+                'amount' => $amount,
+                'description' => 'Withdraw from account',
+            ]);
+        });
+    }
+
 }

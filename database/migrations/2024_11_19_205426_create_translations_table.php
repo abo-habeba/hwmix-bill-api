@@ -13,10 +13,10 @@ return new class extends Migration
     {
         Schema::create('translations', function (Blueprint $table) {
             $table->id();
-            $table->string('locale'); // اللغة (ar, en, ...)
-            $table->string('field'); // اسم الحقل المراد ترجمته (مثل title, description)
-            $table->text('value'); // القيمة المترجمة
-            $table->morphs('model'); // لعلاقة polymorphic (model_id, model_type)
+            $table->string('locale');
+            $table->string('field');
+            $table->text('value');
+            $table->morphs('model');
             $table->timestamps();
         });
     }

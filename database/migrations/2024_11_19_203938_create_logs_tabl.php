@@ -13,10 +13,12 @@ return new class extends Migration {
         Schema::create('logs_tabl', function (Blueprint $table) {
             $table->id();
             $table->string('action');
-            $table->string('model'); 
+            $table->string('model');
             $table->unsignedBigInteger('model_id')->nullable();
             $table->text('changes')->nullable(); // الحقول التي تغيرت (JSON)
-            $table->unsignedBigInteger('user_id')->nullable(); 
+            $table->unsignedBigInteger('user_id')->nullable();
+            $table->foreignId('created_by')->nullable()->constrained('users')->onDelete('set null');
+            $table->foreignId('company_id')->nullable()->constrained()->onDelete('set null');
             $table->timestamps();
         });
     }

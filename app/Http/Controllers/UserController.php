@@ -4,63 +4,69 @@ namespace App\Http\Controllers;
 
 
 use App\Models\User;
-use App\Http\Requests\UserRequest;
-use App\Http\Resources\UserResource;
+use PHPUnit\Exception;
+use App\Models\Transaction;
 use Illuminate\Http\Request;
+use App\Http\Requests\UserRequest;
+use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
-use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+use App\Http\Resources\UserResource;
+use App\Http\Requests\UserUpdateRequest;
+// use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+
 class UserController extends Controller
 {
-    use AuthorizesRequests;
+    // use AuthorizesRequests;
     /**
      * Display a listing of users.
      */
+
     public function index(Request $request)
     {
         try {
-            $this->authorize('viewAny', User::class);
-
             $authUser = auth()->user();
             $query = User::query();
 
-            if ($authUser->hasPermissionTo('users.show')) {
+            if ($authUser->hasAnyPermission(['users.all', 'super.admin'])) {
                 // عرض جميع المستخدمين
-            } elseif ($authUser->hasPermissionTo('employee')) {
+            } elseif ($authUser->hasPermissionTo('company.owner')) {
+                $query->companyOwn();
+            } elseif ($authUser->hasPermissionTo('users.show.own')) {
+                $query->own();
+            } elseif ($authUser->hasPermissionTo('users.show.self')) {
                 $query->where('created_by', $authUser->id);
-            } elseif ($authUser->type === 'company_owner') {
-                $query->where('company_id', $authUser->company_id)->whereNotNull('company_id');
             } else {
-                return response()->json(['code' => 403, 'message' => 'Unauthorized action.'], 403);
+                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);            }
+
+            // الفلاتر التي تعتمد على القيم المدخلة فقط إذا كانت غير فارغة أو null
+            if (!empty($request->get('nickname'))) {
+                $query->where('nickname', 'like', '%' . $request->get('nickname') . '%');
             }
 
-            if ($request->has('name') && !empty($request->get('name'))) {
-                $query->where('name', 'like', '%' . $request->get('name') . '%');
-            }
-            if ($request->has('email') && !empty($request->get('email'))) {
+            if (!empty($request->get('email'))) {
                 $query->where('email', 'like', '%' . $request->get('email') . '%');
             }
-            if ($request->has('status') && !empty($request->get('status'))) {
+
+            if (!empty($request->get('status'))) {
                 $query->where('status', $request->get('status'));
             }
-            if ($request->has('created_at_from')) {
-                $createdAtFrom = $request->get('created_at_from');
-                if ($createdAtFrom) {
-                    $query->where('created_at', '>=', $createdAtFrom . ' 00:00:00');
-                }
-            }
-            if ($request->has('created_at_to')) {
-                $createdAtTo = $request->get('created_at_to');
-                if ($createdAtTo) {
-                    $query->where('created_at', '<=', $createdAtTo . ' 23:59:59');
-                }
+
+            if (!empty($request->get('created_at_from'))) {
+                $query->where('created_at', '>=', $request->get('created_at_from') . ' 00:00:00');
             }
 
+            if (!empty($request->get('created_at_to'))) {
+                $query->where('created_at', '<=', $request->get('created_at_to') . ' 23:59:59');
+            }
+
+            // تحديد عدد العناصر في الصفحة والفرز
             $perPage = max(1, $request->get('per_page', 10));
             $sortField = $request->get('sort_by', 'id');
             $sortOrder = $request->get('sort_order', 'asc');
 
             $query->orderBy($sortField, $sortOrder);
 
+            // جلب البيانات مع التصفية والصفحات
             $users = $query->paginate($perPage);
 
             return response()->json([
@@ -74,19 +80,26 @@ class UserController extends Controller
         }
     }
 
+
+
     /**
      * Store a newly created user in storage.
      */
     public function store(UserRequest $request)
     {
-        // Authorize the action to create a user
-        $this->authorize('create', User::class);
+        // Check if the authenticated user has the required permissions
+        $authUser = auth()->user();
+
+        if (!$authUser->hasAnyPermission(['super.admin', 'users.create', 'company.owner'])) {
+            return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);        }
 
         // Validate the request data
         $validatedData = $request->validated();
 
+        // Create the user
         $user = User::create($validatedData);
 
+        // Return the created user as a resource
         return new UserResource($user);
     }
 
@@ -95,38 +108,72 @@ class UserController extends Controller
      */
     public function show(User $user)
     {
-        // Authorize the action to view user details
-        $this->authorize('viewOwn', $user);
+        $authUser = auth()->user(); // المستخدم الحالي
 
-        return new UserResource($user);
-    }
+        // التحقق من الصلاحيات
+        if (
+            $authUser->hasPermissionTo('users.show') ||
+            $authUser->hasPermissionTo('super.admin') ||
+            ($authUser->hasPermissionTo('users.show.own') && $authUser->id === $user->id) ||
+            ($authUser->hasPermissionTo('company.owner') && $authUser->company_id === $user->company_id) ||
+            $authUser->id === $user->id
+        ) {
+            return new UserResource($user);
+        }
+
+        // إذا لم يمتلك الصلاحيات
+        return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);    }
 
     /**
      * Update the specified user in storage.
      */
-    public function update(UserRequest $request, User $user)
+    public function update(UserUpdateRequest $request, User $user)
     {
-        // Authorize the action to update user details
-        $this->authorize('update', $user);
+        $authUser = auth()->user();
 
-        // Validate the request data
-        $validatedData = $request->validated();
+        $validated = $request->validated();
 
-        $user->update($validatedData);
+        if (
+            $authUser->hasAnyPermission(['super.admin', 'users.update']) ||
+            ($authUser->hasPermissionTo('users.update.own') && $user->isOwn()) ||
+            ($authUser->hasPermissionTo('company.owner') && $authUser->company_id === $user->company_id)
+        ) {
+            $user->update($validated);
 
-        return new UserResource($user);  // Return the updated user using UserResource
-    }
+            return new UserResource($user);
+        }
+
+        return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);    }
 
     /**
      * Remove the specified user from storage.
      */
-    public function destroy(User $user)
+    public function destroy(Request $request)
     {
-        // Authorize the action to delete a user
-        $this->authorize('delete', $user);
+        $authUser = auth()->user();
 
-        $user->delete();
+        $userIds = $request->input('user_ids');
+        if (!$userIds || !is_array($userIds)) {
+            return response()->json(['error' => 'Invalid user IDs provided'], 400);
+        }
+        $usersToDelete = User::whereIn('id', $userIds)->get();
 
-        return response()->json(['message' => 'User deleted successfully.'], 200);  // Return success message
+        foreach ($usersToDelete as $user) {
+            if (
+                $authUser->hasAnyPermission(['super.admin', 'users.delete']) ||
+                ($authUser->hasPermissionTo('users.delete.own') && $user->isOwn()) ||
+                ($authUser->hasPermissionTo('users.delete.self') && $user->id === $authUser->id) ||
+                ($authUser->hasPermissionTo('company.owner') && $authUser->company_id === $user->company_id)
+            ) {
+                continue;
+            }
+
+            return response()->json(['error' => 'You do not have permission to delete user with ID: ' . $user->id], 403);
+        }
+
+        User::whereIn('id', $userIds)->delete();
+
+        return response()->json(['message' => 'Users deleted successfully'], 200);
     }
+
 }

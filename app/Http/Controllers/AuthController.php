@@ -14,14 +14,17 @@ class AuthController extends Controller
     public function register(Request $request)
     {
         $validated = $request->validate([
-            'email' => 'required|email|unique:users,email,',
+            'phone' => 'required|unique:users,phone,',
             'password' => 'required|string|min:8',
-            'first_name' => 'nullable|string|max:255',
+            'email' => 'nullable|email|unique:users,email,',
+            'full_name' => 'nullable|string|max:255',
+            'nickname' => 'nullable|string|max:255',
         ]);
 
         $user = User::create([
-            'first_name' => $validated['first_name'],
-            'email' => $validated['email'],
+            'phone' => $validated['phone'],
+            'full_name' => $validated['full_name'],
+            'nickname' => Hash::make($validated['nickname']),
             'password' => Hash::make($validated['password']),
         ]);
 
@@ -38,7 +41,7 @@ class AuthController extends Controller
     public function login(Request $request)
     {
         $validated = $request->validate([
-            'email' => 'required|email',
+            'phone' => 'required',
             'password' => 'required',
         ]);
 
@@ -68,5 +71,20 @@ class AuthController extends Controller
     public function me(Request $request)
     {
         return response()->json($request->user());
+    }
+
+    public function checkLogin(Request $request)
+    {
+        if (auth()->check()) {
+            return response()->json([
+                'status' => 'logged_in',
+                'user' => auth()->user(), // يمكنك إعادة بيانات المستخدم إذا أردت
+            ], 200);
+        }
+
+        return response()->json([
+            'status' => 'not_logged_in',
+            'message' => 'User is not authenticated',
+        ], 401);
     }
 }
