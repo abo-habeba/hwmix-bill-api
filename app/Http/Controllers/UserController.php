@@ -36,9 +36,11 @@ class UserController extends Controller
             } elseif ($authUser->hasPermissionTo('users.show.self')) {
                 $query->where('created_by', $authUser->id);
             } else {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);            }
+                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);
+            }
 
-            // الفلاتر التي تعتمد على القيم المدخلة فقط إذا كانت غير فارغة أو null
+            $query->where('id', '<>', $authUser->id);
+
             if (!empty($request->get('nickname'))) {
                 $query->where('nickname', 'like', '%' . $request->get('nickname') . '%');
             }
@@ -91,7 +93,8 @@ class UserController extends Controller
         $authUser = auth()->user();
 
         if (!$authUser->hasAnyPermission(['super.admin', 'users.create', 'company.owner'])) {
-            return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);        }
+            return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);
+        }
 
         // Validate the request data
         $validatedData = $request->validated();
@@ -122,7 +125,8 @@ class UserController extends Controller
         }
 
         // إذا لم يمتلك الصلاحيات
-        return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);    }
+        return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);
+    }
 
     /**
      * Update the specified user in storage.
@@ -132,6 +136,9 @@ class UserController extends Controller
         $authUser = auth()->user();
 
         $validated = $request->validated();
+        if ($authUser->id === $user->id) {
+            unset($validated['status'], $validated['balance']);
+        }
 
         if (
             $authUser->hasAnyPermission(['super.admin', 'users.update']) ||
@@ -143,7 +150,8 @@ class UserController extends Controller
             return new UserResource($user);
         }
 
-        return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);    }
+        return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);
+    }
 
     /**
      * Remove the specified user from storage.

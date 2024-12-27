@@ -114,18 +114,30 @@ class RoleController extends Controller
     {
         $authUser = auth()->user();
 
+        // تحقق من الأذونات بناءً على المعايير المحددة
         if (
             $authUser->hasAnyPermission(['super.admin', 'roles.delete']) ||
             ($authUser->hasPermissionTo('roles.delete.own') && $role->isOwn()) ||
             ($authUser->hasPermissionTo('roles.delete.self') && $role->created_by == $authUser->id) ||
             ($authUser->hasPermissionTo('company.owner') && $authUser->company_id === $role->company_id)
         ) {
+            // إلغاء تعيين الدور عن جميع المستخدمين الذين يمتلكونه
+            $usersWithRole = $role->users;
+
+            foreach ($usersWithRole as $user) {
+                $user->removeRole($role->name);  // إلغاء تعيين الدور من المستخدم
+            }
+
+            // حذف الدور بعد إلغاء تعيينه
             $role->delete();
+
             return response()->json(['message' => 'Role deleted successfully'], 200);
         }
 
+        // في حالة عدم وجود إذن للمستخدم
         return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);
     }
+
 
 
     public function assignRole(Request $request)

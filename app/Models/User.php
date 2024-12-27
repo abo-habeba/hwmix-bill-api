@@ -68,20 +68,6 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
-    // public function getRoles()
-    // {
-    //     return $this->roles()->pluck('name');
-    // }
-    // public function rolesWithPermissionsNames()
-    // {
-    //     // جلب الأدوار مع الصلاحيات، ثم إرجاع الأدوار مع أسماء الصلاحيات فقط
-    //     $rols = $this->roles->get();
-    //     return $rols->map(function ($role) {
-    //         // فقط الحصول على أسماء الصلاحيات
-    //         $role->permissions = $role->permissions->pluck('name');
-    //         return $role;
-    //     });
-    // }
 
     public function getRolesWithPermissions()
     {

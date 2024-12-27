@@ -40,7 +40,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::post('role', 'store');
             Route::get('role/{role}', 'show');
             Route::put('role/{role}', 'update');
-            Route::get('role/{role}', 'destroy');
+            Route::delete('role/{role}', 'destroy');
             Route::post('assignRole', 'assignRole');
         });
 });
