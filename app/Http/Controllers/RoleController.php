@@ -1,13 +1,22 @@
 <?php
 namespace App\Http\Controllers;
 
+use App\Models\Log;
+use App\Models\Role;
+use Jenssegers\Agent\Agent;
 use Illuminate\Http\Request;
-use Spatie\Permission\Models\Role;
+use Illuminate\Support\Facades\DB;
 use App\Http\Resources\RoleResource;
 use App\Http\Resources\UserResource;
 
 class RoleController extends Controller
 {
+    private $agent;
+
+    public function __construct()
+    {
+        $this->agent = new Agent();
+    }
     // permissions: [
     //   { value: 'roles.all', name: ' جميع الأدوار' },
     //   { value: 'roles.all.own', name: 'الأدوار التابعة له' },
@@ -64,13 +73,19 @@ class RoleController extends Controller
             $validated['guard_name'] = $validated['guard_name'] ?? 'web';
 
             $validated['created_by'] = $validated['created_by'] ?? $authUser->id;
-
-            $role = Role::create($validated);
-            if (!empty($validated['permissions'])) {
-                $role->syncPermissions($validated['permissions']);
+            try {
+                DB::beginTransaction();
+                $role = Role::create($validated);
+                if (!empty($validated['permissions'])) {
+                    $role->syncPermissions($validated['permissions']);
+                }
+                $role->logCreated(' الدور ' . $role->name);
+                DB::commit();
+                return response()->json($role, 201);
+            } catch (\Exception $e) {
+                DB::rollback();
+                throw $e;
             }
-
-            return response()->json($role, 201);
         }
 
         return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);
@@ -100,11 +115,20 @@ class RoleController extends Controller
             ($authUser->hasPermissionTo('company.owner') && $authUser->company_id === $role->company_id) ||
             ($authUser->hasPermissionTo('roles.show.self') && $role->created_by == $authUser->id)
         ) {
-            $role->update($validated);
-            if (!empty($validated['permissions'])) {
-                $role->syncPermissions($validated['permissions']);
+            try {
+                DB::beginTransaction();
+                $role->update($validated);
+                if (!empty($validated['permissions'])) {
+                    $role->syncPermissions($validated['permissions']);
+                }
+
+                $role->logCreated(' الدور ' . $role->name);
+                DB::commit();
+                return response()->json($role, 201);
+            } catch (\Exception $e) {
+                DB::rollback();
+                throw $e;
             }
-            return response()->json($role, 201);
         }
         return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);
     }
@@ -123,38 +147,39 @@ class RoleController extends Controller
         ) {
             // إلغاء تعيين الدور عن جميع المستخدمين الذين يمتلكونه
             $usersWithRole = $role->users;
-
-            foreach ($usersWithRole as $user) {
-                $user->removeRole($role->name);  // إلغاء تعيين الدور من المستخدم
+            try {
+                DB::beginTransaction();
+                if (is_iterable($usersWithRole)) {
+                    foreach ($usersWithRole as $user) {
+                        $user->removeRole($role->name);
+                    }
+                }
+                // حذف الدور بعد إلغاء تعيينه
+                $role->delete();
+                $role->logForceDeleted(' الدور ' . $role->name);
+                DB::commit();
+                return response()->json(['message' => 'Role deleted successfully'], 200);
+            } catch (\Exception $e) {
+                DB::rollback();
+                throw $e;
             }
-
-            // حذف الدور بعد إلغاء تعيينه
-            $role->delete();
-
-            return response()->json(['message' => 'Role deleted successfully'], 200);
         }
-
         // في حالة عدم وجود إذن للمستخدم
         return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);
     }
-
-
-
     public function assignRole(Request $request)
     {
-
         try {
             $validated = $request->validate([
                 'roles' => 'required|array',
                 'roles.*' => 'exists:roles,name',
                 'user_id' => 'required|exists:users,id',
             ]);
-
+            DB::beginTransaction();
             $user = \App\Models\User::findOrFail($validated['user_id']);
-
-            // استخدام syncRoles لإزالة الأدوار الحالية وتعيين الأدوار الجديدة
             $user->syncRoles($validated['roles']);
-
+            $user->logCreated(' اسناد الادوار [' . implode(' - ', $validated['roles']) . ']' . " الي المستخدم {$user->nickname}");
+            DB::commit();
             return response()->json(new UserResource($user));
         } catch (\Throwable $th) {
             return response()->json([

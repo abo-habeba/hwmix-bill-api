@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Traits\Logs;
 use App\Traits\RolePermissions;
 use App\Traits\Scopes;
 use Exception;
@@ -18,7 +19,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable, Translatable, HasRoles, HasApiTokens, Filterable, Scopes, RolePermissions;
+    use HasFactory, Notifiable, Translatable, HasRoles, HasApiTokens, Filterable, Scopes, RolePermissions, Logs;
 
     /**
      * The attributes that are mass assignable.
@@ -37,6 +38,7 @@ class User extends Authenticatable
         'last_login_at',
         'email_verified_at',
         'company_id',
+        'created_by',
         'balance',
         'status',
     ];
@@ -150,7 +152,6 @@ class User extends Authenticatable
         });
     }
 
-    //  سحب الرصيد
     public function withdraw($amount)
     {
         DB::transaction(function () use ($amount) {

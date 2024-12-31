@@ -2,9 +2,10 @@
 
 namespace App\Providers;
 
+use App\Models\Role;
 use App\Models\User;
-use App\Policies\UserPolicy;
-use Illuminate\Support\Facades\Gate;
+use App\Observers\RoleObserver;
+use App\Observers\UserObserver;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -23,6 +24,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         //
-        Gate::policy(User::class, UserPolicy::class);
+        // User::observe(UserObserver::class);
+        // Role::observe(RoleObserver::class);
     }
 }

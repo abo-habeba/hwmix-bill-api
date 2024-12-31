@@ -32,8 +32,8 @@ class UserResource extends JsonResource
             'status' => $this->status,
             'created_at' => isset($this->created_at) ? $this->created_at->format('Y-m-d') : null,
             'updated_at' => isset($this->updated_at) ? $this->updated_at->format('Y-m-d') : null,
-            'company_id' => isset($this->company_id) ? $this->company_id->format('Y-m-d') : null,
-            'created_by' => isset($this->created_by) ? $this->created_by->format('Y-m-d') : null,
+            'company_id' => $this->company_id,
+            'created_by' => $this->created_by,
         ];
     }
 }

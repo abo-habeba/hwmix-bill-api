@@ -99,6 +99,10 @@ class UserController extends Controller
         // Validate the request data
         $validatedData = $request->validated();
 
+        // Set default values for 'company_id' and 'created_by' if not provided
+        $validatedData['company_id'] = $validatedData['company_id'] ?? $authUser->company_id;
+        $validatedData['created_by'] = $validatedData['created_by'] ?? $authUser->id;
+
         // Create the user
         $user = User::create($validatedData);
 
@@ -145,9 +149,25 @@ class UserController extends Controller
             ($authUser->hasPermissionTo('users.update.own') && $user->isOwn()) ||
             ($authUser->hasPermissionTo('company.owner') && $authUser->company_id === $user->company_id)
         ) {
-            $user->update($validated);
 
-            return new UserResource($user);
+
+            try {
+                DB::beginTransaction();
+                $user->update($validated);
+                if (!empty($validated['permissions'])) {
+                    $user->syncPermissions($validated['permissions']);
+                }
+
+                $user->logUpdated(' المستخدم  ' . $user->nickname);
+                DB::commit();
+                return new UserResource($user);
+            } catch (\Exception $e) {
+                DB::rollback();
+                throw $e;
+            }
+
+            // $user->update($validated);
+
         }
 
         return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);
@@ -179,7 +199,12 @@ class UserController extends Controller
             return response()->json(['error' => 'You do not have permission to delete user with ID: ' . $user->id], 403);
         }
 
-        User::whereIn('id', $userIds)->delete();
+        foreach ($usersToDelete as $user) {
+            $user->delete();
+        }
+
+        // User::whereIn('id', $userIds)->delete();
+
 
         return response()->json(['message' => 'Users deleted successfully'], 200);
     }

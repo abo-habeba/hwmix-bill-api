@@ -2,6 +2,7 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\LogController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserController;
@@ -42,5 +43,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::put('role/{role}', 'update');
             Route::delete('role/{role}', 'destroy');
             Route::post('assignRole', 'assignRole');
+        });
+    // LOgs Controller
+    Route::controller(LogController::class)
+        ->group(function () {
+            Route::get('logs', 'index');
+            Route::post('logs/{log}/undo', 'undo');
         });
 });
