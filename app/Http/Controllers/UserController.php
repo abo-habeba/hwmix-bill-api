@@ -82,8 +82,6 @@ class UserController extends Controller
         }
     }
 
-
-
     /**
      * Store a newly created user in storage.
      */
@@ -98,16 +96,21 @@ class UserController extends Controller
 
         // Validate the request data
         $validatedData = $request->validated();
+        try {
+            DB::beginTransaction();
+            $validatedData['company_id'] = $validatedData['company_id'] ?? $authUser->company_id;
+            $validatedData['created_by'] = $validatedData['created_by'] ?? $authUser->id;
 
-        // Set default values for 'company_id' and 'created_by' if not provided
-        $validatedData['company_id'] = $validatedData['company_id'] ?? $authUser->company_id;
-        $validatedData['created_by'] = $validatedData['created_by'] ?? $authUser->id;
+            $user = User::create($validatedData);
+            $user->logCreated(' بانشاء  المستخدم ' . $user->nickname);
+            DB::commit();
+            return new UserResource($user);
+        } catch (\Exception $e) {
+            DB::rollback();
+            throw $e;
+        }
 
-        // Create the user
-        $user = User::create($validatedData);
 
-        // Return the created user as a resource
-        return new UserResource($user);
     }
 
     /**
@@ -149,15 +152,12 @@ class UserController extends Controller
             ($authUser->hasPermissionTo('users.update.own') && $user->isOwn()) ||
             ($authUser->hasPermissionTo('company.owner') && $authUser->company_id === $user->company_id)
         ) {
-
-
             try {
                 DB::beginTransaction();
                 $user->update($validated);
                 if (!empty($validated['permissions'])) {
                     $user->syncPermissions($validated['permissions']);
                 }
-
                 $user->logUpdated(' المستخدم  ' . $user->nickname);
                 DB::commit();
                 return new UserResource($user);
@@ -165,11 +165,7 @@ class UserController extends Controller
                 DB::rollback();
                 throw $e;
             }
-
-            // $user->update($validated);
-
         }
-
         return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);
     }
 
@@ -198,15 +194,19 @@ class UserController extends Controller
 
             return response()->json(['error' => 'You do not have permission to delete user with ID: ' . $user->id], 403);
         }
-
-        foreach ($usersToDelete as $user) {
-            $user->delete();
+        try {
+            DB::beginTransaction();
+            foreach ($usersToDelete as $user) {
+                $user->delete();
+                $user->logForceDeleted(' المستخدم  ' . $user->nickname);
+            }
+            DB::commit();
+            // User::whereIn('id', $userIds)->delete();
+            return response()->json(['message' => 'Users deleted successfully'], 200);
+        } catch (\Exception $e) {
+            DB::rollback();
+            throw $e;
         }
-
-        // User::whereIn('id', $userIds)->delete();
-
-
-        return response()->json(['message' => 'Users deleted successfully'], 200);
     }
 
 }

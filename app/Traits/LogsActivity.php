@@ -2,21 +2,14 @@
 
 namespace App\Traits;
 
-use App\Models\Log;
-use Jenssegers\Agent\Agent;
+use App\Models\ActivityLog;
 
-trait Logs
+
+trait LogsActivity
 {
-    private $agent;
-
-    public function __construct()
-    {
-        $this->agent = new Agent();
-    }
-
     public function logCreated($text)
     {
-        Log::create([
+        ActivityLog::create([
             'action' => 'انشاء',
             'model' => get_class($this),
             'data_old' => null,
@@ -24,10 +17,7 @@ trait Logs
             'user_id' => auth()->id(),
             'created_by' => auth()->id(),
             'ip_address' => request()->ip(),
-            'user_agent' => $this->agent->browser() . ' ' .
-                $this->agent->version($this->agent->browser()) .
-                ' ( ' . $this->agent->platform() .
-                ' ' . $this->agent->version($this->agent->platform()) . ' ) ',
+            'user_agent' => request()->header('User-Agent'),
             'url' => request()->getRequestUri(),
             'description' => ' قام المستخدم  ' . auth()->user()->nickname .
                 $text,
@@ -36,7 +26,7 @@ trait Logs
 
     public function logUpdated($text)
     {
-        Log::create([
+        ActivityLog::create([
             'action' => 'تعديل',
             'model' => get_class($this),
             'data_old' => json_encode($this->getOriginal()),
@@ -44,10 +34,7 @@ trait Logs
             'user_id' => auth()->id(),
             'created_by' => auth()->id(),
             'ip_address' => request()->ip(),
-            'user_agent' => $this->agent->browser() . ' ' .
-                $this->agent->version($this->agent->browser()) .
-                ' (' . $this->agent->platform() .
-                ' ' . $this->agent->version($this->agent->platform()) . ')',
+            'user_agent' => request()->header('User-Agent'),
             'url' => request()->getRequestUri(),
             'description' => 'قام المستخدم ' . auth()->user()->nickname .
                 ' بتعديل ' . $text,
@@ -56,7 +43,7 @@ trait Logs
 
     public function logDeleted($text)
     {
-        Log::create([
+        ActivityLog::create([
             'action' => 'حذف',
             'model' => get_class($this),
             'data_old' => json_encode($this->getAttributes()),
@@ -64,10 +51,7 @@ trait Logs
             'user_id' => auth()->id(),
             'created_by' => auth()->id(),
             'ip_address' => request()->ip(),
-            'user_agent' => $this->agent->browser() . ' ' .
-                $this->agent->version($this->agent->browser()) .
-                ' (' . $this->agent->platform() .
-                ' ' . $this->agent->version($this->agent->platform()) . ')',
+            'user_agent' => request()->header('User-Agent'),
             'url' => request()->getRequestUri(),
             'description' => 'قام المستخدم ' . auth()->user()->nickname .
                 ' بحذف ' . $text,
@@ -76,7 +60,7 @@ trait Logs
 
     public function logRestored($text)
     {
-        Log::create([
+        ActivityLog::create([
             'action' => 'استعادة',
             'model' => get_class($this),
             'data_old' => null,
@@ -84,10 +68,7 @@ trait Logs
             'user_id' => auth()->id(),
             'created_by' => auth()->id(),
             'ip_address' => request()->ip(),
-            'user_agent' => $this->agent->browser() . ' ' .
-                $this->agent->version($this->agent->browser()) .
-                ' (' . $this->agent->platform() .
-                ' ' . $this->agent->version($this->agent->platform()) . ')',
+            'user_agent' => request()->header('User-Agent'),
             'url' => request()->getRequestUri(),
             'description' => 'قام المستخدم ' . auth()->user()->nickname .
                 ' باستعادة ' . $text,
@@ -96,7 +77,7 @@ trait Logs
 
     public function logForceDeleted($text)
     {
-        Log::create([
+        ActivityLog::create([
             'action' => 'حذف نهائي',
             'model' => get_class($this),
             'data_old' => json_encode($this->getAttributes()),
@@ -104,10 +85,7 @@ trait Logs
             'user_id' => auth()->id(),
             'created_by' => auth()->id(),
             'ip_address' => request()->ip(),
-            'user_agent' => $this->agent->browser() . ' ' .
-                $this->agent->version($this->agent->browser()) .
-                ' (' . $this->agent->platform() .
-                ' ' . $this->agent->version($this->agent->platform()) . ')',
+            'user_agent' => request()->header('User-Agent'),
             'url' => request()->getRequestUri(),
             'description' => 'قام المستخدم ' . auth()->user()->nickname .
                 '  بحذف  ' . $text . ' حذف نهائي ',

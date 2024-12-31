@@ -7,7 +7,7 @@ use App\Traits\Scopes;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
-class Log extends Model
+class ActivityLog extends Model
 {
     use HasFactory, Scopes, RolePermissions;
 

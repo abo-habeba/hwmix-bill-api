@@ -2,7 +2,7 @@
 
 namespace App\Observers;
 
-use App\Models\Log;
+use App\Models\ActivityLog;
 use App\Models\User;
 use Illuminate\Support\Facades\Log as LogFacade;
 use Jenssegers\Agent\Agent;
@@ -17,7 +17,7 @@ class UserObserver
     }
     public function created(User $user): void
     {
-        Log::create([
+        ActivityLog::create([
             'action' => 'created',
             'model' => get_class($user),
             'data_old' => null,
@@ -38,7 +38,7 @@ class UserObserver
     public function updated(User $user): void
     {
         LogFacade::info('User Updated: ' . $user->nickname);
-        Log::create([
+        ActivityLog::create([
             'action' => 'updated',
             'model' => get_class($user),
             'data_old' => json_encode($user->getOriginal()),
@@ -62,7 +62,7 @@ class UserObserver
     public function deleted(User $user): void
     {
         LogFacade::info('User Deleted: ' . $user->nickname);
-        Log::create([
+        ActivityLog::create([
             'action' => 'deleted',
             'model' => get_class($user),
             'data_old' => json_encode($user),
@@ -86,7 +86,7 @@ class UserObserver
     public function restored(User $user): void
     {
         LogFacade::info('User Restored: ' . $user->nickname);
-        Log::create([
+        ActivityLog::create([
             'action' => 'restored',
             'model' => get_class($user),
             'data_old' => null,
@@ -109,7 +109,7 @@ class UserObserver
     public function forceDeleted(User $user): void
     {
         LogFacade::info('User Force Deleted: ' . $user->nickname);
-        Log::create([
+        ActivityLog::create([
             'action' => 'force_deleted',
             'model' => get_class($user),
             'data_old' => json_encode($user),

@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use App\Traits\Logs;
+use App\Traits\LogsActivity;
 use App\Traits\Scopes;
 use App\Traits\RolePermissions;
 use Spatie\Permission\Traits\HasRoles;
@@ -12,7 +12,7 @@ use Spatie\Permission\Models\Role as SpatieRole;
 use Spatie\Permission\Contracts\Role as RoleContract;
 class Role extends SpatieRole implements RoleContract
 {
-    use HasRoles, RolePermissions, Scopes, Logs;
+    use HasRoles, RolePermissions, Scopes, LogsActivity;
     protected $fillable = [
         'name',
         'guard_name',

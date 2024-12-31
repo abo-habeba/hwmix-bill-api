@@ -1,7 +1,7 @@
 <?php
 namespace App\Http\Controllers;
 
-use App\Models\Log;
+use App\Models\ActivityLog;
 use App\Models\Role;
 use Jenssegers\Agent\Agent;
 use Illuminate\Http\Request;

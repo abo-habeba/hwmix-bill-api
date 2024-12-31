@@ -2,7 +2,7 @@
 
 namespace App\Observers;
 
-use App\Models\Log;
+use App\Models\ActivityLog;
 use App\Models\Role;
 use Illuminate\Support\Facades\Log as LogFacade;
 
@@ -14,7 +14,7 @@ class RoleObserver
     public function created(Role $role): void
     {
         LogFacade::info('Role Created: ' . $role->name);
-        Log::create([
+        ActivityLog::create([
             'action' => 'created',
             'model' => get_class($role),
             'data_old' => null,
@@ -33,7 +33,7 @@ class RoleObserver
      */
     public function updated(Role $role): void
     {
-        Log::create([
+        ActivityLog::create([
             'action' => 'updated',
             'model' => get_class($role),
             'data_old' => json_encode($role->getOriginal()),
@@ -52,7 +52,7 @@ class RoleObserver
      */
     public function deleted(Role $role): void
     {
-        Log::create([
+        ActivityLog::create([
             'action' => 'deleted',
             'model' => get_class($role),
             'data_old' => json_encode($role),
@@ -71,7 +71,7 @@ class RoleObserver
      */
     public function restored(Role $role): void
     {
-        Log::create([
+        ActivityLog::create([
             'action' => 'restored',
             'model' => get_class($role),
             'data_old' => null,
@@ -90,7 +90,7 @@ class RoleObserver
      */
     public function forceDeleted(Role $role): void
     {
-        Log::create([
+        ActivityLog::create([
             'action' => 'force_deleted',
             'model' => get_class($role),
             'data_old' => json_encode($role),

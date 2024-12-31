@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Log;
+use App\Models\ActivityLog;
 use Illuminate\Http\Request;
 use App\Http\Resources\LogResource;
 
@@ -12,7 +12,7 @@ class LogController extends Controller
     {
         try {
             $authUser = auth()->user();
-            $query = Log::query();
+            $query = ActivityLog::query();
 
             if ($authUser->hasAnyPermission(['users.all', 'super.admin'])) {
                 // عرض جميع المستخدمين
@@ -72,7 +72,7 @@ class LogController extends Controller
 
     public function undo(Request $request, $logId)
     {
-        $log = Log::findOrFail($logId);
+        $log = ActivityLog::findOrFail($logId);
 
         // استعادة البيانات القديمة
         $modelClass = $log->model;
