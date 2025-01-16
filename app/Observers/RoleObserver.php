@@ -3,8 +3,8 @@
 namespace App\Observers;
 
 use App\Models\ActivityLog;
-use App\Models\Role;
-use Illuminate\Support\Facades\Log as LogFacade;
+// use App\Models\Role;
+use Spatie\Permission\Models\Role;
 
 class RoleObserver
 {
@@ -13,14 +13,15 @@ class RoleObserver
      */
     public function created(Role $role): void
     {
-        LogFacade::info('Role Created: ' . $role->name);
         ActivityLog::create([
-            'action' => 'created',
+            'action' => 'انشاء',
             'model' => get_class($role),
+            'row_id' => $role->id,
             'data_old' => null,
-            'data_new' => json_encode($role),
+            'data_new' => json_encode($role->getAttributes()),
             'user_id' => auth()->id(),
             'created_by' => auth()->id(),
+            'company_id' => auth()->user()->company_id,
             'ip_address' => request()->ip(),
             'user_agent' => request()->header('User-Agent'),
             'url' => request()->getRequestUri(),
@@ -34,12 +35,14 @@ class RoleObserver
     public function updated(Role $role): void
     {
         ActivityLog::create([
-            'action' => 'updated',
+            'action' => 'تعديل',
             'model' => get_class($role),
+            'row_id' => $role->id,
+            'company_id' => auth()->user()->company_id,
+            'created_by' => auth()->id(),
             'data_old' => json_encode($role->getOriginal()),
             'data_new' => json_encode($role),
             'user_id' => auth()->id(),
-            'created_by' => auth()->id(),
             'ip_address' => request()->ip(),
             'user_agent' => request()->header('User-Agent'),
             'url' => request()->getRequestUri(),
@@ -53,8 +56,10 @@ class RoleObserver
     public function deleted(Role $role): void
     {
         ActivityLog::create([
-            'action' => 'deleted',
+            'action' => 'حذف',
             'model' => get_class($role),
+            'row_id' => $role->id,
+            'company_id' => auth()->user()->company_id,
             'data_old' => json_encode($role),
             'data_new' => null,
             'user_id' => auth()->id(),
@@ -72,8 +77,10 @@ class RoleObserver
     public function restored(Role $role): void
     {
         ActivityLog::create([
-            'action' => 'restored',
+            'action' => 'استعادة',
             'model' => get_class($role),
+            'row_id' => $role->id,
+            'company_id' => auth()->user()->company_id,
             'data_old' => null,
             'data_new' => json_encode($role),
             'user_id' => auth()->id(),
@@ -91,8 +98,10 @@ class RoleObserver
     public function forceDeleted(Role $role): void
     {
         ActivityLog::create([
-            'action' => 'force_deleted',
+            'action' => 'حذف نهائي',
             'model' => get_class($role),
+            'row_id' => $role->id,
+            'company_id' => auth()->user()->company_id,
             'data_old' => json_encode($role),
             'data_new' => null,
             'user_id' => auth()->id(),

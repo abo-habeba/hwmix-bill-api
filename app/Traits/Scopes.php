@@ -4,6 +4,14 @@ namespace App\Traits;
 use Illuminate\Database\Eloquent\Builder;
 trait Scopes
 {
+
+    // التابعين لنفس الشركة
+    public function scopeCompany(Builder $query)
+    {
+        $user = auth()->user();
+        $query->where('company_id', $user->company_id);
+        return $query;
+    }
     //  جلب السجلات التي أنشأها المستخدم أو المستخدمين التابعين له
     public function scopeOwn(Builder $query)
     {
@@ -14,17 +22,13 @@ trait Scopes
             $query->whereIn('created_by', $subUsers->push($user->id));
         }
     }
-    // سكوب لجلب السجلات التي أنشأها المستخدمون الذين ينتمون لنفس الشركه
-    public function scopeCompanyOwn(Builder $query)
+    // جلب السجلات اللتي هنشاها المستخدم
+    public function scopeSelf(Builder $query)
     {
         $user = auth()->user();
 
-        if ($user && $user->company_id) {
-            $usersInSameCompany = \App\Models\User::where('company_id', $user->company_id)
-                ->pluck('id');
-
-            $query->whereIn('created_by', $usersInSameCompany);
+        if ($user) {
+            $query->where('created_by', $user->id);
         }
-        return $query;
     }
 }

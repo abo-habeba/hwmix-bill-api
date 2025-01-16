@@ -14,6 +14,7 @@ return new class extends Migration {
             $table->id();
             $table->string('action');
             $table->string('model');
+            $table->string('row_id');
             $table->text('data_old')->nullable();
             $table->text('data_new')->nullable();
             $table->text('description')->nullable();

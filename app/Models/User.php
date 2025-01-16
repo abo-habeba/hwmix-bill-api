@@ -3,23 +3,28 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Exception;
+// use App\Models\Role;
+use App\Traits\Scopes;
+use App\Traits\Filterable;
 use App\Traits\LogsActivity;
 use App\Traits\RolePermissions;
-use App\Traits\Scopes;
-use Exception;
-use App\Traits\Filterable;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Support\Facades\DB;
+use Spatie\Permission\Models\Role;
 use Spatie\Permission\Traits\HasRoles;
 use Illuminate\Notifications\Notifiable;
 use App\Traits\Translations\Translatable;
+use Spatie\Permission\Traits\HasPermissions;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable, Translatable, HasRoles, HasApiTokens, Filterable, Scopes, RolePermissions, LogsActivity;
+    use HasFactory, Notifiable, Translatable, HasRoles, HasApiTokens, Filterable, Scopes, RolePermissions, LogsActivity, HasPermissions;
 
     /**
      * The attributes that are mass assignable.
@@ -43,7 +48,7 @@ class User extends Authenticatable
         'status',
     ];
 
-    // علاقة Polymorphic مع جدول الترجمة
+
     public function trans()
     {
         return $this->morphMany(Translation::class, 'model');
@@ -71,42 +76,52 @@ class User extends Authenticatable
         ];
     }
 
+    // Define the many-to-many relationship
+    public function companies()
+    {
+        return $this->belongsToMany(Company::class, 'company_user', 'user_id', 'company_id');
+    }
+    public function cashBoxes(): BelongsToMany
+    {
+        return $this->belongsToMany(CashBox::class, 'user_company_cash')
+                    ->withPivot('company_id') // إذا كنت بحاجة إلى الوصول إلى company_id
+                    ->withTimestamps(); // إذا كنت بحاجة إلى الوصول إلى timestamps
+    }
+    public function createdRoles()
+    {
+        return $this->hasManyThrough(
+            Role::class,
+            RoleCompany::class,
+            'created_by', // المفتاح الخارجي في جدول RoleCompany يشير إلى المستخدم
+            'id',         // المفتاح الخارجي في جدول Role يشير إلى RoleCompany
+            'id',         // المفتاح الأساسي للمستخدم
+            'role_id'     // المفتاح في جدول RoleCompany يشير إلى جدول Role
+        );
+    }
     public function getRolesWithPermissions()
     {
-        // جلب الأدوار مع الصلاحيات
-        return $this->roles()->with('permissions')->get()->map(function ($role) {
+        return $this->roles->map(function ($role) {
             return [
                 'id' => $role->id,
                 'name' => $role->name,
-                'guard_name' => $role->guard_name,
-                'created_by' => $role->created_by,
-                'company_id' => $role->company_id,
-                'permissions' => $role->permissions->pluck('name'), // جلب أسماء الصلاحيات فقط
-                'created_at' => $role->created_at,
-                'updated_at' => $role->updated_at,
+                'permissions' => $role->permissions->map(function ($permission) {
+                    return [
+                        'id' => $permission->id,
+                        'name' => $permission->name,
+                    ];
+                }),
             ];
         });
     }
-
-
-    // دالة لإرجاع الصلاحيات
-    public function getPermissions()
-    {
-        return $this->permissions()->pluck('name');
-    }
-
     // المعاملات التي قام بها المستخدم
     public function transactions()
     {
         return $this->hasMany(Transaction::class, 'user_id');
     }
-
-    // المستخدمين الذين أنشأهم هذا المستخدم
-    public function createdUsers()
+    public function creator(): BelongsTo
     {
-        return $this->hasMany(User::class, 'created_by');
+        return $this->belongsTo(User::class, 'created_by');
     }
-
     // تحويل
     public function transferTo(User $targetUser, $amount)
     {

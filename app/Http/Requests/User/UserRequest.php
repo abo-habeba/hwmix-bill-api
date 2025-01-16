@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Requests;
+namespace App\Http\Requests\User;
 
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -22,7 +22,7 @@ class UserRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'phone' => 'nullable|string|max:15|unique:users,phone',
+            'phone' => 'required|string|max:15|unique:users,phone',
             'password' => 'required|string|min:8',
             'email' => "nullable|email|unique:users,email",
             'full_name' => 'nullable|string|max:255',
@@ -36,6 +36,8 @@ class UserRequest extends FormRequest
             'balance' => 'nullable|numeric',
             'status' => 'nullable|in:active,inactive',
             'company_id' => 'nullable|exists:companies,id',
+            'company_ids' => 'nullable|array',
+            'company_ids.*' => 'nullable|exists:companies,id',
             'created_by' => 'nullable|exists:users,id',
         ];
     }

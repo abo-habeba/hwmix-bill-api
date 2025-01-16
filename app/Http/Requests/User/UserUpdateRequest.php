@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Requests;
+namespace App\Http\Requests\User;
 
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -24,9 +24,9 @@ class UserUpdateRequest extends FormRequest
         // $userId = $this->route('user');
 
         return [
-            'email' => "nullable|email|unique:users,email,{$this->user->id}",
+            'email' => "nullable|email|unique:users,email" . optional($this->user)->id,
             'full_name' => 'nullable|string|max:255',
-            'username' => "nullable|string|max:255|unique:users,username,{$this->user->id}",
+            'username' => "nullable|string|max:255|unique:users,username" . optional($this->user)->id,
             'nickname' => 'nullable|string|max:255',
             'phone' => 'nullable|string|max:15',
             'position' => 'nullable|string|max:255',
@@ -37,6 +37,8 @@ class UserUpdateRequest extends FormRequest
             'balance' => 'nullable|numeric',
             'status' => 'nullable',
             'company_id' => 'nullable|exists:companies,id',
+            'company_ids' => 'nullable|array',
+            'company_ids.*' => 'nullable|exists:companies,id',
         ];
     }
 }

@@ -7,11 +7,12 @@ use App\Models\User;
 use PHPUnit\Exception;
 use App\Models\Transaction;
 use Illuminate\Http\Request;
-use App\Http\Requests\UserRequest;
+use App\Http\Requests\User\UserRequest;
 use Illuminate\Support\Facades\DB;
+use App\Models\Scopes\CompanyScope;
 use App\Http\Controllers\Controller;
-use App\Http\Resources\UserResource;
-use App\Http\Requests\UserUpdateRequest;
+use App\Http\Resources\User\UserResource;
+use App\Http\Requests\User\UserUpdateRequest;
 // use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 class UserController extends Controller
@@ -23,20 +24,26 @@ class UserController extends Controller
 
     public function index(Request $request)
     {
+
         try {
             $authUser = auth()->user();
+            $companyId = $authUser->company_id;
             $query = User::query();
 
-            if ($authUser->hasAnyPermission(['users.all', 'super.admin'])) {
-                // عرض جميع المستخدمين
-            } elseif ($authUser->hasPermissionTo('company.owner')) {
-                $query->companyOwn();
+            $query->whereHas('companies', function ($query) use ($companyId) {
+                $query->where('companies.id', $companyId);
+            });
+
+            if ($authUser->hasAnyPermission(['users.all', 'company.owner', 'super.admin'])) {
             } elseif ($authUser->hasPermissionTo('users.show.own')) {
                 $query->own();
             } elseif ($authUser->hasPermissionTo('users.show.self')) {
-                $query->where('created_by', $authUser->id);
+                $query->self();
             } else {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);
+                return response()->json([
+                    'error' => 'Unauthorized',
+                    'message' => 'You are not authorized to access this resource.'
+                ], 403);
             }
 
             $query->where('id', '<>', $authUser->id);
@@ -69,7 +76,7 @@ class UserController extends Controller
             $query->orderBy($sortField, $sortOrder);
 
             // جلب البيانات مع التصفية والصفحات
-            $users = $query->paginate($perPage);
+            $users = $query->with('companies')->paginate($perPage);
 
             return response()->json([
                 'data' => UserResource::collection($users->items()),
@@ -102,6 +109,7 @@ class UserController extends Controller
             $validatedData['created_by'] = $validatedData['created_by'] ?? $authUser->id;
 
             $user = User::create($validatedData);
+            $user->companies()->sync($validatedData['company_ids']);
             $user->logCreated(' بانشاء  المستخدم ' . $user->nickname);
             DB::commit();
             return new UserResource($user);
@@ -112,26 +120,26 @@ class UserController extends Controller
 
 
     }
-
     /**
      * Display the specified user.
      */
     public function show(User $user)
     {
-        $authUser = auth()->user(); // المستخدم الحالي
+        $authUser = auth()->user();
 
-        // التحقق من الصلاحيات
         if (
+            $authUser->hasPermissionTo('company.owner') ||
             $authUser->hasPermissionTo('users.show') ||
             $authUser->hasPermissionTo('super.admin') ||
             ($authUser->hasPermissionTo('users.show.own') && $authUser->id === $user->id) ||
             ($authUser->hasPermissionTo('company.owner') && $authUser->company_id === $user->company_id) ||
             $authUser->id === $user->id
         ) {
-            return new UserResource($user);
+
+            // return $user->load('companies');
+            return new UserResource($user->load('companies'));
         }
 
-        // إذا لم يمتلك الصلاحيات
         return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);
     }
 
@@ -149,8 +157,9 @@ class UserController extends Controller
 
         if (
             $authUser->hasAnyPermission(['super.admin', 'users.update']) ||
+            ($authUser->hasPermissionTo('company.owner') && $user->isCompany()) ||
             ($authUser->hasPermissionTo('users.update.own') && $user->isOwn()) ||
-            ($authUser->hasPermissionTo('company.owner') && $authUser->company_id === $user->company_id)
+            ($authUser->hasPermissionTo('users.update.self') && $user->isٍٍٍSelf())
         ) {
             try {
                 DB::beginTransaction();
@@ -158,6 +167,7 @@ class UserController extends Controller
                 if (!empty($validated['permissions'])) {
                     $user->syncPermissions($validated['permissions']);
                 }
+                $user->companies()->sync($validated['company_ids']);
                 $user->logUpdated(' المستخدم  ' . $user->nickname);
                 DB::commit();
                 return new UserResource($user);
@@ -176,7 +186,8 @@ class UserController extends Controller
     {
         $authUser = auth()->user();
 
-        $userIds = $request->input('user_ids');
+        $userIds = $request->input('item_ids');
+
         if (!$userIds || !is_array($userIds)) {
             return response()->json(['error' => 'Invalid user IDs provided'], 400);
         }
@@ -207,6 +218,24 @@ class UserController extends Controller
             DB::rollback();
             throw $e;
         }
+    }
+
+    public function changeCompany(Request $request, User $user)
+    {
+        // Validate the incoming request
+        $request->validate([
+            'company_id' => 'required|exists:companies,id', // Ensure the company exists
+        ]);
+
+        // Update the user's company_id
+        $user->update([
+            'company_id' => $request->company_id,
+        ]);
+
+        return response()->json([
+            'message' => 'Company updated successfully.',
+            'user' => $user,
+        ], 200);
     }
 
 }

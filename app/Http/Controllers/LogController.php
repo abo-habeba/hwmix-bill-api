@@ -5,40 +5,42 @@ namespace App\Http\Controllers;
 use App\Models\ActivityLog;
 use Illuminate\Http\Request;
 use App\Http\Resources\LogResource;
+use App\Models\Scopes\CompanyScope;
 
 class LogController extends Controller
 {
+    // Logs
+    // 'logs', // صفحة السجلات
+    // 'logs.all', // عرض جميع السجلات
+    // 'logs.all.own', // عرض السجلات التابعة له
+    // 'logs.all.self', // عرض السجلات الخاصة به
+    // 'logs.show', // عرض تفاصيل أي سجل
+    // 'logs.show.own', // عرض تفاصيل السجلات التابعة له
+    // 'logs.show.self', // عرض تفاصيل السجلات الخاصة به
+    // 'logs.create', // إنشاء سجل
+    // 'logs.update', // تعديل سجل
+    // 'logs.update.own', // تعديل السجلات التابعة له
+    // 'logs.update.self', // تعديل السجلات الخاصة به
+    // 'logs.delete', // حذف السجلات
+    // 'logs.delete.own', // حذف السجلات التابعة له
+    // 'logs.delete.self', // حذف السجلات الخاصة به
+
     public function index(Request $request)
     {
         try {
             $authUser = auth()->user();
             $query = ActivityLog::query();
 
-            if ($authUser->hasAnyPermission(['users.all', 'super.admin'])) {
-                // عرض جميع المستخدمين
-            } elseif ($authUser->hasPermissionTo('company.owner')) {
-                $query->companyOwn();
-            } elseif ($authUser->hasPermissionTo('users.show.own')) {
+
+            if ($authUser->hasAnyPermission(['logs.all', 'company.owner', 'super.admin'])) {
+                $query->company();
+            } elseif ($authUser->hasPermissionTo('logs.show.own')) {
                 $query->own();
-            } elseif ($authUser->hasPermissionTo('users.show.self')) {
-                $query->where('created_by', $authUser->id);
+            } elseif ($authUser->hasPermissionTo('logs.show.self')) {
+                $query->self();
             } else {
                 return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);
             }
-
-            // $query->where('id', '<>', $authUser->id);
-
-            // if (!empty($request->get('nickname'))) {
-            //     $query->where('nickname', 'like', '%' . $request->get('nickname') . '%');
-            // }
-
-            // if (!empty($request->get('email'))) {
-            //     $query->where('email', 'like', '%' . $request->get('email') . '%');
-            // }
-
-            // if (!empty($request->get('status'))) {
-            //     $query->where('status', $request->get('status'));
-            // }
 
             if (!empty($request->get('created_at_from'))) {
                 $query->where('created_at', '>=', $request->get('created_at_from') . ' 00:00:00');
@@ -68,16 +70,12 @@ class LogController extends Controller
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
-
-
     public function undo(Request $request, $logId)
     {
         $log = ActivityLog::findOrFail($logId);
-
         // استعادة البيانات القديمة
         $modelClass = $log->model;
         $model = new $modelClass();
-
         if ($log->action === 'deleted') {
             // إعادة إنشاء السجل المحذوف
             $model->create($log->data_old);

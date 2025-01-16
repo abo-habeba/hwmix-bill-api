@@ -11,8 +11,9 @@ return new class extends Migration {
     public function up(): void
     {
         Schema::table('roles', function (Blueprint $table) {
-            $table->unsignedBigInteger('created_by')->nullable()->after('id'); // أو بعد أي عمود آخر حسب ترتيبك
-            $table->foreign('created_by')->references('id')->on('users')->onDelete('set null'); // ربطه بجدول المستخدمين
+            $table->unsignedBigInteger('created_by')->nullable()->after('id');
+            $table->foreign('created_by')->references('id')->on('users')->onDelete('set null');
+            $table->string('company_id');
         });
     }
 

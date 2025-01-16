@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Exception;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
 class Transaction extends Model
 {
     protected $fillable = [
@@ -13,6 +15,11 @@ class Transaction extends Model
         'amount',
         'description',
     ];
+
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
 
     // العلاقة مع المستخدم الذي قام بالعملية
     public function user()
