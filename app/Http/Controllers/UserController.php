@@ -5,12 +5,14 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use PHPUnit\Exception;
+use App\Models\CashBox;
+use App\Models\CashBoxType;
 use App\Models\Transaction;
 use Illuminate\Http\Request;
-use App\Http\Requests\User\UserRequest;
 use Illuminate\Support\Facades\DB;
 use App\Models\Scopes\CompanyScope;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\User\UserRequest;
 use App\Http\Resources\User\UserResource;
 use App\Http\Requests\User\UserUpdateRequest;
 // use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -29,15 +31,14 @@ class UserController extends Controller
             $authUser = auth()->user();
             $companyId = $authUser->company_id;
             $query = User::query();
-
-            $query->whereHas('companies', function ($query) use ($companyId) {
-                $query->where('companies.id', $companyId);
-            });
-
-            if ($authUser->hasAnyPermission(['users.all', 'company.owner', 'super.admin'])) {
-            } elseif ($authUser->hasPermissionTo('users.show.own')) {
+            // $query->whereHas('companies', function ($query) use ($companyId) {
+            //     $query->where('companies.id', $companyId);
+            // });
+            if ($authUser->hasAnyPermission(['users_all', 'company_owner', 'super_admin'])) {
+                $query->company();
+            } elseif ($authUser->hasPermissionTo('users_show_own')) {
                 $query->own();
-            } elseif ($authUser->hasPermissionTo('users.show.self')) {
+            } elseif ($authUser->hasPermissionTo('users_show_self')) {
                 $query->self();
             } else {
                 return response()->json([
@@ -97,7 +98,7 @@ class UserController extends Controller
         // Check if the authenticated user has the required permissions
         $authUser = auth()->user();
 
-        if (!$authUser->hasAnyPermission(['super.admin', 'users.create', 'company.owner'])) {
+        if (!$authUser->hasAnyPermission(['super_admin', 'users_create', 'company_owner'])) {
             return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);
         }
 
@@ -109,6 +110,26 @@ class UserController extends Controller
             $validatedData['created_by'] = $validatedData['created_by'] ?? $authUser->id;
 
             $user = User::create($validatedData);
+            $cashBoxType = CashBoxType::where('description', 'النوع الافتراضي للسيستم')->first();
+
+            // throw new \Exception($cashBoxType->id);
+            if ($cashBoxType) {
+                // إنشاء خزنة للمستخدم
+                CashBox::create([
+                    'name' => 'نقدي',
+                    'balance' => 0,
+                    'cash_box_type_id' => $cashBoxType->id,
+                    'is_default' => true,
+                    'account_number' => $user->id,
+                    'user_id' => $user->id,
+                    'created_by' => $user->id,
+                    'company_id' => $user->company_id,
+                ]);
+
+            } else {
+                throw new \Exception("نوع الخزنة الافتراضي غير موجود.");
+            }
+
             $user->companies()->sync($validatedData['company_ids']);
             $user->logCreated(' بانشاء  المستخدم ' . $user->nickname);
             DB::commit();
@@ -128,11 +149,11 @@ class UserController extends Controller
         $authUser = auth()->user();
 
         if (
-            $authUser->hasPermissionTo('company.owner') ||
-            $authUser->hasPermissionTo('users.show') ||
-            $authUser->hasPermissionTo('super.admin') ||
-            ($authUser->hasPermissionTo('users.show.own') && $authUser->id === $user->id) ||
-            ($authUser->hasPermissionTo('company.owner') && $authUser->company_id === $user->company_id) ||
+            $authUser->hasPermissionTo('company_owner') ||
+            $authUser->hasPermissionTo('users_show') ||
+            $authUser->hasPermissionTo('super_admin') ||
+            ($authUser->hasPermissionTo('users_show_own') && $authUser->id === $user->id) ||
+            ($authUser->hasPermissionTo('company_owner') && $authUser->company_id === $user->company_id) ||
             $authUser->id === $user->id
         ) {
 
@@ -156,10 +177,10 @@ class UserController extends Controller
         }
 
         if (
-            $authUser->hasAnyPermission(['super.admin', 'users.update']) ||
-            ($authUser->hasPermissionTo('company.owner') && $user->isCompany()) ||
-            ($authUser->hasPermissionTo('users.update.own') && $user->isOwn()) ||
-            ($authUser->hasPermissionTo('users.update.self') && $user->isٍٍٍSelf())
+            $authUser->hasAnyPermission(['super_admin', 'users_update']) ||
+            ($authUser->hasPermissionTo('company_owner') && $user->isCompany()) ||
+            ($authUser->hasPermissionTo('users_update_own') && $user->isOwn()) ||
+            ($authUser->hasPermissionTo('users_update_self') && $user->isٍٍٍSelf())
         ) {
             try {
                 DB::beginTransaction();
@@ -195,10 +216,10 @@ class UserController extends Controller
 
         foreach ($usersToDelete as $user) {
             if (
-                $authUser->hasAnyPermission(['super.admin', 'users.delete']) ||
-                ($authUser->hasPermissionTo('users.delete.own') && $user->isOwn()) ||
-                ($authUser->hasPermissionTo('users.delete.self') && $user->id === $authUser->id) ||
-                ($authUser->hasPermissionTo('company.owner') && $authUser->company_id === $user->company_id)
+                $authUser->hasAnyPermission(['super_admin', 'users_delete']) ||
+                ($authUser->hasPermissionTo('users_delete_own') && $user->isOwn()) ||
+                ($authUser->hasPermissionTo('users_delete_self') && $user->id === $authUser->id) ||
+                ($authUser->hasPermissionTo('company_owner') && $authUser->company_id === $user->company_id)
             ) {
                 continue;
             }
@@ -220,22 +241,67 @@ class UserController extends Controller
         }
     }
 
+    public function usersSearch(Request $request)
+    {
+
+        try {
+            $authUser = auth()->user();
+            $companyId = $authUser->company_id;
+            $query = User::query();
+            $query->where('id', '<>', $authUser->id);
+            if (!empty($request->get('search'))) {
+                $search = $request->get('search');
+                if (strlen($search) < 4) {
+                    $query->where('id', $search);
+                } else {
+                    $query->where(function ($subQuery) use ($search) {
+                        $subQuery->where('id', $search)
+                            ->orWhere('phone', 'like', '%' . $search . '%');
+                    });
+                }
+            }
+
+            // تحديد عدد العناصر في الصفحة والفرز
+            $perPage = max(1, $request->get('per_page', 10));
+            $sortField = $request->get('sort_by', 'id');
+            $sortOrder = $request->get('sort_order', 'asc');
+
+            $query->orderBy($sortField, $sortOrder);
+
+            // جلب البيانات مع التصفية والصفحات
+            $users = $query->with('companies')->paginate($perPage);
+
+            return response()->json([
+                'data' => UserResource::collection($users->items()),
+                'total' => $users->total(),
+                'current_page' => $users->currentPage(),
+                'last_page' => $users->lastPage(),
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+    public function setDefaultCashBox(User $user, $cashBoxId)
+    {
+        $cashBox = $user->cashBoxes()->where('id', $cashBoxId)->firstOrFail();
+        $user->cashBoxes()->update(['is_default' => 0]);
+        $cashBox->update(['is_default' => 1]);
+        return response()->json(['message' => 'Default cash box updated successfully']);
+    }
+
     public function changeCompany(Request $request, User $user)
     {
-        // Validate the incoming request
         $request->validate([
             'company_id' => 'required|exists:companies,id', // Ensure the company exists
         ]);
-
-        // Update the user's company_id
         $user->update([
             'company_id' => $request->company_id,
         ]);
-
         return response()->json([
             'message' => 'Company updated successfully.',
             'user' => $user,
         ], 200);
     }
+
 
 }

@@ -81,11 +81,25 @@ class User extends Authenticatable
     {
         return $this->belongsToMany(Company::class, 'company_user', 'user_id', 'company_id');
     }
-    public function cashBoxes(): BelongsToMany
+    public function balanceBox($id = null)
     {
-        return $this->belongsToMany(CashBox::class, 'user_company_cash')
-                    ->withPivot('company_id') // إذا كنت بحاجة إلى الوصول إلى company_id
-                    ->withTimestamps(); // إذا كنت بحاجة إلى الوصول إلى timestamps
+        $cashBoxes = $this->cashBoxes;
+        $cashBox = $id
+            ? $cashBoxes->firstWhere('id', $id)
+            : $cashBoxes->firstWhere('is_default', true);
+        return $cashBox ? $cashBox->balance : 0;
+    }
+    public function cashBoxes()
+    {
+        return $this->hasMany(CashBox::class);
+    }
+    public function cashBoxeDefault()
+    {
+        return $this->hasOne(CashBox::class)->where('is_default', 1);
+    }
+    public function cashBoxesByCompany()
+    {
+        return $this->cashBoxes()->where('company_id', $this->company_id)->get();
     }
     public function createdRoles()
     {
@@ -122,69 +136,119 @@ class User extends Authenticatable
     {
         return $this->belongsTo(User::class, 'created_by');
     }
-    // تحويل
-    public function transferTo(User $targetUser, $amount)
+
+    public function deposit($amount, $cashBoxId = null)
     {
-        DB::transaction(function () use ($targetUser, $amount) {
-            if ($this->balance < $amount) {
-                throw new Exception('Insufficient balance.');
+        DB::beginTransaction();
+        try {
+            $cashBoxes = $this->cashBoxes;
+
+            $cashBox = $cashBoxId
+                ? $cashBoxes->firstWhere('id', $cashBoxId)
+                : $cashBoxes->firstWhere('is_default', true);
+
+            if (!$cashBox) {
+                throw new Exception('Cash box not found.');
             }
 
-            // خصم من الرصيد الحالي
-            $this->balance -= $amount;
-            $this->save();
+            $cashBox->increment('balance', $amount);
 
-            // إضافة إلى رصيد المستخدم المستهدف
-            $targetUser->balance += $amount;
-            $targetUser->save();
+            DB::commit();
+            return true;
+        } catch (Exception $e) {
+            DB::rollBack();
+            throw $e;
+        }
+    }
 
-            // تسجيل العملية
-            Transaction::create([
+    public function withdraw($amount, $cashBoxId = null)
+    {
+        DB::beginTransaction();
+        try {
+            $cashBoxes = $this->cashBoxes;
+
+            $cashBox = $cashBoxId
+                ? $cashBoxes->firstWhere('id', $cashBoxId)
+                : $cashBoxes->firstWhere('is_default', true);
+
+            if (!$cashBox) {
+                throw new Exception('Cash box not found.');
+            }
+
+            if ($cashBox->balance < $amount) {
+                throw new Exception('Insufficient funds in the cash box.');
+            }
+
+            $cashBox->decrement('balance', $amount);
+
+            DB::commit();
+            return true;
+        } catch (Exception $e) {
+            DB::rollBack();
+            throw $e;
+        }
+    }
+
+
+    // تحويل مبلغ بين المستخدمين
+    public function transfer($cashBoxId, $targetUserId, $amount, $description = null)
+    {
+        if (!$this->hasAnyPermission(['super_admin', 'transfer', 'company_owner'])) {
+            throw new Exception('Unauthorized: You do not have permission to transfer.');
+        }
+
+        DB::beginTransaction();
+
+        try {
+            $cashBox = CashBox::where('id', $cashBoxId)
+                ->where('user_id', $this->id)
+                ->where('company_id', $this->company_id)
+                ->firstOrFail();
+
+            if ($cashBox->balance < $amount) {
+                throw new Exception('Insufficient funds in the cash box.');
+            }
+
+            $targetUser = User::findOrFail($targetUserId);
+            $targetCashBox = CashBox::where('user_id', $targetUser->id)
+                ->where('cash_type', $cashBox->cash_type)
+                ->where('company_id', $this->company_id)
+                ->first();
+
+            if (!$targetCashBox) {
+                throw new Exception('Target user does not have a matching cash box.');
+            }
+
+            $cashBox->decrement('balance', $amount);
+            $targetCashBox->increment('balance', $amount);
+
+            $transaction = Transaction::create([
                 'user_id' => $this->id,
-                'target_user_id' => $targetUser->id,
+                'target_user_id' => $targetUserId,
                 'type' => 'transfer',
                 'amount' => $amount,
-                'description' => "Transfer to user ID {$targetUser->id}",
+                'description' => $description,
+                'company_id' => $cashBox->company_id,
+                'created_by' => $this->id,
             ]);
-        });
-    }
 
-
-    // إيداع الرصيد
-    public function deposit($amount)
-    {
-        DB::transaction(function () use ($amount) {
-            $this->balance += $amount;
-            $this->save();
-
-            // تسجيل العملية
             Transaction::create([
-                'user_id' => $this->id,
+                'user_id' => $targetUserId,
+                'original_transaction_id' => $transaction->id,
                 'type' => 'deposit',
                 'amount' => $amount,
-                'description' => 'Deposit to account',
+                'description' => 'Received from transfer',
+                'company_id' => $targetCashBox->company_id,
+                'created_by' => $this->id,
             ]);
-        });
+
+            DB::commit();
+            return true;
+        } catch (Exception $e) {
+            DB::rollBack();
+            throw $e;
+        }
     }
 
-    public function withdraw($amount)
-    {
-        DB::transaction(function () use ($amount) {
-            if ($this->balance < $amount) {
-                throw new Exception('Insufficient balance.');
-            }
-
-            $this->balance -= $amount;
-            $this->save();
-
-            // تسجيل العملية
-            Transaction::create([
-                'user_id' => $this->id,
-                'type' => 'withdraw',
-                'amount' => $amount,
-                'description' => 'Withdraw from account',
-            ]);
-        });
-    }
 
 }

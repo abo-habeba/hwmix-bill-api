@@ -10,11 +10,10 @@ return new class extends Migration {
      */
     public function up(): void
     {
-        Schema::create('user_company_cash', function (Blueprint $table) {
+        Schema::create('cash_box_types', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
-            $table->foreignId('company_id')->constrained('companies')->onDelete('cascade');
-            $table->foreignId('cash_box_id')->constrained('cash_boxes')->onDelete('cascade');
+            $table->string('name')->unique();
+            $table->text('description')->nullable();
             $table->timestamps();
         });
     }
@@ -24,6 +23,6 @@ return new class extends Migration {
      */
     public function down(): void
     {
-        Schema::dropIfExists('user_company_cash');
+        Schema::dropIfExists('cash_box_types_');
     }
 };

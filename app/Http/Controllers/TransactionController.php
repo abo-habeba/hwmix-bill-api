@@ -11,9 +11,6 @@ use App\Http\Controllers\Controller;
 
 class TransactionController extends Controller
 {
-
-    // داخل كنترولر المعاملات
-
     // تحويل الرصيد
     public function transfer(Request $request)
     {
@@ -38,6 +35,29 @@ class TransactionController extends Controller
         }
     }
 
+    // ارجاع جميع عمليات المستخدم
+    public function userTransactions(Request $request)
+    {
+        $user = auth()->user();
+
+        // تحديد عدد العناصر في الصفحة والفرز
+        $perPage = max(1, $request->get('per_page', 10));
+        $sortField = $request->get('sort_by', 'id');
+        $sortOrder = $request->get('sort_order', 'asc');
+
+        // استعلام البيانات مباشرة دون استخدام get()
+        $transactions = Transaction::where('user_id', $user->id)
+            ->orWhere('target_user_id', $user->id)
+            ->orderBy($sortField, $sortOrder)
+            ->paginate($perPage); // ← تطبيق التصفية مباشرة على الاستعلام
+
+        return response()->json([
+            'data' => $transactions->items(),
+            'total' => $transactions->total(),
+            'current_page' => $transactions->currentPage(),
+            'last_page' => $transactions->lastPage(),
+        ]);
+    }
 
     // الإيداع
     public function deposit(Request $request)
@@ -49,8 +69,8 @@ class TransactionController extends Controller
 
         if (
             $authUser->hasPermissionTo('deposit') ||
-            $authUser->hasPermissionTo('super.admin') ||
-            ($authUser->hasPermissionTo('company.owner'))
+            $authUser->hasPermissionTo('super_admin') ||
+            ($authUser->hasPermissionTo('company_owner'))
         ) {
             $user = auth()->user();
             $user->deposit($validated['amount']);
@@ -58,7 +78,6 @@ class TransactionController extends Controller
 
         return response()->json(['message' => 'Deposit successful'], 200);
     }
-
 
     // السحب
     public function withdraw(Request $request)
@@ -71,8 +90,8 @@ class TransactionController extends Controller
         try {
             if (
                 $user->hasPermissionTo('withdraw') ||
-                $user->hasPermissionTo('super.admin') ||
-                ($user->hasPermissionTo('company.owner'))
+                $user->hasPermissionTo('super_admin') ||
+                ($user->hasPermissionTo('company_owner'))
             ) {
                 $user->withdraw($validated['amount']);
                 return response()->json(['message' => 'Withdraw successful'], 200);
@@ -88,25 +107,22 @@ class TransactionController extends Controller
     {
         $authUser = auth()->user();
 
-        // بناء الاستعلام الأساسي
         $query = Transaction::with(['user', 'targetUser']);
 
         // تطبيق شروط الصلاحيات
-        if ($authUser->hasPermission('super.admin') || $authUser->hasPermission('transactions.all')) {
+        if ($authUser->hasPermission('super_admin') || $authUser->hasPermission('transactions_all')) {
             // استرجاع جميع المعاملات
-        } elseif ($authUser->hasPermission('company.owner')) {
+        } elseif ($authUser->hasPermission('company_owner')) {
             $query->whereHas('user', function ($userQuery) use ($authUser) {
                 $userQuery->where('company_id', $authUser->company_id);
             });
-        } elseif ($authUser->hasPermission('transactions.all.own')) {
+        } elseif ($authUser->hasPermission('transactions_all_own')) {
             $query->whereHas('user', function ($userQuery) use ($authUser) {
                 $userQuery->where('created_by', $authUser->id);
             });
         } else {
             $query->where('user_id', $authUser->id);
         }
-
-        // تصفية النتائج بفترة زمنية
         if ($request->has('created_at_from')) {
             $createdAtFrom = $request->get('created_at_from');
             if ($createdAtFrom) {
@@ -150,14 +166,14 @@ class TransactionController extends Controller
             $transaction = Transaction::findOrFail($transactionId);
 
             // التحقق من الصلاحيات بناءً على الأذونات
-            if ($authUser->hasPermission('super.admin') || $authUser->hasPermission('transactions.all')) {
+            if ($authUser->hasPermission('super_admin') || $authUser->hasPermission('transactions_all')) {
                 // يمكنه عكس أي معاملة
-            } elseif ($authUser->hasPermission('company.owner')) {
+            } elseif ($authUser->hasPermission('company_owner')) {
                 // يستطيع عكس المعاملات التي صاحبها belong إلى نفس الشركة
                 if ($transaction->user->company_id !== $authUser->company_id) {
                     throw new Exception("ليس لديك صلاحية لعكس هذه المعاملة.");
                 }
-            } elseif ($authUser->hasPermission('transactions.all.own')) {
+            } elseif ($authUser->hasPermission('transactions_all_own')) {
                 // يستطيع عكس المعاملات التي أنشأها
                 if ($transaction->user->created_by !== $authUser->id) {
                     throw new Exception("ليس لديك صلاحية لعكس هذه المعاملة.");

@@ -15,8 +15,10 @@ return new class extends Migration {
             $table->unsignedBigInteger('user_id');
             $table->unsignedBigInteger('target_user_id')->nullable();
             $table->string('original_transaction_id')->nullable();
-            $table->enum('type', ['deposit', 'withdraw', 'transfer']);
+            $table->string('type');
             $table->decimal('amount', 15, 2);
+            $table->decimal('balance_before', 10, 2)->default(0);
+            $table->decimal('balance_after', 10, 2)->default(0);
             $table->text('description')->nullable();
             $table->timestamps();
 

@@ -18,57 +18,47 @@ class RoleController extends Controller
     {
         $this->agent = new Agent();
     }
-    //   { value: 'roles.all', name: ' جميع الأدوار' },
-    //   { value: 'roles.all.own', name: 'الأدوار التابعة له' },
-    //   { value: 'roles.all.self', name: 'عرض الأدوار الخاصة به ' },
+    //   { value: 'roles_all', name: ' جميع الأدوار' },
+    //   { value: 'roles_all_own', name: 'الأدوار التابعة له' },
+    //   { value: 'roles_all_self', name: 'عرض الأدوار الخاصة به ' },
 
-    //   { value: 'roles.show', name: 'عرض تفاصيل أي دور' },
-    //   { value: 'roles.show.own', name: ' تفاصيل الأدوار التابعة له' },
-    //   { value: 'roles.show.self', name: ' تفاصيل الأدوار الخاصه به ' },
+    //   { value: 'roles_show', name: 'عرض تفاصيل أي دور' },
+    //   { value: 'roles_show_own', name: ' تفاصيل الأدوار التابعة له' },
+    //   { value: 'roles_show_self', name: ' تفاصيل الأدوار الخاصه به ' },
 
-    //   { value: 'roles.create', name: 'إنشاء دور' },
+    //   { value: 'roles_create', name: 'إنشاء دور' },
 
-    //   { value: 'roles.update', name: 'تعديل أي دور' },
-    //   { value: 'roles.update.own', name: 'تعديل الأدوار التابعة له' },
-    //   { value: 'roles.update.self', name: 'تعديل الأدوار الخاصه به' },
+    //   { value: 'roles_update', name: 'تعديل أي دور' },
+    //   { value: 'roles_update_own', name: 'تعديل الأدوار التابعة له' },
+    //   { value: 'roles_update_self', name: 'تعديل الأدوار الخاصه به' },
 
-    //   { value: 'roles.delete', name: 'حذف أي دور' },
-    //   { value: 'roles.delete.own', name: 'حذف الأدوار التابعة له' },
-    //   { value: 'roles.delete.self', name: 'حذف الأدوار الخاصه به' },
+    //   { value: 'roles_delete', name: 'حذف أي دور' },
+    //   { value: 'roles_delete_own', name: 'حذف الأدوار التابعة له' },
+    //   { value: 'roles_delete_self', name: 'حذف الأدوار الخاصه به' },
 
     public function index()
     {
         $authUser = auth()->user();
         // $rolesQuery = Role::query();
         $rolesQuery = RoleCompany::query();
-        if ($authUser->hasAnyPermission(['roles.all', 'company.owner', 'super.admin'])) {
+        if ($authUser->hasAnyPermission(['roles_all', 'company_owner', 'super_admin'])) {
             $rolesQuery->company();
-        } elseif ($authUser->hasPermissionTo('roles.all.own')) {
+        } elseif ($authUser->hasPermissionTo('roles_all_own')) {
             $rolesQuery->own()->company();
-        } elseif ($authUser->hasPermissionTo('roles.all.self')) {
+        } elseif ($authUser->hasPermissionTo('roles_all_self')) {
             $rolesQuery->self()->company();
         } else {
             return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);
         }
 
         $roles = $rolesQuery->with(['role.permissions', 'company', 'createdBy'])->get();
-
-        // $roles = Role::with('permissions')->get();
-
-        // $roles = $rolesQuery->with(['company', 'createdBy'])->get();
-        // $roles->load('role.permissions');
-
-        // $roles = $rolesQuery->with(['role.permissions', 'company', 'createdBy'])->get()->load('role.permissions');
-
-
-        // return $roles;
         return RolesResource::collection($roles);
     }
     public function store(Request $request)
     {
 
         $authUser = auth()->user();
-        if ($authUser->hasAnyPermission(['super.admin', 'roles.create', 'company.owner'])) {
+        if ($authUser->hasAnyPermission(['super_admin', 'roles_create', 'company_owner'])) {
             $validated = $request->validate([
                 'name' => 'required',
                 'guard_name' => 'nullable',
@@ -112,15 +102,15 @@ class RoleController extends Controller
     {
         $authUser = auth()->user();
 
-        if ($authUser->hasPermissionTo('company.owner')) {
+        if ($authUser->hasPermissionTo('company_owner')) {
             if ($role->isCompany()) {
                 return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to view this role.'], 403);
             }
-        } elseif ($authUser->hasPermissionTo('roles.show.own')) {
+        } elseif ($authUser->hasPermissionTo('roles_show_own')) {
             if ($role->isOwn()) {
                 return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to view this role.'], 403);
             }
-        } elseif ($authUser->hasPermissionTo('roles.show.self')) {
+        } elseif ($authUser->hasPermissionTo('roles_show_self')) {
             if ($role->isٍٍٍSelf()) {
                 return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to view this role.'], 403);
             }
@@ -145,10 +135,10 @@ class RoleController extends Controller
         $validated['guard_name'] = $validated['guard_name'] ?? 'web';
         $validated['created_by'] = $validated['created_by'] ?? $authUser->id;
         if (
-            $authUser->hasAnyPermission(['super.admin', 'roles.update']) ||
-            ($authUser->hasPermissionTo('company.owner') && $role->isCompany()) ||
-            ($authUser->hasPermissionTo('roles.update.own') && $role->isOwn()) ||
-            ($authUser->hasPermissionTo('roles.update.self') && $role->isٍٍٍSelf())
+            $authUser->hasAnyPermission(['super_admin', 'roles_update']) ||
+            ($authUser->hasPermissionTo('company_owner') && $role->isCompany()) ||
+            ($authUser->hasPermissionTo('roles_update_own') && $role->isOwn()) ||
+            ($authUser->hasPermissionTo('roles_update_self') && $role->isٍٍٍSelf())
         ) {
             try {
                 DB::beginTransaction();
@@ -171,10 +161,10 @@ class RoleController extends Controller
 
         // تحقق من الأذونات بناءً على المعايير المحددة
         if (
-            $authUser->hasAnyPermission(['super.admin', 'roles.delete']) ||
-            $authUser->hasPermissionTo('company.owner') ||
-            $authUser->hasPermissionTo('roles.delete.own') ||
-            $authUser->hasPermissionTo('roles.delete.self')
+            $authUser->hasAnyPermission(['super_admin', 'roles_delete']) ||
+            $authUser->hasPermissionTo('company_owner') ||
+            $authUser->hasPermissionTo('roles_delete_own') ||
+            $authUser->hasPermissionTo('roles_delete_self')
         ) {
             try {
                 DB::beginTransaction();
@@ -197,7 +187,7 @@ class RoleController extends Controller
             $validated = $request->validate([
                 'user_id' => 'required|exists:users,id',
                 'roles' => 'nullable|array',
-                'roles.*' => 'nullable|exists:roles,name',
+                'roles_*' => 'nullable|exists:roles,name',
             ]);
             $user = \App\Models\User::findOrFail($validated['user_id']);
             $user->syncRoles($validated['roles']);

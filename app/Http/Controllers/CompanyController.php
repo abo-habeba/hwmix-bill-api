@@ -21,14 +21,14 @@ class CompanyController extends Controller
         try {
             $authUser = auth()->user();
             $query = Company::query();
-            // 'companys.all', // جميع الشركات
-            // 'companys.all.own', // الشركات التابعين له
-            // 'companys.all.self', // عرض الشركات الخاص به
-            if ($authUser->hasAnyPermission(['companys.all', 'company.owner', 'super.admin'])) {
+            // 'companys_all', // جميع الشركات
+            // 'companys_all_own', // الشركات التابعين له
+            // 'companys_all_self', // عرض الشركات الخاص به
+            if ($authUser->hasAnyPermission(['companys_all', 'company_owner', 'super_admin'])) {
 
-            } elseif ($authUser->hasPermissionTo('companys.show.own')) {
+            } elseif ($authUser->hasPermissionTo('companys_show_own')) {
                 $query->own();
-            } elseif ($authUser->hasPermissionTo('companys.show.self')) {
+            } elseif ($authUser->hasPermissionTo('companys_show_self')) {
                 $query->self();
             } else {
                 return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);
@@ -72,13 +72,13 @@ class CompanyController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    // { value: 'companys.create', name: 'إنشاء شركة' },
+    // { value: 'companys_create', name: 'إنشاء شركة' },
 
     public function store(CompanyRequest $request)
     {
         $authUser = auth()->user();
-        // 'companys.create', // إنشاء شركة
-        if (!$authUser->hasAnyPermission(['super.admin', 'companys.create', 'company.owner'])) {
+        // 'companys_create', // إنشاء شركة
+        if (!$authUser->hasAnyPermission(['super_admin', 'companys_create', 'company_owner'])) {
             return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);
         }
         $validatedData = $request->validated();
@@ -115,17 +115,17 @@ class CompanyController extends Controller
     {
         $authUser = auth()->user();
 
-        if ($authUser->hasPermissionTo('company.owner')) {
+        if ($authUser->hasPermissionTo('company_owner')) {
             $company = Company::withoutGlobalScope(CompanyScope::class)->findOrFail($company->id);
         }
-        // 'companys.show', // عرض تفاصيل أي شركة
-        // 'companys.show.own', // عرض تفاصيل الشركات التابعين له
-        // 'companys.show.self', // عرض تفاصيل الشركة الخاصه به
+        // 'companys_show', // عرض تفاصيل أي شركة
+        // 'companys_show_own', // عرض تفاصيل الشركات التابعين له
+        // 'companys_show_self', // عرض تفاصيل الشركة الخاصه به
         if (
-            $authUser->hasPermissionTo('companys.show') ||
-            $authUser->hasPermissionTo('super.admin') ||
-            ($authUser->hasPermissionTo('companys.show.own') && $authUser->id === $company->id) ||
-            ($authUser->hasPermissionTo('company.owner') && $authUser->company_id === $company->company_id) ||
+            $authUser->hasPermissionTo('companys_show') ||
+            $authUser->hasPermissionTo('super_admin') ||
+            ($authUser->hasPermissionTo('companys_show_own') && $authUser->id === $company->id) ||
+            ($authUser->hasPermissionTo('company_owner') && $authUser->company_id === $company->company_id) ||
             $authUser->id === $company->id
         ) {
             return new CompanyResource($company);
@@ -147,13 +147,13 @@ class CompanyController extends Controller
             unset($validated['status'], $validated['balance']);
         }
 
-        // 'companys.update', // تعديل أي شركة
-        // 'companys.update.own', // تعديل الشركات التابعين له
-        // 'companys.update.self', // تعديل الشركه الخاصه به
+        // 'companys_update', // تعديل أي شركة
+        // 'companys_update_own', // تعديل الشركات التابعين له
+        // 'companys_update_self', // تعديل الشركه الخاصه به
         if (
-            $authUser->hasAnyPermission(['super.admin', 'companys.update']) ||
-            ($authUser->hasPermissionTo('companys.update.own') && $company->isOwn()) ||
-            ($authUser->hasPermissionTo('companys.update.self') && $company->isSelf())
+            $authUser->hasAnyPermission(['super_admin', 'companys_update']) ||
+            ($authUser->hasPermissionTo('companys_update_own') && $company->isOwn()) ||
+            ($authUser->hasPermissionTo('companys_update_self') && $company->isSelf())
         ) {
             try {
                 DB::beginTransaction();
@@ -187,9 +187,9 @@ class CompanyController extends Controller
 
     public function destroy(Request $request)
     {
-        // 'companys.delete', // حذف أي شركة
-        // 'companys.delete.own', // حذف الشركات التابعين له
-        // 'companys.delete.self', // حذف الشركه الخاصه به
+        // 'companys_delete', // حذف أي شركة
+        // 'companys_delete_own', // حذف الشركات التابعين له
+        // 'companys_delete_self', // حذف الشركه الخاصه به
 
         $authUser = auth()->user();
 
@@ -202,10 +202,10 @@ class CompanyController extends Controller
 
         foreach ($companysToDelete as $company) {
             if (
-                $authUser->hasAnyPermission(['super.admin', 'companys.delete']) ||
-                ($authUser->hasPermissionTo('companys.delete.own') && $company->isOwn()) ||
-                ($authUser->hasPermissionTo('companys.delete.self') && $company->created_by == $authUser->id) ||
-                ($authUser->hasPermissionTo('company.owner') && $authUser->company_id === $company->company_id)
+                $authUser->hasAnyPermission(['super_admin', 'companys_delete']) ||
+                ($authUser->hasPermissionTo('companys_delete_own') && $company->isOwn()) ||
+                ($authUser->hasPermissionTo('companys_delete_self') && $company->created_by == $authUser->id) ||
+                ($authUser->hasPermissionTo('company_owner') && $authUser->company_id === $company->company_id)
             ) {
                 continue;
             }

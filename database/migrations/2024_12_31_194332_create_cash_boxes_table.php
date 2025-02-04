@@ -12,15 +12,18 @@ return new class extends Migration {
     {
         Schema::create('cash_boxes', function (Blueprint $table) {
             $table->id();
-            $table->string('name');
+            $table->string('name');  // اسم الخزنة
             $table->decimal('balance', 10, 2)->default(0);
-            $table->string('cash_type');
+            $table->foreignId('cash_box_type_id')->constrained('cash_box_types')->onDelete('cascade');
+            $table->boolean('is_default');
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
             $table->foreignId('created_by')->constrained('users')->onDelete('cascade');
             $table->foreignId('company_id')->constrained('companies')->onDelete('cascade');
-            $table->unique(['company_id', 'cash_type'], 'unique_cash_type_per_company');
+            $table->string('description')->nullable();
+            $table->string('account_number')->nullable();
             $table->timestamps();
         });
+
     }
 
     /**

@@ -13,6 +13,8 @@ class Transaction extends Model
         'target_user_id',
         'type',
         'amount',
+        'balance_before',
+        'balance_after',
         'description',
     ];
 

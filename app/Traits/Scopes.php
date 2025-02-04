@@ -12,7 +12,6 @@ trait Scopes
         $query->where('company_id', $user->company_id);
         return $query;
     }
-    //  جلب السجلات التي أنشأها المستخدم أو المستخدمين التابعين له
     public function scopeOwn(Builder $query)
     {
         $user = auth()->user();
@@ -22,7 +21,6 @@ trait Scopes
             $query->whereIn('created_by', $subUsers->push($user->id));
         }
     }
-    // جلب السجلات اللتي هنشاها المستخدم
     public function scopeSelf(Builder $query)
     {
         $user = auth()->user();
@@ -31,4 +29,36 @@ trait Scopes
             $query->where('created_by', $user->id);
         }
     }
+
+    /**
+     * Scope a query to only include records created by the current user or their sub-users.
+     *
+     * @param \Illuminate\Database\Eloquent\Builder $query
+     * @return void
+     */
+    public function scopeCreatedBySubUsers(Builder $query)
+    {
+        $user = auth()->user();
+
+        if ($user) {
+            $subUsers = \App\Models\User::where('created_by', $user->id)->pluck('id');
+            $query->whereIn('created_by', $subUsers->push($user->id));
+        }
+    }
+
+    /**
+     * Scope a query to only include records created by the current user.
+     *
+     * @param \Illuminate\Database\Eloquent\Builder $query
+     * @return void
+     */
+    public function scopeCreatedByUser(Builder $query)
+    {
+        $user = auth()->user();
+
+        if ($user) {
+            $query->where('created_by', $user->id);
+        }
+    }
+
 }

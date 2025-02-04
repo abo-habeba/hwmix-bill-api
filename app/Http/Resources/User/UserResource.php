@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\User;
 
+use App\Http\Resources\CashBox\CashBoxResource;
 use Illuminate\Http\Request;
 use App\Http\Resources\Company\CompanyResource;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -34,10 +35,10 @@ class UserResource extends JsonResource
             'email_verified_at' => $this->email_verified_at,
             'companies' => CompanyResource::collection($this->companies),
             'roles' => $this->getRolesWithPermissions(),
-            // 'permissions' => $this->getPermissions(),
-            'permissions' => $this->getAllPermissions()->pluck('name'),
-            'balance' => $this->balance,
+            'balance' => $this->balanceBox() ?? 0,
+            'cashBoxes' => CashBoxResource::collection($this->cashBoxesByCompany()),
             'status' => $this->status,
+            'permissions' => $this->getAllPermissions()->pluck('name'),
             'created_at' => isset($this->created_at) ? $this->created_at->format('Y-m-d') : null,
             'updated_at' => isset($this->updated_at) ? $this->updated_at->format('Y-m-d') : null,
             'company_id' => $this->company_id,

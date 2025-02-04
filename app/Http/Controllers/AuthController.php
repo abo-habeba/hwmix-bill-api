@@ -3,10 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Models\CashBox;
+use App\Models\CashBoxType;
 use Illuminate\Http\Request;
-use App\Http\Resources\User\UserResource;
+use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use App\Http\Resources\User\UserResource;
 
 class AuthController extends Controller
 {
@@ -29,7 +32,18 @@ class AuthController extends Controller
         ]);
 
         $token = $user->createToken('auth_token')->plainTextToken;
-
+        $cashBoxType = CashBoxType::where('description', 'النوع الافتراضي للسيستم')->first();
+        // إنشاء خزنة للمستخدم
+        CashBox::create([
+            'name' => 'نقدي',
+            'balance' => 0,
+            'cash_box_type_id' => $cashBoxType->id,
+            'is_default' => true,
+            'account_number' => $user->id,
+            'user_id' => $user->id,
+            'created_by' => $user->id,
+            'company_id' => $user->company_id,
+        ]);
         return response()->json([
             'message' => 'User registered successfully.',
             'user' => $user,
@@ -41,14 +55,13 @@ class AuthController extends Controller
     public function login(Request $request)
     {
         $validated = $request->validate([
-            'phone' => 'required',
+            'login' => 'required',
             'password' => 'required',
         ]);
-
-        if (!Auth::attempt($validated)) {
+        $loginField = filter_var($validated['login'], FILTER_VALIDATE_EMAIL) ? 'email' : 'phone';
+        if (!Auth::attempt([$loginField => $validated['login'], 'password' => $validated['password']])) {
             return response()->json(['message' => 'Invalid credentials'], 401);
         }
-
         $user = Auth::user();
         $token = $user->createToken('auth_token')->plainTextToken;
 

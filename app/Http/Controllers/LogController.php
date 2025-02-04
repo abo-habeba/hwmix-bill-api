@@ -11,19 +11,19 @@ class LogController extends Controller
 {
     // Logs
     // 'logs', // صفحة السجلات
-    // 'logs.all', // عرض جميع السجلات
-    // 'logs.all.own', // عرض السجلات التابعة له
-    // 'logs.all.self', // عرض السجلات الخاصة به
-    // 'logs.show', // عرض تفاصيل أي سجل
-    // 'logs.show.own', // عرض تفاصيل السجلات التابعة له
-    // 'logs.show.self', // عرض تفاصيل السجلات الخاصة به
-    // 'logs.create', // إنشاء سجل
-    // 'logs.update', // تعديل سجل
-    // 'logs.update.own', // تعديل السجلات التابعة له
-    // 'logs.update.self', // تعديل السجلات الخاصة به
-    // 'logs.delete', // حذف السجلات
-    // 'logs.delete.own', // حذف السجلات التابعة له
-    // 'logs.delete.self', // حذف السجلات الخاصة به
+    // 'logs_all', // عرض جميع السجلات
+    // 'logs_all_own', // عرض السجلات التابعة له
+    // 'logs_all_self', // عرض السجلات الخاصة به
+    // 'logs_show', // عرض تفاصيل أي سجل
+    // 'logs_show_own', // عرض تفاصيل السجلات التابعة له
+    // 'logs_show_self', // عرض تفاصيل السجلات الخاصة به
+    // 'logs_create', // إنشاء سجل
+    // 'logs_update', // تعديل سجل
+    // 'logs_update_own', // تعديل السجلات التابعة له
+    // 'logs_update_self', // تعديل السجلات الخاصة به
+    // 'logs_delete', // حذف السجلات
+    // 'logs_delete_own', // حذف السجلات التابعة له
+    // 'logs_delete_self', // حذف السجلات الخاصة به
 
     public function index(Request $request)
     {
@@ -32,11 +32,11 @@ class LogController extends Controller
             $query = ActivityLog::query();
 
 
-            if ($authUser->hasAnyPermission(['logs.all', 'company.owner', 'super.admin'])) {
+            if ($authUser->hasAnyPermission(['logs_all', 'company_owner', 'super_admin'])) {
                 $query->company();
-            } elseif ($authUser->hasPermissionTo('logs.show.own')) {
+            } elseif ($authUser->hasPermissionTo('logs_show_own')) {
                 $query->own();
-            } elseif ($authUser->hasPermissionTo('logs.show.self')) {
+            } elseif ($authUser->hasPermissionTo('logs_show_self')) {
                 $query->self();
             } else {
                 return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);
