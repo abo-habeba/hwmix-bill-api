@@ -6,10 +6,18 @@ use App\Http\Controllers\LogController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\BrandController;
+use App\Http\Controllers\StockController;
 use App\Http\Controllers\CashBoxController;
 use App\Http\Controllers\CompanyController;
+use App\Http\Controllers\ProductController;
+use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\AttributeController;
+use App\Http\Controllers\WarehouseController;
 use App\Http\Controllers\CashBoxTypeController;
 use App\Http\Controllers\TransactionController;
+use App\Http\Controllers\AttributeValueController;
+use App\Http\Controllers\ProductVariantController;
 
 Route::post('register', [AuthController::class, 'register']);
 Route::post('login', [AuthController::class, 'login']);
@@ -84,4 +92,80 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::get('logs', 'index');
             Route::post('logs/{log}/undo', 'undo');
         });
+
+    // Product Controller
+    Route::controller(ProductController::class)
+        ->group(function () {
+            Route::get('products', 'index');
+            Route::post('product', 'store');
+            Route::get('product/{product}', 'show');
+            Route::put('product/{product}', 'update');
+            Route::post('product/delete', 'destroy');
+        });
+    // Attribute Controller
+    Route::controller(AttributeController::class)
+        ->group(function () {
+            Route::get('attributes', 'index');
+            Route::post('attribute', 'store');
+            Route::get('attribute/{attribute}', 'show');
+            Route::put('attribute/{attribute}', 'update');
+            Route::delete('attribute/{attribute}', 'destroy');
+            Route::post('attribute/deletes', 'deleteMultiple');
+        });
+    // Attribute Value Controller
+    Route::controller(AttributeValueController::class)
+        ->group(function () {
+            Route::get('attribute-values', 'index');
+            Route::post('attribute-value', 'store');
+            Route::get('attribute-value/{attributeValue}', 'show');
+            Route::put('attribute-value/{attributeValue}', 'update');
+            Route::delete('attribute-value/{attributeValue}', 'destroy');
+            Route::post('attribute-value/deletes', 'deleteMultiple');
+        });
+    // Product Variant Controller
+    Route::controller(ProductVariantController::class)
+        ->group(function () {
+            Route::get('product-variants', 'index');
+            Route::post('product-variant', 'store');
+            Route::get('product-variant/{productVariant}', 'show');
+            Route::put('product-variant/{productVariant}', 'update');
+            Route::post('product-variant/delete', 'destroy');
+        });
+    // Warehouse Controller
+    Route::controller(WarehouseController::class)
+        ->group(function () {
+            Route::get('warehouses', 'index');
+            Route::post('warehouse', 'store');
+            Route::get('warehouse/{warehouse}', 'show');
+            Route::put('warehouse/{warehouse}', 'update');
+            Route::post('warehouse/delete', 'destroy');
+        });
+    // Stock Controller
+    Route::controller(StockController::class)
+        ->group(function () {
+            Route::get('stocks', 'index');
+            Route::post('stock', 'store');
+            Route::get('stock/{stock}', 'show');
+            Route::put('stock/{stock}', 'update');
+            Route::post('stock/delete', 'destroy');
+        });
+    // Category Controller
+    Route::controller(CategoryController::class)
+        ->group(function () {
+            Route::get('categories', 'index');
+            Route::post('category', 'store');
+            Route::get('category/{category}', 'show');
+            Route::put('category/{category}', 'update');
+            Route::post('category/delete', 'destroy');
+        });
+    // Brand Controller
+    Route::controller(BrandController::class)
+        ->group(function () {
+            Route::get('brands', 'index');
+            Route::post('brand', 'store');
+            Route::get('brand/{brand}', 'show');
+            Route::put('brand/{brand}', 'update');
+            Route::post('brand/delete', 'destroy');
+        });
+
 });

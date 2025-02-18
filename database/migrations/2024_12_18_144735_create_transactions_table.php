@@ -14,6 +14,8 @@ return new class extends Migration {
             $table->id();
             $table->unsignedBigInteger('user_id');
             $table->unsignedBigInteger('target_user_id')->nullable();
+            $table->string('cashbox_id')->nullable();
+            $table->string('target_cashbox_id')->nullable();
             $table->string('original_transaction_id')->nullable();
             $table->string('type');
             $table->decimal('amount', 15, 2);

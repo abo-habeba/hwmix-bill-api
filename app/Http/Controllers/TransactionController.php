@@ -8,6 +8,7 @@ use App\Models\Transaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
+use App\Http\Resources\Transaction\TransactionResource;
 
 class TransactionController extends Controller
 {
@@ -40,19 +41,19 @@ class TransactionController extends Controller
     {
         $user = auth()->user();
 
-        // تحديد عدد العناصر في الصفحة والفرز
         $perPage = max(1, $request->get('per_page', 10));
         $sortField = $request->get('sort_by', 'id');
         $sortOrder = $request->get('sort_order', 'asc');
 
-        // استعلام البيانات مباشرة دون استخدام get()
         $transactions = Transaction::where('user_id', $user->id)
-            ->orWhere('target_user_id', $user->id)
+            // ->orWhere('target_user_id', $user->id)
+            ->with(['user.cashBoxes', 'targetUser.cashBoxes'])
             ->orderBy($sortField, $sortOrder)
-            ->paginate($perPage); // ← تطبيق التصفية مباشرة على الاستعلام
+            ->paginate($perPage);
 
         return response()->json([
-            'data' => $transactions->items(),
+            'data' => TransactionResource::collection($transactions)->items(),
+            // 'data' => $transactions->items(),
             'total' => $transactions->total(),
             'current_page' => $transactions->currentPage(),
             'last_page' => $transactions->lastPage(),

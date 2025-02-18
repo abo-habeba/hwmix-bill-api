@@ -177,7 +177,21 @@ class CashBoxController extends Controller
     public function transferFunds(Request $request)
     {
         $authUser = auth()->user();
+        $toUser = User::findOrFail($request->to_user_id);
+        $amount = $request->amount;
+        $cashBoxId = $request->cashBoxId;
+        $to_cashBoxId = $request->to_cashBoxId;
+        $cashBox = CashBox::findOrFail($cashBoxId);
+        $to_cashBox = CashBox::findOrFail($to_cashBoxId);
+        $description = $request->description;
 
+        if (blank($request->description)) {
+            if ($authUser->id == $toUser->id) {
+                $description = "تحويل داخلي بين  {$cashBox->name} إلى {$to_cashBox->name}";
+            } else {
+                $description = "تحويل من {$authUser->nickname} إلى {$toUser->nickname}";
+            }
+        }
         if (!$authUser->hasAnyPermission(['super_admin', 'transfer', 'company_owner'])) {
             return response()->json(['error' => 'You do not have permission to transfer funds.'], 403);
         }
@@ -188,20 +202,17 @@ class CashBoxController extends Controller
             'cashBoxId' => 'nullable|exists:cash_boxes,id',
             'description' => 'nullable|string',
         ]);
+        $authUserBalance = $authUser->balanceBox($cashBoxId);
+        $toUserBalance = $toUser->balanceBox($to_cashBoxId);
         // return $request;
         DB::beginTransaction();
         try {
-            $toUser = User::findOrFail($request->to_user_id);
-            $amount = $request->amount;
-            $cashBoxId = $request->cashBoxId;
-            $to_cashBoxId = $request->to_cashBoxId;
-            $description = $request->description ?? "تحويل الي {$toUser->nickname}";
-
-            $authUserBalance = $authUser->balanceBox($cashBoxId);
             // إضافة السجل الخاص بالمستخدم المخصوم منه
             Transaction::create([
                 'user_id' => $authUser->id,
+                'cashbox_id' => $cashBoxId,
                 'target_user_id' => $toUser->id,
+                'target_cashbox_id' => $to_cashBoxId,
                 'type' => 'تحويل',
                 'amount' => $amount,
                 'description' => $description,
@@ -210,21 +221,22 @@ class CashBoxController extends Controller
                 'balance_before' => $authUserBalance,
                 'balance_after' => $authUserBalance - $amount,
             ]);
-
-            $toUserBalance = $toUser->balanceBox($to_cashBoxId);
-            // إضافة السجل الخاص بالمستخدم المستلم
-            Transaction::create([
-                'user_id' => $toUser->id,
-                'target_user_id' => $authUser->id,
-                'type' => 'استلام',
-                'amount' => $amount,
-                'description' => " استلام من  {$authUser->nickname}",
-                'created_by' => $authUser->id,
-                'company_id' => $authUser->company_id,
-                'balance_before' => $toUserBalance,
-                'balance_after' => $toUserBalance + $amount,
-            ]);
-
+            if ($authUser->id !== $toUser->id) {
+                // إضافة السجل الخاص بالمستخدم المستلم
+                Transaction::create([
+                    'user_id' => $toUser->id,
+                    'cashbox_id' => $to_cashBoxId,
+                    'target_cashbox_id' => $cashBoxId,
+                    'target_user_id' => $authUser->id,
+                    'type' => 'استلام',
+                    'amount' => $amount,
+                    'description' => " استلام من  {$authUser->nickname}",
+                    'created_by' => $authUser->id,
+                    'company_id' => $authUser->company_id,
+                    'balance_before' => $toUserBalance,
+                    'balance_after' => $toUserBalance + $amount,
+                ]);
+            }
             $authUser->withdraw($amount, $cashBoxId);
             $toUser->deposit($amount, $to_cashBoxId);
             DB::commit();

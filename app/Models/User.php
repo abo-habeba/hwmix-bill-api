@@ -49,10 +49,7 @@ class User extends Authenticatable
     ];
 
 
-    public function trans()
-    {
-        return $this->morphMany(Translation::class, 'model');
-    }
+
     /**
      * The attributes that should be hidden for serialization.
      *
@@ -75,7 +72,10 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
-
+    public function trans()
+    {
+        return $this->morphMany(Translation::class, 'model');
+    }
     // Define the many-to-many relationship
     public function companies()
     {

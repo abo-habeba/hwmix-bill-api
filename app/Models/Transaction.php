@@ -10,7 +10,9 @@ class Transaction extends Model
 {
     protected $fillable = [
         'user_id',
+        'cashbox_id',
         'target_user_id',
+        'target_cashbox_id',
         'type',
         'amount',
         'balance_before',

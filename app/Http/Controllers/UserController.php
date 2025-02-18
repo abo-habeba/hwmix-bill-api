@@ -180,23 +180,35 @@ class UserController extends Controller
             $authUser->hasAnyPermission(['super_admin', 'users_update']) ||
             ($authUser->hasPermissionTo('company_owner') && $user->isCompany()) ||
             ($authUser->hasPermissionTo('users_update_own') && $user->isOwn()) ||
-            ($authUser->hasPermissionTo('users_update_self') && $user->isٍٍٍSelf())
+            ($authUser->hasPermissionTo('users_update_self') && $user->isSelf())
         ) {
             try {
                 DB::beginTransaction();
+
+                // تحديث كلمة المرور فقط إذا تم إرسالها
+                if (!empty($validated['password'])) {
+                    $user->password = $validated['password'];  // سيتم تشفيرها تلقائيًا
+                }
+
                 $user->update($validated);
+
                 if (!empty($validated['permissions'])) {
                     $user->syncPermissions($validated['permissions']);
                 }
-                $user->companies()->sync($validated['company_ids']);
+                if (!empty($validated['company_ids'])) {
+                    $user->companies()->sync($validated['company_ids']);
+                }
+
                 $user->logUpdated(' المستخدم  ' . $user->nickname);
                 DB::commit();
+
                 return new UserResource($user);
             } catch (\Exception $e) {
                 DB::rollback();
                 throw $e;
             }
         }
+
         return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);
     }
 
