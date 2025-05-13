@@ -9,7 +9,7 @@ class Category extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['company_id', 'created_by', 'name', 'description'];
+    protected $fillable = ['company_id', 'created_by', 'parent_id', 'name', 'description'];
 
     public function company()
     {
@@ -22,7 +22,7 @@ class Category extends Model
     }
     public function children()
     {
-        return $this->hasMany(Category::class, 'parent_id');
+        return $this->hasMany(Category::class, 'parent_id')->with('children');
     }
 
     public function parent()

@@ -14,10 +14,12 @@ class StoreAttributeRequest extends FormRequest
     public function rules()
     {
         return [
-            'name' => 'required|string|max:255',
-            'value' => 'nullable|string|max:255',
+            'name' => 'sometimes|nullable|string|max:255',
+            'attribute_id' => 'nullable|exists:attributes,id',
             'company_id' => 'nullable|exists:companies,id',
             'created_by' => 'nullable|exists:users,id',
+            'name_value' => 'required|string|max:255',
+            'value' => 'nullable|string|max:255',
         ];
     }
 }

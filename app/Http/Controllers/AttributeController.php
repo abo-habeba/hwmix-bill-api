@@ -3,8 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Attribute;
+use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
-use Symfony\Component\HttpFoundation\Response;
 use App\Http\Resources\Attribute\AttributeResource;
 use App\Http\Requests\Attribute\StoreAttributeRequest;
 use App\Http\Requests\Attribute\UpdateAttributeRequest;
@@ -20,21 +20,54 @@ class AttributeController extends Controller
         $attributes = Attribute::with('values')->get();
         return AttributeResource::collection($attributes);
     }
-
     /**
      * Store a newly created resource in storage.
      */
     public function store(StoreAttributeRequest $request)
     {
-        $authUser = auth()->user();
-        $validatedData = $request->validated();
-        $validatedData['company_id'] = $validatedData['company_id'] ?? $authUser->company_id;
-        $validatedData['created_by'] = $validatedData['created_by'] ?? $authUser->id;
+        DB::beginTransaction();
+        $attribute = Attribute::find($request->attribute_id);
+        try {
+            $authUser = auth()->user();
+            $validatedData = $request->validated();
+            $validatedData['company_id'] = $validatedData['company_id'] ?? $authUser->company_id;
+            $validatedData['created_by'] = $validatedData['created_by'] ?? $authUser->id;
+
+            if (!$attribute) {
+                $attribute = Attribute::create(
+                    [
+                        'name' => $validatedData['name'],
+                        'company_id' => $validatedData['company_id'],
+                        'created_by' => $validatedData['created_by'],
+                    ]
+                );
+
+            }
 
 
-        $attribute = Attribute::create($validatedData);
-        return new AttributeResource($attribute);
+            if (!empty($validatedData['name_value'])) {
+                $attribute->values()->create([
+                    'name' => $validatedData['name_value'],
+                    'value' => $validatedData['value'],
+                    'created_by' => $validatedData['created_by'],
+                ]);
+            }
+
+            DB::commit();
+
+            return new AttributeResource($attribute);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'error' => 'حدث خطأ غير متوقع أثناء حفظ الخاصية. برجاء المحاولة لاحقًا.',
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ], 500);
+        }
     }
+
+
+
 
     /**
      * Display the specified resource.

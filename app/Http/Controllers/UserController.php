@@ -29,12 +29,14 @@ class UserController extends Controller
 
         try {
             $authUser = auth()->user();
-            $companyId = $authUser->company_id;
+            // $companyId = $authUser->company_id;
             $query = User::query();
             // $query->whereHas('companies', function ($query) use ($companyId) {
             //     $query->where('companies.id', $companyId);
             // });
-            if ($authUser->hasAnyPermission(['users_all', 'company_owner', 'super_admin'])) {
+            if ($authUser->hasAnyPermission(['users_all', 'super_admin'])) {
+                // لا تضف أي scope → يرجع كل المستخدمين
+            } elseif ($authUser->hasPermissionTo('company_owner')) {
                 $query->company();
             } elseif ($authUser->hasPermissionTo('users_show_own')) {
                 $query->own();
@@ -46,6 +48,8 @@ class UserController extends Controller
                     'message' => 'You are not authorized to access this resource.'
                 ], 403);
             }
+
+
 
             $query->where('id', '<>', $authUser->id);
 

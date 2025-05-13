@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Http\Resources\Product\ProductResource;
 use Illuminate\Http\Resources\Json\JsonResource;
 use App\Http\Resources\Warehouse\WarehouseResource;
+use App\Http\Resources\ProductVariantAttribute\ProductVariantAttributeResource;
 
 class ProductVariantResource extends JsonResource
 {
@@ -18,6 +19,10 @@ class ProductVariantResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'name' => $this->product->name ?? null,
+            'description' => $this->product->description ?? null,
+            'category' => $this->product->category->name ?? null,
+            'brand' => $this->product->brand->name ?? null,
             'barcode' => $this->barcode,
             'sku' => $this->sku,
             'purchase_price' => $this->purchase_price,
@@ -31,10 +36,12 @@ class ProductVariantResource extends JsonResource
             'dimensions' => $this->dimensions,
             'tax_rate' => $this->tax_rate,
             'discount' => $this->discount,
-            'product' => new ProductResource($this->product),
-            'warehouse' => new WarehouseResource($this->warehouse),
-            'created_at' => $this->created_at,
+            'stock_quantity' => $this->whenLoaded('stock') ? $this->stock->quantity : 0,
+            // 'product' => new ProductResource($this->whenLoaded('product')),
+            'warehouse' => new WarehouseResource($this->whenLoaded('warehouse')),
+            'attributes' => ProductVariantAttributeResource::collection($this->whenLoaded('attributes')),
             'updated_at' => $this->updated_at,
+            'created_at' => $this->created_at,
         ];
     }
 }

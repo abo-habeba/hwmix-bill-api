@@ -4,6 +4,8 @@ namespace App\Http\Resources\ProductVariantAttribute;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use App\Http\Resources\Attribute\AttributeResource;
+use App\Http\Resources\AttributeValue\AttributeValueResource;
 
 class ProductVariantAttributeResource extends JsonResource
 {
@@ -14,6 +16,13 @@ class ProductVariantAttributeResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        return parent::toArray($request);
+        return [
+            'attribute_id' => $this->id,
+            'attribute_value_id' => $this->attributeValue->id,
+            'name' => $this->attribute->name ?? null,  // استخراج اسم الـ attribute مباشرة
+            'value' => $this->attributeValue ?? null,  // استخراج قيمة الـ attribute_value مباشرة
+            'created_at' => $this->created_at,
+            'updated_at' => $this->updated_at,
+        ];
     }
 }

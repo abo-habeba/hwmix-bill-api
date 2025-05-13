@@ -10,16 +10,44 @@ class ProductVariant extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['product_id', 'price', 'stock'];
+    protected $fillable = [
+        'barcode',
+        'sku',
+        'purchase_price',
+        'wholesale_price',
+        'retail_price',
+        'stock_threshold',
+        'status',
+        'expiry_date',
+        'image_url',
+        'weight',
+        'dimensions',
+        'tax_rate',
+        'discount',
+        'product_id',
+        'warehouse_id'
+    ];
 
     public function product()
     {
         return $this->belongsTo(Product::class);
     }
+
+    public function warehouse()
+    {
+        return $this->belongsTo(Warehouse::class);
+    }
+
+    public function stock()
+    {
+        return $this->hasOne(Stock::class, 'product_variant_id');
+    }
+
     public function attributes()
     {
         return $this->hasMany(ProductVariantAttribute::class);
     }
+
     protected static function boot()
     {
         parent::boot();
@@ -41,11 +69,22 @@ class ProductVariant extends Model
 
     private static function generateUniqueBarcode()
     {
-        do {
-            $barcode = 'BC' . rand(1000000000, 9999999999); // 10 digits barcode
-        } while (self::where('barcode', $barcode)->exists());
+        // الحصول على آخر قيمة للباركود من قاعدة البيانات
+        $lastBarcode = self::orderBy('barcode', 'desc')->first();
+
+        // إذا لم يكن هناك باركودات سابقة، ابدأ من الرقم 1000000000
+        $nextBarcode = $lastBarcode ? $lastBarcode->barcode + 1 : 1000000000;
+
+        // ملء الأصفار لتأكيد أن الباركود طويل بما يكفي (على سبيل المثال 10 خانات)
+        $barcode = str_pad($nextBarcode, 10, '0', STR_PAD_LEFT);
+
+        // التأكد من أن الباركود فريد
+        while (self::where('barcode', $barcode)->exists()) {
+            $nextBarcode++;
+            $barcode = str_pad($nextBarcode, 10, '0', STR_PAD_LEFT);
+        }
 
         return $barcode;
     }
-}
 
+}

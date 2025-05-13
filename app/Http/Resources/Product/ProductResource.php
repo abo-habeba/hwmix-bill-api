@@ -5,10 +5,12 @@ namespace App\Http\Resources\Product;
 use Illuminate\Http\Request;
 use App\Http\Resources\User\UserResource;
 use App\Http\Resources\Brand\BrandResource;
+use App\Http\Resources\Variant\VariantResource;
 use Illuminate\Http\Resources\Json\JsonResource;
 use App\Http\Resources\Category\CategoryResource;
 use App\Http\Resources\Company\CompaniesResource;
 use App\Http\Resources\Warehouse\WarehouseResource;
+use App\Http\Resources\ProductVariant\ProductVariantResource;
 
 class ProductResource extends JsonResource
 {
@@ -25,11 +27,12 @@ class ProductResource extends JsonResource
             'published_at' => $this->published_at,
             'description' => $this->description,
             'description_long' => $this->description_long,
-            'company' => new CompaniesResource($this->company),
-            'created_by' => new UserResource($this->createdBy),
-            'category' => new CategoryResource($this->category),
-            'brand' => new BrandResource($this->brand),
-            'warehouse' => new WarehouseResource($this->warehouse),
+            'variants' => VariantResource::collection($this->whenLoaded('variants')),
+            'company' => new CompaniesResource($this->whenLoaded('company')),
+            'created_by' => new UserResource($this->whenLoaded('createdBy')),
+            'category' => new CategoryResource($this->whenLoaded('category')),
+            'brand' => new BrandResource($this->whenLoaded('brand')),
+            'warehouse' => new WarehouseResource($this->whenLoaded('warehouse')),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

@@ -129,7 +129,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::post('product-variant', 'store');
             Route::get('product-variant/{productVariant}', 'show');
             Route::put('product-variant/{productVariant}', 'update');
-            Route::post('product-variant/delete', 'destroy');
+            Route::delete('product-variant/{productVariant}', 'destroy');
+            Route::post('product-variant/delete', 'deleteMultiple');
         });
     // Warehouse Controller
     Route::controller(WarehouseController::class)

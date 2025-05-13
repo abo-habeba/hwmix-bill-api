@@ -14,7 +14,10 @@ return new class extends Migration {
             $table->id();
             $table->foreignId('company_id')->constrained()->onDelete('cascade');
             $table->foreignId('created_by')->constrained('users')->onDelete('cascade');
-            $table->foreignId('parent_id')->constrained('categories')->onDelete('cascade');
+            $table->foreignId('parent_id')
+                ->nullable()
+                ->constrained('categories')
+                ->onDelete('cascade');
             $table->string('name');
             $table->text('description')->nullable();
             $table->timestamps();

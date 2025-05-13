@@ -13,43 +13,78 @@ class ProductController extends Controller
 {
     public function index()
     {
-        $products = Product::with(['category', 'brand'])->get();
+        $products = Product::with(['category', 'brand', 'variants.attributes'])->get();
         return ProductResource::collection($products);
     }
 
     public function store(StoreProductRequest $request)
     {
         DB::beginTransaction();
-
         try {
-            // إنشاء المنتج
-            $product = Product::create($request->validated());
+            // استرجاع بيانات المستخدم المُصادق عليه
+            $authUser = auth()->user();
 
-            // إضافة المتغيرات الخاصة بالمنتج
+            // التحقق من البيانات المدخلة
+            $validatedData = $request->validated();
+            $validatedData['company_id'] = $validatedData['company_id'] ?? $authUser->company_id;
+            $validatedData['created_by'] = $validatedData['created_by'] ?? $authUser->id;
+
+            // إنشاء المنتج
+            $product = Product::create($validatedData);
+
+            // إنشاء الـ slug للمنتج
+            $slug = Product::generateSlug($request->name);
+            $product->update(['slug' => $slug]);
+
+            // التحقق من وجود متغيرات
             if ($request->has('variants')) {
                 foreach ($request->variants as $variantData) {
-                    $variant = $product->variants()->create($variantData);
+                    $variantData['warehouse_id'] = $request->warehouse_id;
 
-                    // إضافة خصائص المتغيرات
+                    // إنشاء متغير المنتج
+                    $variant = $product->variants()->create(
+                        collect($variantData)->except(['attributes', 'stock'])->toArray()
+                    );
+
+                    // إضافة الخصائص المرتبطة بالمتغير
                     if (!empty($variantData['attributes'])) {
-                        foreach ($variantData['attributes'] as $attribute) {
+                        foreach ($variantData['attributes'] as $attributeData) {
                             $variant->attributes()->create([
-                                'attribute_id' => $attribute['attribute_id'],
-                                'attribute_value_id' => $attribute['attribute_value_id'],
+                                'attribute_id' => $attributeData['attribute_id'],
+                                'attribute_value_id' => $attributeData['attribute_value_id'],
                             ]);
                         }
                     }
+                    // إضافة المخزون المرتبط بالمتغير
+                    if (!empty($variantData['stock'])) {
+                        $variant->stock()->create([
+                            'quantity' => $variantData['stock']['quantity'] ?? 0,
+                            'expiry_date' => $variantData['stock']['expiry_date'] ?? null,
+                            'status' => $variantData['stock']['status'] ?? 'available',
+                            'warehouse_id' => $request->warehouse_id,
+                            'company_id' => $validatedData['company_id'] ?? $authUser->company_id,
+                            'created_by' => $validatedData['created_by'] ?? $authUser->id,
+                        ]);
+                    }
                 }
             }
-
             DB::commit();
-
-            return new ProductResource($product);
+            return new ProductResource($product->load(['variants.attributes.values', 'stock']));
         } catch (\Exception $e) {
+            // في حالة حدوث أي خطأ، نقوم بالتراجع عن التغييرات
             DB::rollBack();
-            return response()->json(['error' => 'حدث خطأ أثناء الحفظ.'], 500);
+
+            // إرجاع خطأ مع تفاصيل المشكلة
+            return response()->json([
+                'error' => 'حدث خطأ أثناء الحفظ.',
+                'details' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ], 500);
         }
     }
+
 
     public function search(Request $request)
     {

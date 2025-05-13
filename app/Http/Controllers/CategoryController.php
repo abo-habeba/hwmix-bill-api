@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Category;
+use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use Symfony\Component\HttpFoundation\Response;
 use App\Http\Resources\Category\CategoryResource;
@@ -14,11 +15,20 @@ class CategoryController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $categories = Category::with('children')->whereNull('parent_id')->get();
+        $query = Category::with('children.children')->whereNull('parent_id');
+        // التحقق من وجود قيمة البحث
+        if ($request->has('search') && !empty($request->search)) {
+            $search = $request->search;
+            $query->where('name', 'LIKE', "%$search%");
+        }
+        $categories = $query->get();
+
         return CategoryResource::collection($categories);
     }
+
+
 
     /**
      * Store a newly created resource in storage.
@@ -29,7 +39,7 @@ class CategoryController extends Controller
         $validatedData = $request->validated();
         $validatedData['company_id'] = $validatedData['company_id'] ?? $authUser->company_id;
         $validatedData['created_by'] = $validatedData['created_by'] ?? $authUser->id;
-
+        // return $validatedData;
         $category = Category::create($validatedData);
         return new CategoryResource($category);
     }
@@ -39,7 +49,7 @@ class CategoryController extends Controller
      */
     public function show(string $id)
     {
-        $category = Category::findOrFail($id);
+        $category = Category::with('children.children')->findOrFail($id);
         return new CategoryResource($category);
     }
 
