@@ -28,12 +28,19 @@ use App\Http\Controllers\PaymentMethodController;
 
 // Route to run migrations and seeders without authentication (for development only)
 Route::get('run-seed', function (Request $request) {
-    \Artisan::call('migrate:fresh', ['--force' => true]);
-    \Artisan::call('db:seed', ['--force' => true]);
-    return response()->json([
-        'migrate' => \Artisan::output(),
-        'seed' => 'Seeders executed successfully',
-    ]);
+    try {
+        \Artisan::call('migrate:fresh', ['--force' => true]);
+        \Artisan::call('db:seed', ['--force' => true]);
+        return response()->json([
+            'migrate' => \Artisan::output(),
+            'seed' => 'Seeders executed successfully',
+        ]);
+    } catch (\Throwable $e) {
+        return response()->json([
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString(),
+        ], 500);
+    }
 });
 
 Route::post('register', [AuthController::class, 'register']);
