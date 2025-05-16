@@ -2,6 +2,8 @@
 namespace App\Http\Resources\Invoice;
 
 use Illuminate\Http\Resources\Json\JsonResource;
+use App\Http\Resources\InvoiceItem\InvoiceItemResource;
+use App\Http\Resources\InstallmentPlan\InstallmentPlanResource;
 
 class InvoiceResource extends JsonResource
 {

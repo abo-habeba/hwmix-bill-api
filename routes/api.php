@@ -26,6 +26,16 @@ use App\Http\Controllers\InstallmentController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PaymentMethodController;
 
+// Route to run migrations and seeders without authentication (for development only)
+Route::get('run-seed', function (Request $request) {
+    \Artisan::call('migrate:fresh', ['--force' => true]);
+    \Artisan::call('db:seed', ['--force' => true]);
+    return response()->json([
+        'migrate' => \Artisan::output(),
+        'seed' => 'Seeders executed successfully',
+    ]);
+});
+
 Route::post('register', [AuthController::class, 'register']);
 Route::post('login', [AuthController::class, 'login']);
 Route::middleware(['auth:sanctum'])->group(function () {
