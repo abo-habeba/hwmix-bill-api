@@ -18,6 +18,13 @@ use App\Http\Controllers\CashBoxTypeController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\AttributeValueController;
 use App\Http\Controllers\ProductVariantController;
+use App\Http\Controllers\InvoiceTypeController;
+use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\InvoiceItemController;
+use App\Http\Controllers\InstallmentPlanController;
+use App\Http\Controllers\InstallmentController;
+use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\PaymentMethodController;
 
 Route::post('register', [AuthController::class, 'register']);
 Route::post('login', [AuthController::class, 'login']);
@@ -168,5 +175,56 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::put('brand/{brand}', 'update');
             Route::post('brand/delete', 'destroy');
         });
+    // InvoiceType Controller
+    Route::controller(InvoiceTypeController::class)->group(function () {
+        Route::get('invoice-types', 'index');
+        Route::post('invoice-type', 'store');
+        Route::get('invoice-type/{invoiceType}', 'show');
+        Route::put('invoice-type/{invoiceType}', 'update');
+        Route::delete('invoice-type/{invoiceType}', 'destroy');
+    });
+    // Invoice Controller
+    Route::controller(InvoiceController::class)->group(function () {
+        Route::get('invoices', 'index');
+        Route::post('invoice', 'store');
+        Route::get('invoice/{invoice}', 'show');
+        Route::put('invoice/{invoice}', 'update');
+        Route::delete('invoice/{invoice}', 'destroy');
+    });
+    // InvoiceItem Controller
+    Route::controller(InvoiceItemController::class)->group(function () {
+        Route::get('invoice-items', 'index');
+        Route::post('invoice-item', 'store');
+        Route::get('invoice-item/{invoiceItem}', 'show');
+        Route::put('invoice-item/{invoiceItem}', 'update');
+        Route::delete('invoice-item/{invoiceItem}', 'destroy');
+    });
+    // InstallmentPlan Controller
+    Route::controller(InstallmentPlanController::class)->group(function () {
+        Route::get('installment-plans', 'index');
+        Route::post('installment-plan', 'store');
+        Route::get('installment-plan/{installmentPlan}', 'show');
+        Route::put('installment-plan/{installmentPlan}', 'update');
+        Route::delete('installment-plan/{installmentPlan}', 'destroy');
+    });
+    // Installment Controller
+    Route::controller(InstallmentController::class)->group(function () {
+        Route::get('installments', 'index');
+        Route::post('installment', 'store');
+        Route::get('installment/{installment}', 'show');
+        Route::put('installment/{installment}', 'update');
+        Route::delete('installment/{installment}', 'destroy');
+    });
+    // Payment Controller
+    Route::controller(PaymentController::class)->group(function () {
+        Route::get('payments', 'index');
+        Route::post('payment', 'store');
+        Route::get('payment/{payment}', 'show');
+        Route::put('payment/{payment}', 'update');
+        Route::delete('payment/{payment}', 'destroy');
+    });
+
+    // Payment Methods
+    Route::get('payment-methods', [\App\Http\Controllers\PaymentMethodController::class, 'index']);
 
 });

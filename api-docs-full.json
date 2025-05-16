@@ -1,0 +1,215 @@
+{
+  "title": "توثيق REST API لنظام الفواتير والتقسيط (شامل)",
+  "base_url": "/api",
+  "authentication": {
+    "type": "Bearer Token",
+    "header": "Authorization: Bearer {token}",
+    "login": {
+      "url": "/login",
+      "method": "POST",
+      "body": {"email": "string", "password": "string"},
+      "response": {"token": "string", "user": {"id": "int", "name": "string", "email": "string"}}
+    }
+  },
+  "entities": [
+    {
+      "name": "InvoiceType (أنواع الفواتير)",
+      "fields": {
+        "id": "int",
+        "name": "string",
+        "description": "string|null",
+        "created_at": "datetime",
+        "updated_at": "datetime"
+      },
+      "routes": [
+        {"method": "GET", "url": "/invoice-types", "desc": "جلب جميع الأنواع"},
+        {"method": "POST", "url": "/invoice-type", "desc": "إضافة نوع", "body": {"name": "string", "description": "string|null"}},
+        {"method": "GET", "url": "/invoice-type/{id}", "desc": "عرض نوع"},
+        {"method": "PUT", "url": "/invoice-type/{id}", "desc": "تعديل نوع", "body": {"name": "string", "description": "string|null"}},
+        {"method": "DELETE", "url": "/invoice-type/{id}", "desc": "حذف نوع"}
+      ]
+    },
+    {
+      "name": "Invoice (الفواتير)",
+      "fields": {
+        "id": "int",
+        "user_id": "int",
+        "invoice_type_id": "int",
+        "invoice_number": "string",
+        "issue_date": "date",
+        "due_date": "date",
+        "total_amount": "decimal",
+        "status": "string",
+        "notes": "string|null",
+        "created_at": "datetime",
+        "updated_at": "datetime",
+        "items": "InvoiceItem[]",
+        "installment_plan": "InstallmentPlan|null"
+      },
+      "routes": [
+        {"method": "GET", "url": "/invoices", "desc": "جلب جميع الفواتير"},
+        {"method": "POST", "url": "/invoice", "desc": "إضافة فاتورة جديدة", "body": {"user_id": "int", "invoice_type_id": "int", "invoice_number": "string", "issue_date": "date", "due_date": "date", "total_amount": "decimal", "status": "string", "notes": "string", "items": [{"product_id": "int|null", "name": "string", "quantity": "int", "unit_price": "decimal", "discount": "decimal", "total": "decimal"}]}},
+        {"method": "GET", "url": "/invoice/{id}", "desc": "عرض فاتورة"},
+        {"method": "PUT", "url": "/invoice/{id}", "desc": "تعديل فاتورة", "body": {"user_id": "int", "invoice_type_id": "int", "invoice_number": "string", "issue_date": "date", "due_date": "date", "total_amount": "decimal", "status": "string", "notes": "string"}},
+        {"method": "DELETE", "url": "/invoice/{id}", "desc": "حذف فاتورة"}
+      ]
+    },
+    {
+      "name": "InvoiceItem (عناصر الفاتورة)",
+      "fields": {
+        "id": "int",
+        "invoice_id": "int",
+        "product_id": "int|null",
+        "name": "string",
+        "quantity": "int",
+        "unit_price": "decimal",
+        "discount": "decimal",
+        "total": "decimal",
+        "created_at": "datetime",
+        "updated_at": "datetime"
+      },
+      "routes": [
+        {"method": "GET", "url": "/invoice-items", "desc": "جلب جميع العناصر"},
+        {"method": "POST", "url": "/invoice-item", "desc": "إضافة عنصر", "body": {"invoice_id": "int", "product_id": "int|null", "name": "string", "quantity": "int", "unit_price": "decimal", "discount": "decimal", "total": "decimal"}},
+        {"method": "GET", "url": "/invoice-item/{id}", "desc": "عرض عنصر"},
+        {"method": "PUT", "url": "/invoice-item/{id}", "desc": "تعديل عنصر", "body": {"product_id": "int|null", "name": "string", "quantity": "int", "unit_price": "decimal", "discount": "decimal", "total": "decimal"}},
+        {"method": "DELETE", "url": "/invoice-item/{id}", "desc": "حذف عنصر"}
+      ]
+    },
+    {
+      "name": "PaymentMethod (طرق الدفع)",
+      "fields": {
+        "id": "int",
+        "name": "string",
+        "code": "string",
+        "active": "boolean",
+        "created_at": "datetime",
+        "updated_at": "datetime"
+      },
+      "routes": [
+        {"method": "GET", "url": "/payment-methods", "desc": "جلب طرق الدفع المتاحة"}
+      ]
+    },
+    {
+      "name": "Payment (المدفوعات)",
+      "fields": {
+        "id": "int",
+        "user_id": "int",
+        "payment_date": "date",
+        "amount": "decimal",
+        "method": "string",
+        "payment_method_id": "int|null",
+        "notes": "string|null",
+        "is_split": "boolean",
+        "created_at": "datetime",
+        "updated_at": "datetime"
+      },
+      "routes": [
+        {"method": "GET", "url": "/payments", "desc": "جلب جميع المدفوعات"},
+        {"method": "POST", "url": "/payment", "desc": "إضافة دفعة", "body": {"user_id": "int", "payment_date": "date", "amount": "decimal", "method": "string", "payment_method_id": "int", "notes": "string", "is_split": "boolean"}},
+        {"method": "GET", "url": "/payment/{id}", "desc": "عرض دفعة"},
+        {"method": "PUT", "url": "/payment/{id}", "desc": "تعديل دفعة", "body": {"user_id": "int", "payment_date": "date", "amount": "decimal", "method": "string", "payment_method_id": "int", "notes": "string", "is_split": "boolean"}},
+        {"method": "DELETE", "url": "/payment/{id}", "desc": "حذف دفعة"}
+      ]
+    },
+    {
+      "name": "InstallmentPlan (خطط التقسيط)",
+      "fields": {
+        "id": "int",
+        "user_id": "int",
+        "invoice_id": "int",
+        "total_amount": "decimal",
+        "down_payment": "decimal",
+        "installment_count": "int",
+        "installment_amount": "decimal",
+        "start_date": "date",
+        "due_day": "int",
+        "notes": "string|null",
+        "created_at": "datetime",
+        "updated_at": "datetime"
+      },
+      "routes": [
+        {"method": "GET", "url": "/installment-plans", "desc": "جلب جميع الخطط"},
+        {"method": "POST", "url": "/installment-plan", "desc": "إضافة خطة تقسيط", "body": {"user_id": "int", "invoice_id": "int", "total_amount": "decimal", "down_payment": "decimal", "installment_count": "int", "installment_amount": "decimal", "start_date": "date", "due_day": "int", "notes": "string"}},
+        {"method": "GET", "url": "/installment-plan/{id}", "desc": "عرض خطة"},
+        {"method": "PUT", "url": "/installment-plan/{id}", "desc": "تعديل خطة", "body": {"user_id": "int", "invoice_id": "int", "total_amount": "decimal", "down_payment": "decimal", "installment_count": "int", "installment_amount": "decimal", "start_date": "date", "due_day": "int", "notes": "string"}},
+        {"method": "DELETE", "url": "/installment-plan/{id}", "desc": "حذف خطة"}
+      ]
+    },
+    {
+      "name": "Installment (الأقساط)",
+      "fields": {
+        "id": "int",
+        "installment_plan_id": "int",
+        "due_date": "date",
+        "amount": "decimal",
+        "status": "string",
+        "paid_at": "datetime|null",
+        "remaining": "decimal",
+        "created_at": "datetime",
+        "updated_at": "datetime"
+      },
+      "routes": [
+        {"method": "GET", "url": "/installments", "desc": "جلب جميع الأقساط"},
+        {"method": "POST", "url": "/installment", "desc": "إضافة قسط", "body": {"installment_plan_id": "int", "due_date": "date", "amount": "decimal", "status": "string", "paid_at": "datetime|null", "remaining": "decimal"}},
+        {"method": "GET", "url": "/installment/{id}", "desc": "عرض قسط"},
+        {"method": "PUT", "url": "/installment/{id}", "desc": "تعديل قسط", "body": {"due_date": "date", "amount": "decimal", "status": "string", "paid_at": "datetime|null", "remaining": "decimal"}},
+        {"method": "DELETE", "url": "/installment/{id}", "desc": "حذف قسط"}
+      ]
+    },
+    {
+      "name": "Product (المنتجات)",
+      "fields": {
+        "id": "int",
+        "company_id": "int",
+        "category_id": "int",
+        "created_by": "int",
+        "warehouse_id": "int",
+        "brand_id": "int",
+        "name": "string",
+        "description": "string|null",
+        "price": "decimal",
+        "slug": "string",
+        "created_at": "datetime",
+        "updated_at": "datetime"
+      },
+      "routes": [
+        {"method": "GET", "url": "/products", "desc": "جلب جميع المنتجات"},
+        {"method": "POST", "url": "/product", "desc": "إضافة منتج", "body": {"company_id": "int", "category_id": "int", "created_by": "int", "warehouse_id": "int", "brand_id": "int", "name": "string", "description": "string", "price": "decimal", "slug": "string"}},
+        {"method": "GET", "url": "/product/{id}", "desc": "عرض منتج"},
+        {"method": "PUT", "url": "/product/{id}", "desc": "تعديل منتج", "body": {"company_id": "int", "category_id": "int", "warehouse_id": "int", "brand_id": "int", "name": "string", "description": "string", "price": "decimal", "slug": "string"}},
+        {"method": "DELETE", "url": "/product/{id}", "desc": "حذف منتج"}
+      ]
+    },
+    {
+      "name": "User (المستخدمون/العملاء)",
+      "fields": {
+        "id": "int",
+        "name": "string",
+        "email": "string",
+        "phone": "string",
+        "company_id": "int",
+        "created_by": "int",
+        "status": "string",
+        "nickname": "string",
+        "created_at": "datetime",
+        "updated_at": "datetime"
+      },
+      "routes": [
+        {"method": "GET", "url": "/users", "desc": "جلب جميع العملاء"},
+        {"method": "POST", "url": "/user", "desc": "إضافة عميل", "body": {"name": "string", "email": "string", "phone": "string", "company_id": "int", "created_by": "int", "status": "string", "nickname": "string", "password": "string"}},
+        {"method": "GET", "url": "/user/{id}", "desc": "عرض عميل"},
+        {"method": "PUT", "url": "/user/{id}", "desc": "تعديل عميل", "body": {"name": "string", "email": "string", "phone": "string", "company_id": "int", "status": "string", "nickname": "string", "password": "string"}},
+        {"method": "POST", "url": "/users/delete", "desc": "حذف عملاء (مجموعة)", "body": {"item_ids": "int[]"}}
+      ]
+    }
+  ],
+  "notes": [
+    "جميع الطلبات تتطلب توثيق (Authorization) ما عدا /login و /register.",
+    "عند البيع يتم تحديث المخزون تلقائيًا.",
+    "يمكن ربط كل عنصر فاتورة بمنتج عبر product_id.",
+    "طرق الدفع يمكن جلبها من /payment-methods.",
+    "هناك نظام تنبيهات للأقساط المتأخرة (راجع Notifications).",
+    "للتكامل مع بوابات الدفع الإلكترونية استخدم payment_method_id المناسب (مثلاً code=visa)."
+  ]
+}

@@ -40,8 +40,8 @@ class ProductVariantResource extends JsonResource
             // 'product' => new ProductResource($this->whenLoaded('product')),
             'warehouse' => new WarehouseResource($this->whenLoaded('warehouse')),
             'attributes' => ProductVariantAttributeResource::collection($this->whenLoaded('attributes')),
-            'updated_at' => $this->updated_at,
-            'created_at' => $this->created_at,
+            'updated_at' => $this->updated_at ? $this->updated_at->format('Y-m-d H:i:s') : null,
+            'created_at' => $this->created_at ? $this->created_at->format('Y-m-d H:i:s') : null,
         ];
     }
 }

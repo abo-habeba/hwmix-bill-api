@@ -250,5 +250,17 @@ class User extends Authenticatable
         }
     }
 
+    public function invoices()
+    {
+        return $this->hasMany(Invoice::class);
+    }
+    public function installmentPlans()
+    {
+        return $this->hasMany(InstallmentPlan::class);
+    }
+    public function payments()
+    {
+        return $this->hasMany(Payment::class);
+    }
 
 }

@@ -26,8 +26,8 @@ class CompaniesResource extends JsonResource
             'created_by' => $this->created_by,
             'company_id' => $this->company_id,
             'logo' => $this->logo ? asset('storage/' . $this->logo->url) : null,
-            'created_at' => $this->created_at ? $this->created_at->toDateTimeString() : null,
-            'updated_at' => $this->updated_at ? $this->updated_at->toDateTimeString() : null,
+            'created_at' => $this->created_at ? $this->created_at->format('Y-m-d H:i:s') : null,
+            'updated_at' => $this->updated_at ? $this->updated_at->format('Y-m-d H:i:s') : null,
         ];
     }
 }
