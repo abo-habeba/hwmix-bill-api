@@ -26,6 +26,7 @@ return new class extends Migration {
             $table->decimal('tax_rate', 5, 2)->default(0);
             $table->decimal('discount', 8, 2)->nullable();
             $table->foreignId('product_id')->constrained()->onDelete('cascade');
+                        $table->foreignId('warehouse_id')->constrained()->onDelete('cascade');
             $table->timestamps();
         });
     }

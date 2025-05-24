@@ -15,7 +15,7 @@ return new class extends Migration {
             $table->foreignId('attribute_id')->constrained()->onDelete('cascade');
             $table->foreignId('created_by')->constrained('users')->onDelete('cascade');
             $table->string('name');
-            $table->string('value')->nullable();
+            $table->string('color')->nullable();
             $table->timestamps();
         });
 

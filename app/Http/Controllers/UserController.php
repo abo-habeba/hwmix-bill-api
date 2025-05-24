@@ -24,75 +24,80 @@ class UserController extends Controller
      * Display a listing of users.
      */
 
-    public function index(Request $request)
-    {
+   public function index(Request $request)
+{
+    try {
+        $authUser = auth()->user();
+        $query = User::query();
 
-        try {
-            $authUser = auth()->user();
-            // $companyId = $authUser->company_id;
-            $query = User::query();
-            // $query->whereHas('companies', function ($query) use ($companyId) {
-            //     $query->where('companies.id', $companyId);
-            // });
-            if ($authUser->hasAnyPermission(['users_all', 'super_admin'])) {
-                // لا تضف أي scope → يرجع كل المستخدمين
-            } elseif ($authUser->hasPermissionTo('company_owner')) {
-                $query->company();
-            } elseif ($authUser->hasPermissionTo('users_show_own')) {
-                $query->own();
-            } elseif ($authUser->hasPermissionTo('users_show_self')) {
-                $query->self();
-            } else {
-                return response()->json([
-                    'error' => 'Unauthorized',
-                    'message' => 'You are not authorized to access this resource.'
-                ], 403);
-            }
-
-
-
-            $query->where('id', '<>', $authUser->id);
-
-            if (!empty($request->get('nickname'))) {
-                $query->where('nickname', 'like', '%' . $request->get('nickname') . '%');
-            }
-
-            if (!empty($request->get('email'))) {
-                $query->where('email', 'like', '%' . $request->get('email') . '%');
-            }
-
-            if (!empty($request->get('status'))) {
-                $query->where('status', $request->get('status'));
-            }
-
-            if (!empty($request->get('created_at_from'))) {
-                $query->where('created_at', '>=', $request->get('created_at_from') . ' 00:00:00');
-            }
-
-            if (!empty($request->get('created_at_to'))) {
-                $query->where('created_at', '<=', $request->get('created_at_to') . ' 23:59:59');
-            }
-
-            // تحديد عدد العناصر في الصفحة والفرز
-            $perPage = max(1, $request->get('per_page', 10));
-            $sortField = $request->get('sort_by', 'id');
-            $sortOrder = $request->get('sort_order', 'asc');
-
-            $query->orderBy($sortField, $sortOrder);
-
-            // جلب البيانات مع التصفية والصفحات
-            $users = $query->with('companies')->paginate($perPage);
-
+        if ($authUser->hasAnyPermission(['users_all', 'super_admin'])) {
+            // لا تضف أي scope → يرجع كل المستخدمين
+        } elseif ($authUser->hasPermissionTo('company_owner')) {
+            $query->company();
+        } elseif ($authUser->hasPermissionTo('users_show_own')) {
+            $query->own();
+        } elseif ($authUser->hasPermissionTo('users_show_self')) {
+            $query->self();
+        } else {
             return response()->json([
-                'data' => UserResource::collection($users->items()),
-                'total' => $users->total(),
-                'current_page' => $users->currentPage(),
-                'last_page' => $users->lastPage(),
-            ]);
-        } catch (\Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 500);
+                'error' => 'Unauthorized',
+                'message' => 'You are not authorized to access this resource.'
+            ], 403);
         }
+
+        $query->where('id', '<>', $authUser->id);
+
+        // فلاتر محددة
+        if (!empty($request->get('nickname'))) {
+            $query->where('nickname', 'like', '%' . $request->get('nickname') . '%');
+        }
+
+        if (!empty($request->get('email'))) {
+            $query->where('email', 'like', '%' . $request->get('email') . '%');
+        }
+
+        if (!empty($request->get('status'))) {
+            $query->where('status', $request->get('status'));
+        }
+
+        if (!empty($request->get('created_at_from'))) {
+            $query->where('created_at', '>=', $request->get('created_at_from') . ' 00:00:00');
+        }
+
+        if (!empty($request->get('created_at_to'))) {
+            $query->where('created_at', '<=', $request->get('created_at_to') . ' 23:59:59');
+        }
+
+        // ✅ فلتر البحث العام
+        if (!empty($request->get('search'))) {
+            $search = $request->get('search');
+            $query->where(function ($q) use ($search) {
+                $q->where('full_name', 'like', "%{$search}%")
+                  ->orWhere('nickname', 'like', "%{$search}%")
+                  ->orWhere('phone', 'like', "%{$search}%");
+            });
+        }
+
+        // إعدادات الترتيب والصفحات
+        $perPage = max(1, $request->get('per_page', 10));
+        $sortField = $request->get('sort_by', 'id');
+        $sortOrder = $request->get('sort_order', 'asc');
+
+        $query->orderBy($sortField, $sortOrder);
+
+        $users = $query->with('companies')->paginate($perPage);
+
+        return response()->json([
+            'data' => UserResource::collection($users->items()),
+            'total' => $users->total(),
+            'current_page' => $users->currentPage(),
+            'last_page' => $users->lastPage(),
+        ]);
+    } catch (\Exception $e) {
+        return response()->json(['error' => $e->getMessage()], 500);
     }
+}
+
 
     /**
      * Store a newly created user in storage.

@@ -49,6 +49,9 @@ class ProductController extends Controller
                     // إضافة الخصائص المرتبطة بالمتغير
                     if (!empty($variantData['attributes'])) {
                         foreach ($variantData['attributes'] as $attributeData) {
+                            if (empty($attributeData['attribute_id']) || empty($attributeData['attribute_value_id'])) {
+                                continue; // تخطي إذا كان أحد الحقلين غير موجود أو null
+                            }
                             $variant->attributes()->create([
                                 'attribute_id' => $attributeData['attribute_id'],
                                 'attribute_value_id' => $attributeData['attribute_value_id'],

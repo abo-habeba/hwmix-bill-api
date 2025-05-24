@@ -13,7 +13,7 @@ class AttributeValue extends Model
         'attribute_id',
         'created_by',
         'name',
-         'value'
+        'color'
         ];
 
     public function attribute()

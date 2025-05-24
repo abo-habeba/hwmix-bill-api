@@ -16,7 +16,13 @@ class AttributeValueResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'value' => $this->value, // القيمة المرتبطة بالخاصية
+            'attribute_id' => $this->attribute_id,
+            'created_by' => $this->created_by,
+            'name' => $this->name,
+            'color' => $this->color,
+            'attribute' => new \App\Http\Resources\Attribute\AttributeResource($this->whenLoaded('attribute')),
+            'created_at' => $this->created_at ? $this->created_at->format('Y-m-d H:i:s') : null,
+            'updated_at' => $this->updated_at ? $this->updated_at->format('Y-m-d H:i:s') : null,
         ];
     }
 }

@@ -23,7 +23,7 @@ class UpdateAttributeValueRequest extends FormRequest
     {
         return [
             'name' => 'sometimes|required|string|max:255',
-            'value' => 'sometimes|nullable|string|max:255',
+            'color' => 'sometimes|nullable|string|max:255',
             'attribute_id' => 'sometimes|required|exists:attributes,id',
             'created_by' => 'sometimes|nullable|exists:users,id',
         ];

@@ -15,7 +15,7 @@ class StoreProductRequest extends FormRequest
     {
         return [
             'name' => 'required|string|max:255',
-            'slug' => 'nullable|required|string|unique:products,slug',
+            'slug' => 'nullable|string|unique:products,slug',
             'is_active' => 'nullable',
             'featured' => 'nullable',
             'is_returnable' => 'nullable',
@@ -25,7 +25,7 @@ class StoreProductRequest extends FormRequest
             'description_long' => 'nullable|string',
             'company_id' => 'nullable|exists:companies,id',
             'created_by' => 'nullable|exists:users,id',
-            'category_id' => 'nullable|exists:categories,id',
+            'category_id' => 'required|exists:categories,id',
             'brand_id' => 'nullable|exists:brands,id',
             'warehouse_id' => 'required|exists:warehouses,id'
         ];

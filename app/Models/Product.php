@@ -43,10 +43,10 @@ class Product extends Model
     }
 
     // علاقة المنتج مع المخزون (stock)
-    public function stock()
-    {
-        return $this->hasOne(Stock::class); // يمكن تعديلها إذا كان منتج واحد يمكن أن يكون له عدة مخزونات
-    }
+    // public function stock()
+    // {
+    //     return $this->hasOne(Stock::class); // يمكن تعديلها إذا كان منتج واحد يمكن أن يكون له عدة مخزونات
+    // }
 
 
     // علاقة المنتج مع الصور

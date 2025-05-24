@@ -55,6 +55,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         ->group(function () {
             Route::get('users', 'index');
             Route::get('users/search', 'usersSearch');
+            Route::get('users/search-advanced', [UserController::class, 'indexWithSearch']);
             Route::post('user', 'store');
             Route::get('user/{user}', 'show');
             Route::put('user/{user}', 'update');
