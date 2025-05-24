@@ -19,7 +19,7 @@ class DatabaseFullSeeder extends Seeder
             CategorySeeder::class,
             BrandSeeder::class,
             ProductSeeder::class,
-            // ... أضف seeders أخرى إذا لزم
+            InvoiceTypeSeeder::class,
         ]);
     }
 }
