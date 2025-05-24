@@ -30,7 +30,10 @@ use App\Http\Controllers\PaymentMethodController;
 Route::get('run-seed', function (Request $request) {
     try {
         \Artisan::call('migrate:fresh', ['--force' => true]);
-        \Artisan::call('db:seed', ['--force' => true]);
+        \Artisan::call('db:seed', [
+            '--class' => 'Database\\Seeders\\DatabaseFullSeeder',
+            '--force' => true
+        ]);
         return response()->json([
             'migrate' => \Artisan::output(),
             'seed' => 'Seeders executed successfully',

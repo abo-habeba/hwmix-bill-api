@@ -3,6 +3,13 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
+use Database\Seeders\UserSeeder;
+use Database\Seeders\BrandSeeder;
+use Database\Seeders\CompanySeeder;
+use Database\Seeders\ProductSeeder;
+use Database\Seeders\CategorySeeder;
+use Database\Seeders\InvoiceTypeSeeder;
+use Database\Seeders\RolesAndPermissionsSeeder;
 
 class DatabaseFullSeeder extends Seeder
 {
