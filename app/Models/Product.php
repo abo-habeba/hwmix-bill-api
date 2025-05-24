@@ -69,15 +69,25 @@ class Product extends Model
 
     // دالة لتوليد الـ slug
     public static function generateSlug($name)
-    {
-        // استبدال المسافات بعلامة - وتصفية الأحرف الخاصة
-        $slug = str_replace(' ', '-', strtolower($name));
-        $slug = preg_replace('/[^a-z0-9\-]/', '', $slug);
-        // التأكد من أن الـ slug فريد
-        $count = self::where('slug', $slug)->count();
-        if ($count > 0) {
-            $slug = $slug . '-' . ($count + 1);  // إضافة رقم إذا كان الـ slug مكرر
-        }
-        return $slug;
+{
+    $slug = preg_replace('/[^\p{Arabic}a-z0-9\s-]/u', '', strtolower($name));
+    $slug = preg_replace('/\s+/', '-', trim($slug));
+    $slug = preg_replace('/-+/', '-', $slug);
+
+    // في حال كانت النتيجة فارغة
+    if (empty($slug)) {
+        $slug = 'منتج'; // أو 'product' إن كنت تفضل الإنجليزي
     }
+
+    $originalSlug = $slug;
+    $i = 1;
+    // التأكد من uniqueness
+    while (self::where('slug', $slug)->exists()) {
+        $slug = $originalSlug . '-' . $i;
+        $i++;
+    }
+
+    return $slug;
+}
+
 }

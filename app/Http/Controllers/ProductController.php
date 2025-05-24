@@ -72,7 +72,7 @@ class ProductController extends Controller
                 }
             }
             DB::commit();
-            return new ProductResource($product->load(['variants.attributes.values', 'stock']));
+            return new ProductResource($product->load(['variants.stock', 'variants.attributes.values']));
         } catch (\Exception $e) {
             // في حالة حدوث أي خطأ، نقوم بالتراجع عن التغييرات
             DB::rollBack();
