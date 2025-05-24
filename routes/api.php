@@ -156,6 +156,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::put('product-variant/{productVariant}', 'update');
             Route::delete('product-variant/{productVariant}', 'destroy');
             Route::post('product-variant/delete', 'deleteMultiple');
+            Route::get('product-variants/search-by-product',  'searchByProduct');
         });
     // Warehouse Controller
     Route::controller(WarehouseController::class)
