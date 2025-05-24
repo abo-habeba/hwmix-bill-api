@@ -17,7 +17,7 @@ class ProductSeeder extends Seeder
                 'is_active' => true,
                 'featured' => false,
                 'is_returnable' => true,
-                'meta_data' => json_encode(['info' => 'بيانات تجريبية']),
+                // 'meta_data' => json_encode(['info' => 'بيانات تجريبية']),
                 'published_at' => now(),
                 'description' => 'وصف المنتج ' . ($i + 1),
                 'description_long' => 'تفاصيل المنتج ' . ($i + 1),
