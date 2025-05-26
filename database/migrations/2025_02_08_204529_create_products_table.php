@@ -24,6 +24,7 @@ return new class extends Migration {
             $table->foreignId('created_by')->constrained('users')->onDelete('cascade');
             $table->foreignId('category_id')->constrained()->onDelete('cascade');
             $table->foreignId('brand_id')->nullable()->constrained()->onDelete('set null');
+            $table->foreignId('warehouse_id')->constrained()->onDelete('cascade');
             $table->timestamps();
         });
     }

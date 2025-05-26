@@ -17,7 +17,17 @@ class DatabaseSeeder extends Seeder
 
         $this->call([
             RolesAndPermissionsSeeder::class,
-
+            UserSeeder::class,
+            CompanySeeder::class,
+            WarehouseSeeder::class,
+            CategorySeeder::class,
+            BrandSeeder::class,
+            ProductSeeder::class,
+            InvoiceTypeSeeder::class,
+            AttributeSeeder::class,
+            AttributeValueSeeder::class,
+            StockSeeder::class,
+            InvoiceItemSeeder::class,
         ]);
     }
 }

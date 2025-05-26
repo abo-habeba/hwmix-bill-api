@@ -41,6 +41,10 @@ class Product extends Model
     {
         return $this->hasMany(ProductVariant::class);
     }
+    public function warehouse()
+    {
+        return $this->belongsTo(Warehouse::class);
+    }
 
     // علاقة المنتج مع المخزون (stock)
     // public function stock()

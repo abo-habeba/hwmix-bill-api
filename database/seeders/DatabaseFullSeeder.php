@@ -10,6 +10,7 @@ use Database\Seeders\ProductSeeder;
 use Database\Seeders\CategorySeeder;
 use Database\Seeders\InvoiceTypeSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
+use Database\Seeders\WarehouseSeeder;
 
 class DatabaseFullSeeder extends Seeder
 {
@@ -23,10 +24,15 @@ class DatabaseFullSeeder extends Seeder
             RolesAndPermissionsSeeder::class,
             UserSeeder::class,
             CompanySeeder::class,
+            WarehouseSeeder::class,
             CategorySeeder::class,
             BrandSeeder::class,
             ProductSeeder::class,
             InvoiceTypeSeeder::class,
+            AttributeSeeder::class,
+            AttributeValueSeeder::class,
+            StockSeeder::class,
+            InvoiceItemSeeder::class,
         ]);
     }
 }
