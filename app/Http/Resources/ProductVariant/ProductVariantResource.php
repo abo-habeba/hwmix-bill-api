@@ -3,6 +3,7 @@
 namespace App\Http\Resources\ProductVariant;
 
 use Illuminate\Http\Request;
+use App\Http\Resources\Stock\StockResource;
 use App\Http\Resources\Product\ProductResource;
 use Illuminate\Http\Resources\Json\JsonResource;
 use App\Http\Resources\Warehouse\WarehouseResource;
@@ -29,6 +30,10 @@ class ProductVariantResource extends JsonResource
             'wholesale_price' => $this->wholesale_price,
             'retail_price' => $this->retail_price,
             'stock_threshold' => $this->stock_threshold,
+            'low_stock' => $this->whenLoaded('stock')
+                ? (!is_null($this->stock_threshold) && $this->stock->quantity < $this->stock_threshold)
+                : false,
+
             'status' => $this->status,
             'expiry_date' => $this->expiry_date,
             'image_url' => $this->image_url,
@@ -36,12 +41,11 @@ class ProductVariantResource extends JsonResource
             'dimensions' => $this->dimensions,
             'tax_rate' => $this->tax_rate,
             'discount' => $this->discount,
-            'stock_quantity' => $this->whenLoaded('stock') ? $this->stock->quantity : 0,
-            // 'product' => new ProductResource($this->whenLoaded('product')),
-            'warehouse' => new WarehouseResource($this->whenLoaded('warehouse')),
-            'attributes' => ProductVariantAttributeResource::collection($this->whenLoaded('attributes')),
             'updated_at' => $this->updated_at ? $this->updated_at->format('Y-m-d H:i:s') : null,
             'created_at' => $this->created_at ? $this->created_at->format('Y-m-d H:i:s') : null,
+            'stock_quantity' => $this->whenLoaded('stock') ? $this->stock->quantity : 0,
+            'attributes' => ProductVariantAttributeResource::collection($this->whenLoaded('attributes')),
+            'stock' => new StockResource($this->whenLoaded('stock')),
         ];
     }
 }

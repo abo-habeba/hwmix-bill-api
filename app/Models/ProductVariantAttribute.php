@@ -21,13 +21,13 @@ class ProductVariantAttribute extends Model
         return $this->belongsTo(Attribute::class);
     }
 
-    public function values()
-    {
-        return $this->hasMany(AttributeValue::class);
-    }
-
     public function attributeValue()
     {
         return $this->belongsTo(AttributeValue::class);
+    }
+
+    public function values()
+    {
+        return $this->hasMany(AttributeValue::class);
     }
 }

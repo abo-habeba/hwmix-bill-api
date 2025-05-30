@@ -44,7 +44,6 @@ class AttributeController extends Controller
 
             }
 
-
             if (!empty($validatedData['name_value'])) {
                 $attribute->values()->create([
                     'name' => $validatedData['name_value'],
@@ -59,16 +58,12 @@ class AttributeController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json([
-                'error' => 'حدث خطأ غير متوقع أثناء حفظ الخاصية. برجاء المحاولة لاحقًا.',
-                'message' => $e->getMessage(),
+                'message' => 'حدث خطأ غير متوقع أثناء حفظ الخاصية. برجاء المحاولة لاحقًا.',
+                'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ], 500);
         }
     }
-
-
-
-
     /**
      * Display the specified resource.
      */

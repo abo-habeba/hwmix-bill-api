@@ -20,7 +20,27 @@ class ProductVariantController extends Controller
     {
         $validated = $request->validated();
         $productVariant = ProductVariant::create($validated);
-        return new ProductVariantResource($productVariant);
+
+        // حفظ الخصائص (attributes)
+        if ($request->has('attributes')) {
+            foreach ($request->input('attributes') as $attr) {
+                if (!empty($attr['attribute_id']) && !empty($attr['attribute_value_id'])) {
+                    $productVariant->attributes()->create([
+                        'attribute_id' => $attr['attribute_id'],
+                        'attribute_value_id' => $attr['attribute_value_id'],
+                    ]);
+                }
+            }
+        }
+
+        // حفظ المخزون (stock)
+        if ($request->has('stock') && is_array($request->input('stock'))) {
+            $productVariant->stock()->create($request->input('stock'));
+        }
+
+        return new ProductVariantResource($productVariant->load([
+            'product', 'warehouse', 'stock', 'attributes.attribute', 'attributes.attributeValue'
+        ]));
     }
 
     public function show(string $id)
@@ -34,7 +54,45 @@ class ProductVariantController extends Controller
         $validated = $request->validated();
         $productVariant = ProductVariant::findOrFail($id);
         $productVariant->update($validated);
-        return new ProductVariantResource($productVariant);
+
+        // تحديث الخصائص (attributes)
+        if ($request->has('attributes')) {
+            $attrIds = [];
+            foreach ($request->input('attributes') as $attr) {
+                if (!empty($attr['id'])) {
+                    $attribute = $productVariant->attributes()->find($attr['id']);
+                    if ($attribute) {
+                        $attribute->update([
+                            'attribute_id' => $attr['attribute_id'],
+                            'attribute_value_id' => $attr['attribute_value_id'],
+                        ]);
+                        $attrIds[] = $attribute->id;
+                        continue;
+                    }
+                }
+                // إذا لم يوجد id أو لم يوجد السطر، أنشئ جديد
+                $newAttr = $productVariant->attributes()->create([
+                    'attribute_id' => $attr['attribute_id'],
+                    'attribute_value_id' => $attr['attribute_value_id'],
+                ]);
+                $attrIds[] = $newAttr->id;
+            }
+            // حذف الخصائص غير المرسلة
+            $productVariant->attributes()->whereNotIn('id', $attrIds)->delete();
+        }
+
+        // تحديث أو إنشاء المخزون (stock)
+        if ($request->has('stock') && is_array($request->input('stock'))) {
+            if ($productVariant->stock) {
+                $productVariant->stock->update($request->input('stock'));
+            } else {
+                $productVariant->stock()->create($request->input('stock'));
+            }
+        }
+
+        return new ProductVariantResource($productVariant->load([
+            'product', 'warehouse', 'stock', 'attributes.attribute', 'attributes.attributeValue'
+        ]));
     }
 
     public function destroy(string $id)

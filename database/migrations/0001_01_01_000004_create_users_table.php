@@ -24,6 +24,7 @@ return new class extends Migration {
             $table->timestamp('email_verified_at')->nullable();
             $table->decimal('balance', 10, 2)->default(0);
             $table->string('status')->default('1');
+            $table->string('customer_type')->default(value: 'retail')->comment('retail or wholesale'); //'wholesale' عميل جمبه //  'retail'عميل تجئة
             $table->foreignId('created_by')->nullable()->constrained('users')->onDelete('set null');
             $table->foreignId('company_id')->nullable()->constrained()->onDelete('set null');
             $table->rememberToken();

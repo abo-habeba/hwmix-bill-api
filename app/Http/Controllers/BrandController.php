@@ -56,11 +56,16 @@ class BrandController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(string $id)
+    public function destroy(Brand $brand)
     {
-        $brand = Brand::findOrFail($id);
-        $brand->delete();
+        // تحقق من وجود منتجات مرتبطة
+        if ($brand->products()->count() > 0) {
+            return response()->json([
+                'message' => 'لا يمكن حذف الماركة لوجود منتجات مرتبطة بها.'
+            ], 400);
+        }
 
+        $brand->delete();
         return response()->noContent();
     }
 }

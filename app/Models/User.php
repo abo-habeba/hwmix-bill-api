@@ -46,6 +46,7 @@ class User extends Authenticatable
         'created_by',
         'balance',
         'status',
+        'customer_type',
     ];
 
 

@@ -48,7 +48,7 @@ class RoleController extends Controller
         } elseif ($authUser->hasPermissionTo('roles_all_self')) {
             $rolesQuery->self()->company();
         } else {
-            return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);
+            return response()->json(['message' => 'You are not authorized to access this resource.'], 403);
         }
 
         $roles = $rolesQuery->with(['role.permissions', 'company', 'createdBy'])->get();
@@ -96,7 +96,7 @@ class RoleController extends Controller
             }
         }
 
-        return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);
+        return response()->json(['message' => 'You are not authorized to access this resource.'], 403);
     }
     public function show(Role $role)
     {
@@ -104,18 +104,18 @@ class RoleController extends Controller
 
         if ($authUser->hasPermissionTo('company_owner')) {
             if ($role->isCompany()) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to view this role.'], 403);
+                return response()->json(['message' => 'You are not authorized to view this role.'], 403);
             }
         } elseif ($authUser->hasPermissionTo('roles_show_own')) {
             if ($role->isOwn()) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to view this role.'], 403);
+                return response()->json(['message' => 'You are not authorized to view this role.'], 403);
             }
         } elseif ($authUser->hasPermissionTo('roles_show_self')) {
             if ($role->isٍٍٍSelf()) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to view this role.'], 403);
+                return response()->json(['message' => 'You are not authorized to view this role.'], 403);
             }
         } else {
-            return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);
+            return response()->json(['message' => 'You are not authorized to access this resource.'], 403);
         }
         $role->load('permissions');
 
@@ -153,7 +153,7 @@ class RoleController extends Controller
                 throw $e;
             }
         }
-        return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);
+        return response()->json(['message' => 'You are not authorized to access this resource.'], 403);
     }
     public function destroy(Role $role)
     {
@@ -178,7 +178,7 @@ class RoleController extends Controller
                 throw $e;
             }
         }
-        return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);
+        return response()->json(['message' => 'You are not authorized to access this resource.'], 403);
     }
     public function assignRole(Request $request)
     {

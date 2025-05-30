@@ -40,7 +40,7 @@ Route::get('run-seed', function (Request $request) {
         ]);
     } catch (\Throwable $e) {
         return response()->json([
-            'error' => $e->getMessage(),
+            'message' => $e->getMessage(),
             'trace' => $e->getTraceAsString(),
         ], 500);
     }
@@ -128,7 +128,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::post('product', 'store');
             Route::get('product/{product}', 'show');
             Route::put('product/{product}', 'update');
-            Route::post('product/delete', 'destroy');
+            Route::delete('product/delete/{product}', 'destroy');
         });
     // Attribute Controller
     Route::controller(AttributeController::class)
@@ -195,7 +195,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::post('brand', 'store');
             Route::get('brand/{brand}', 'show');
             Route::put('brand/{brand}', 'update');
-            Route::post('brand/delete', 'destroy');
+            Route::delete('brand/delete/{brand}', 'destroy');
         });
     // InvoiceType Controller
     Route::controller(InvoiceTypeController::class)->group(function () {

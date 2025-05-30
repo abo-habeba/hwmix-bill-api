@@ -43,6 +43,7 @@ class UserResource extends JsonResource
             'updated_at' => isset($this->updated_at) ? $this->updated_at->format('Y-m-d') : null,
             'company_id' => $this->company_id,
             'created_by' => $this->created_by,
+            'customer_type' => $this->customer_type,
         ];
     }
 }

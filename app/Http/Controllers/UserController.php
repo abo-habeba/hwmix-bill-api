@@ -39,10 +39,7 @@ class UserController extends Controller
         } elseif ($authUser->hasPermissionTo('users_show_self')) {
             $query->self();
         } else {
-            return response()->json([
-                'error' => 'Unauthorized',
-                'message' => 'You are not authorized to access this resource.'
-            ], 403);
+            return response()->json(['message' => 'You are not authorized to access this resource.'], 403);
         }
 
         $query->where('id', '<>', $authUser->id);
@@ -94,7 +91,7 @@ class UserController extends Controller
             'last_page' => $users->lastPage(),
         ]);
     } catch (\Exception $e) {
-        return response()->json(['error' => $e->getMessage()], 500);
+        return response()->json(['message' => $e->getMessage()], 500);
     }
 }
 
@@ -108,7 +105,7 @@ class UserController extends Controller
         $authUser = auth()->user();
 
         if (!$authUser->hasAnyPermission(['super_admin', 'users_create', 'company_owner'])) {
-            return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);
+            return response()->json(['message' => 'You are not authorized to access this resource.'], 403);
         }
 
         // Validate the request data
@@ -170,7 +167,7 @@ class UserController extends Controller
             return new UserResource($user->load('companies'));
         }
 
-        return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);
+        return response()->json(['message' => 'You are not authorized to access this resource.'], 403);
     }
 
     /**
@@ -218,7 +215,7 @@ class UserController extends Controller
             }
         }
 
-        return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);
+        return response()->json(['message' => 'You are not authorized to access this resource.'], 403);
     }
 
     /**
@@ -231,7 +228,7 @@ class UserController extends Controller
         $userIds = $request->input('item_ids');
 
         if (!$userIds || !is_array($userIds)) {
-            return response()->json(['error' => 'Invalid user IDs provided'], 400);
+            return response()->json(['message' => 'Invalid user IDs provided'], 400);
         }
         $usersToDelete = User::whereIn('id', $userIds)->get();
 
@@ -245,7 +242,7 @@ class UserController extends Controller
                 continue;
             }
 
-            return response()->json(['error' => 'You do not have permission to delete user with ID: ' . $user->id], 403);
+            return response()->json(['message' => 'You do not have permission to delete user with ID: ' . $user->id], 403);
         }
         try {
             DB::beginTransaction();
@@ -299,7 +296,7 @@ class UserController extends Controller
                 'last_page' => $users->lastPage(),
             ]);
         } catch (\Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 500);
+            return response()->json(['message' => $e->getMessage()], 500);
         }
     }
     public function setDefaultCashBox(User $user, $cashBoxId)

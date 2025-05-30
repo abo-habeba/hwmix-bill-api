@@ -25,7 +25,6 @@ class VariantResource extends JsonResource
             'tax_rate'        => $this->tax_rate,
             'discount'        => $this->discount,
             'product_id'      => $this->product_id,
-            'warehouse_id'    => $this->warehouse_id,
             'created_at'      => $this->created_at ? $this->created_at->format('Y-m-d H:i:s') : null,
             'updated_at'      => $this->updated_at ? $this->updated_at->format('Y-m-d H:i:s') : null,
             'attributes'      => ProductVariantAttributeResource::collection($this->whenLoaded('attributes')),

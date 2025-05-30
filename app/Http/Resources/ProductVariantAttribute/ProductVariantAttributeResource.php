@@ -16,13 +16,13 @@ class ProductVariantAttributeResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        return [
-            'attribute_id' => $this->id,
-            'attribute_value_id' => $this->attributeValue->id,
-            'name' => $this->attribute->name ?? null,  // استخراج اسم الـ attribute مباشرة
-            'value' => $this->attributeValue ?? null,  // استخراج قيمة الـ attribute_value مباشرة
-            'created_at' => $this->created_at ? $this->created_at->format('Y-m-d H:i:s') : null,
-            'updated_at' => $this->updated_at ? $this->updated_at->format('Y-m-d H:i:s') : null,
+          return [
+            'id' => $this->id,
+            'attribute_id' => $this->attribute_id,
+            'attribute_value_id' => $this->attribute_value_id,
+            'attribute' => new AttributeResource($this->whenLoaded('attribute')),
+            'attribute_value' => new AttributeValueResource($this->whenLoaded('attributeValue')),
         ];
     }
+
 }

@@ -219,7 +219,7 @@ class TransactionController extends Controller
             return response()->json(['message' => 'تم عكس المعاملة بنجاح', 'transaction' => $reversedTransaction]);
         } catch (Exception $e) {
             DB::rollBack();
-            return response()->json(['error' => $e->getMessage()], 400);
+            return response()->json(['message' => $e->getMessage()], 400);
         }
     }
 

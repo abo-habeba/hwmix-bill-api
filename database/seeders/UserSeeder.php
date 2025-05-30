@@ -9,7 +9,9 @@ class UserSeeder extends Seeder
 {
     public function run(): void
     {
-        // إنشاء 2 مستخدم فيك
-        User::factory()->count(2)->create();
+        // إنشاء 2 مستخدم فيك (واحد جملة وواحد قطاعي)
+        User::factory()->create(['customer_type' => 'retail']); // عميل تجئة
+
+        User::factory()->create(['customer_type' => 'wholesale']); // عميل جمبه
     }
 }

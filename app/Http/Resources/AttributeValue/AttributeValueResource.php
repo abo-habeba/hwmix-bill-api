@@ -4,6 +4,7 @@ namespace App\Http\Resources\AttributeValue;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use App\Http\Resources\Attribute\AttributeResource;
 
 class AttributeValueResource extends JsonResource
 {
@@ -20,7 +21,7 @@ class AttributeValueResource extends JsonResource
             'created_by' => $this->created_by,
             'name' => $this->name,
             'color' => $this->color,
-            'attribute' => new \App\Http\Resources\Attribute\AttributeResource($this->whenLoaded('attribute')),
+            'attribute' => new AttributeResource($this->whenLoaded('attribute')),
             'created_at' => $this->created_at ? $this->created_at->format('Y-m-d H:i:s') : null,
             'updated_at' => $this->updated_at ? $this->updated_at->format('Y-m-d H:i:s') : null,
         ];

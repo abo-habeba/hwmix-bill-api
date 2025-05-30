@@ -32,6 +32,7 @@ class UserFactory extends Factory
             'phone' => $this->faker->phoneNumber,
             'full_name' => $this->faker->name,
             'username' => $this->faker->unique()->userName,
+            'customer_type' => $this->faker->randomElement(['retail', 'wholesale']),
         ];
     }
 
