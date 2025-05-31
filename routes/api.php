@@ -248,5 +248,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     // Payment Methods
     Route::get('payment-methods', [\App\Http\Controllers\PaymentMethodController::class, 'index']);
-
+    Route::apiResource('revenues', \App\Http\Controllers\RevenueController::class);
+    Route::apiResource('profits', \App\Http\Controllers\ProfitController::class);
 });

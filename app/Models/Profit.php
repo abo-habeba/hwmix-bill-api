@@ -1,0 +1,34 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class Profit extends Model
+{
+    protected $fillable = [
+        'source_type',
+        'source_id',
+        'created_by',
+        'customer_id',
+        'company_id',
+        'revenue_amount',
+        'cost_amount',
+        'profit_amount',
+        'note',
+        'profit_date',
+    ];
+
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+    public function customer()
+    {
+        return $this->belongsTo(User::class, 'customer_id');
+    }
+    public function company()
+    {
+        return $this->belongsTo(Company::class, 'company_id');
+    }
+}

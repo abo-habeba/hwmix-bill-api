@@ -10,6 +10,8 @@ class UpdateInvoiceTypeRequest extends FormRequest
         return [
             'name' => 'sometimes|string|max:255',
             'description' => 'nullable|string',
+            'code' => 'sometimes|string|max:100|unique:invoice_types,code,' . $this->route('invoice_type'),
+            'context' => 'sometimes|string|max:100',
         ];
     }
 }

@@ -14,9 +14,13 @@ class InvoiceTypeController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $types = InvoiceType::paginate(20);
+        $query = InvoiceType::query();
+        if ($request->has('context')) {
+            $query->where('context', $request->input('context'));
+        }
+        $types = $query->paginate(20);
         return InvoiceTypeResource::collection($types);
     }
 

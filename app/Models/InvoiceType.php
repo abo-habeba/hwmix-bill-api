@@ -7,7 +7,12 @@ use Illuminate\Database\Eloquent\Model;
 class InvoiceType extends Model
 {
     use HasFactory;
-    protected $fillable = ['name', 'description'];
+    protected $fillable = [
+        'name',
+        'description',
+        'code',
+        'context'
+    ];
     public function invoices()
     {
         return $this->hasMany(Invoice::class);
