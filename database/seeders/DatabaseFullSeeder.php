@@ -12,6 +12,8 @@ use Database\Seeders\InvoiceTypeSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Database\Seeders\WarehouseSeeder;
 
+// تمت عملية الدمج في DatabaseSeeder. يمكنك حذف هذا الملف إذا لم تعد بحاجة له.
+
 class DatabaseFullSeeder extends Seeder
 {
     /**

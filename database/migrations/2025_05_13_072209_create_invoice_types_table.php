@@ -16,6 +16,7 @@ return new class extends Migration
             $table->string('name');
             $table->text('description')->nullable();
             $table->string('context')->nullable()->comment('sales, purchases, inventory, finance, services, etc.');
+            $table->string('code')->unique();
             $table->timestamps();
         });
     }
