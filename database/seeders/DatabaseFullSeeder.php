@@ -15,7 +15,7 @@ use Database\Seeders\WarehouseSeeder;
 // تمت عملية الدمج في DatabaseSeeder. يمكنك حذف هذا الملف إذا لم تعد بحاجة له.
 // تمت إزالة InvoiceItemSeeder من هنا لتفادي التكرار، حيث أنه موجود بالفعل في DatabaseSeeder.
 
-class DatabaseFullSeederH extends Seeder
+class DatabaseFullSeeder extends Seeder
 {
     /**
      * Run the database seeds.
