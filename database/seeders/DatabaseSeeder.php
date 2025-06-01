@@ -29,7 +29,6 @@ class DatabaseSeeder extends Seeder
             StockSeeder::class,
             InvoiceItemSeeder::class,
             RevenueSeeder::class,
-            // InvoiceTypeSeeder::class, // مكرر، تم حذفه
         ]);
     }
 }

@@ -13,8 +13,9 @@ use Database\Seeders\RolesAndPermissionsSeeder;
 use Database\Seeders\WarehouseSeeder;
 
 // تمت عملية الدمج في DatabaseSeeder. يمكنك حذف هذا الملف إذا لم تعد بحاجة له.
+// تمت إزالة InvoiceItemSeeder من هنا لتفادي التكرار، حيث أنه موجود بالفعل في DatabaseSeeder.
 
-class DatabaseFullSeeder extends Seeder
+class DatabaseFullSeederH extends Seeder
 {
     /**
      * Run the database seeds.
@@ -34,7 +35,6 @@ class DatabaseFullSeeder extends Seeder
             AttributeSeeder::class,
             AttributeValueSeeder::class,
             StockSeeder::class,
-            InvoiceItemSeeder::class,
             RevenueSeeder::class,
             InvoiceTypeSeeder::class,
         ]);
