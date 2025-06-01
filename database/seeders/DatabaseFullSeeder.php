@@ -36,7 +36,7 @@ class DatabaseFullSeeder extends Seeder
             AttributeValueSeeder::class,
             StockSeeder::class,
             RevenueSeeder::class,
-            InvoiceTypeSeeder::class,
+            // InvoiceTypeSeeder::class,
         ]);
     }
 }
