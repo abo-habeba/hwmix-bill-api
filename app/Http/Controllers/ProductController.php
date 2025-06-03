@@ -93,6 +93,8 @@ class ProductController extends Controller
                             $variant->attributes()->create([
                                 'attribute_id' => $attributeData['attribute_id'],
                                 'attribute_value_id' => $attributeData['attribute_value_id'],
+                                'company_id' => $validatedData['company_id'] ?? $authUser->company_id,
+                                'created_by' => $validatedData['created_by'] ?? $authUser->id,
                             ]);
                         }
                     }
@@ -194,11 +196,15 @@ class ProductController extends Controller
                             if ($attr) {
                                 $attr->update([
                                     'attribute_value_id' => $attrData['attribute_value_id'],
+                                    'company_id' => $validatedData['company_id'] ?? $authUser->company_id,
+                                    'created_by' => $validatedData['created_by'] ?? $authUser->id,
                                 ]);
                             } else {
                                 $attr = $variant->attributes()->create([
                                     'attribute_id' => $attrData['attribute_id'],
                                     'attribute_value_id' => $attrData['attribute_value_id'],
+                                    'company_id' => $validatedData['company_id'] ?? $authUser->company_id,
+                                    'created_by' => $validatedData['created_by'] ?? $authUser->id,
                                 ]);
                             }
 

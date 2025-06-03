@@ -11,9 +11,9 @@ return new class extends Migration {
             $table->id();
             $table->string('source_type');
             $table->unsignedBigInteger('source_id');
-            $table->unsignedBigInteger('created_by')->nullable();
+            $table->unsignedBigInteger('created_by');
             $table->unsignedBigInteger('customer_id')->nullable();
-            $table->unsignedBigInteger('company_id')->nullable();
+            $table->unsignedBigInteger('company_id');
             $table->decimal('revenue_amount', 15, 2);
             $table->decimal('cost_amount', 15, 2);
             $table->decimal('profit_amount', 15, 2);
@@ -21,9 +21,9 @@ return new class extends Migration {
             $table->date('profit_date');
             $table->timestamps();
 
-            $table->foreign('created_by')->references('id')->on('users')->nullOnDelete();
+            $table->foreign('created_by')->references('id')->on('users')->onDelete('cascade');
             $table->foreign('customer_id')->references('id')->on('users')->nullOnDelete();
-            $table->foreign('company_id')->references('id')->on('companies')->nullOnDelete();
+            $table->foreign('company_id')->references('id')->on('companies')->onDelete('cascade');
         });
     }
     public function down(): void

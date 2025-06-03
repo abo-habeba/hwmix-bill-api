@@ -23,6 +23,9 @@ class InvoiceResource extends JsonResource
             'updated_at' => $this->updated_at ? $this->updated_at->format('Y-m-d H:i:s') : null,
             'items' => InvoiceItemResource::collection($this->whenLoaded('items')),
             'installment_plan' => new InstallmentPlanResource($this->whenLoaded('installmentPlan')),
+            'company_id' => $this->company_id,
+            'created_by' => $this->created_by,
+            'installment_plan_id' => $this->installment_plan_id,
         ];
     }
 }

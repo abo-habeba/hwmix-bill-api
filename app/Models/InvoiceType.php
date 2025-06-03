@@ -11,7 +11,9 @@ class InvoiceType extends Model
         'name',
         'description',
         'code',
-        'context'
+        'context',
+        'company_id',
+        'created_by'
     ];
     public function invoices()
     {

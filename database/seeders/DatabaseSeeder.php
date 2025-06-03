@@ -6,7 +6,7 @@ use App\Models\User;
 // use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
-class DatabaseSeederH extends Seeder
+class DatabaseSeeder extends Seeder
 {
     /**
      * Seed the application's database.
@@ -29,6 +29,7 @@ class DatabaseSeederH extends Seeder
             StockSeeder::class,
             InvoiceItemSeeder::class,
             RevenueSeeder::class,
+            ProductVariantAttributeSeeder::class,
         ]);
     }
 }

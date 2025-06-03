@@ -17,6 +17,8 @@ return new class extends Migration
             $table->text('description')->nullable();
             $table->string('context')->nullable()->comment('sales, purchases, inventory, finance, services, etc.');
             $table->string('code')->unique();
+            $table->foreignId('company_id')->constrained()->onDelete('cascade');
+            $table->foreignId('created_by')->constrained('users')->onDelete('cascade');
             $table->timestamps();
         });
     }

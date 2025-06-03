@@ -31,7 +31,6 @@ Route::get('run-seed', function (Request $request) {
     try {
         \Artisan::call('migrate:fresh', ['--force' => true]);
         \Artisan::call('db:seed', [
-            '--class' => 'Database\\Seeders\\DatabaseFullSeeder',
             '--force' => true
         ]);
         return response()->json([
@@ -159,7 +158,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::put('product-variant/{productVariant}', 'update');
             Route::delete('product-variant/{productVariant}', 'destroy');
             Route::post('product-variant/delete', 'deleteMultiple');
-            Route::get('product-variants/search-by-product',  'searchByProduct');
+            Route::get('product-variants/search-by-product', 'searchByProduct');
         });
     // Warehouse Controller
     Route::controller(WarehouseController::class)
@@ -251,3 +250,5 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::apiResource('revenues', \App\Http\Controllers\RevenueController::class);
     Route::apiResource('profits', \App\Http\Controllers\ProfitController::class);
 });
+
+require __DIR__.'/installments.php';

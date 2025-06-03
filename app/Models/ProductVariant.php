@@ -25,7 +25,9 @@ class ProductVariant extends Model
         'tax_rate',
         'discount',
         'product_id',
-        'warehouse_id'
+        'warehouse_id',
+        'company_id',
+        'created_by'
     ];
 
     public function product()

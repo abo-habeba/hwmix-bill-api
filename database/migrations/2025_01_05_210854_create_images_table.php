@@ -17,6 +17,8 @@ return new class extends Migration
             $table->string('type'); // نوع الصورة (avatar, logo, cover, etc.)
             $table->unsignedBigInteger('imageable_id');
             $table->string('imageable_type');
+            $table->foreignId('company_id')->constrained('companies')->onDelete('cascade');
+            $table->foreignId('created_by')->constrained('users')->onDelete('cascade');
             $table->timestamps();
         });
     }

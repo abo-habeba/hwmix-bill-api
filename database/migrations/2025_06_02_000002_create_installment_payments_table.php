@@ -4,32 +4,23 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration
-{
-    /**
-     * Run the migrations.
-     */
+return new class extends Migration {
     public function up(): void
     {
-        Schema::create('payments', function (Blueprint $table) {
+        Schema::create('installment_payments', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->constrained()->onDelete('cascade');
+            $table->foreignId('installment_plan_id')->constrained('installment_plans')->onDelete('cascade');
             $table->foreignId('company_id')->constrained()->onDelete('cascade');
             $table->foreignId('created_by')->constrained('users')->onDelete('cascade');
             $table->date('payment_date');
-            $table->decimal('amount', 15, 2);
-            $table->string('method');
+            $table->decimal('amount_paid', 15, 2);
+            $table->string('payment_method');
             $table->text('notes')->nullable();
-            $table->boolean('is_split')->default(false);
             $table->timestamps();
         });
     }
-
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        Schema::dropIfExists('payments');
+        Schema::dropIfExists('installment_payments');
     }
 };
