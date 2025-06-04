@@ -25,6 +25,7 @@ use App\Http\Controllers\InstallmentPlanController;
 use App\Http\Controllers\InstallmentController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PaymentMethodController;
+use App\Http\Controllers\InstallmentPaymentDetailController;
 
 // Route to run migrations and seeders without authentication (for development only)
 Route::get('run-seed', function (Request $request) {
@@ -249,6 +250,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('payment-methods', [\App\Http\Controllers\PaymentMethodController::class, 'index']);
     Route::apiResource('revenues', \App\Http\Controllers\RevenueController::class);
     Route::apiResource('profits', \App\Http\Controllers\ProfitController::class);
+    Route::apiResource('installment-payment-details', InstallmentPaymentDetailController::class);
 });
 
 require __DIR__.'/installments.php';

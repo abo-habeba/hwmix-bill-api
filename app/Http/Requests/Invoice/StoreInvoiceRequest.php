@@ -11,13 +11,12 @@ class StoreInvoiceRequest extends FormRequest
             'user_id' => 'required|exists:users,id',
             'invoice_type_id' => 'required|exists:invoice_types,id',
             'invoice_number' => 'nullable|string|unique:invoices,invoice_number',
-            'issue_date' => 'required|date',
-            'due_date' => 'required|date',
+            'due_date' => 'nullable|date',
             'total_amount' => 'required|numeric|min:0',
-            'status' => 'required|string',
+            'status' => 'nullable|string',
             'notes' => 'nullable|string',
-            'company_id' => 'required|exists:companies,id',
-            'created_by' => 'required|exists:users,id',
+            'company_id' => 'nullable|exists:companies,id',
+            'created_by' => 'nullable|exists:users,id',
             'installment_plan_id' => 'nullable|exists:installment_plans,id',
         ];
     }
