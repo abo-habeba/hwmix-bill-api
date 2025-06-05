@@ -14,7 +14,7 @@ return new class extends Migration {
         Schema::create('installments', function (Blueprint $table) {
             $table->id();  // رقم السطر
             $table->foreignId('installment_plan_id')->constrained('installment_plans')->onDelete('cascade');  // خطة التقسيط
-            $table->string('installment_number');
+            $table->string('installment_number')->nullable();
             $table->date('due_date');  // تاريخ الاستحقاق
             $table->decimal('amount', 15, 2);  // قيمة القسط
             $table->string('status');  // حالة القسط
