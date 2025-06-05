@@ -27,8 +27,6 @@ return new class extends Migration {
             $table->foreignId('updated_by')->nullable()->constrained('users')->onDelete('cascade');
             $table->timestamps();
         });
-
-
     }
 
     /**

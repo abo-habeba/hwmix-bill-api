@@ -22,9 +22,18 @@ class StoreStockRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'product_variant_id' => 'required|exists:product_variants,id',
-            'warehouse_id' => 'required|exists:warehouses,id',
-            'quantity' => 'required|integer|min:0'
+            'quantity' => ['required', 'integer', 'min:0'],
+            'reserved_quantity' => ['nullable', 'integer', 'min:0'],
+            'expiry_date' => ['nullable', 'date'],
+            'status' => ['nullable', 'in:available,unavailable,expired'],
+            'batch_number' => ['nullable', 'string', 'max:255'],
+            'unit_cost' => ['nullable', 'numeric', 'min:0'],
+            'location' => ['nullable', 'string', 'max:255'],
+            'warehouse_id' => ['required', 'exists:warehouses,id'],
+            'product_variant_id' => ['required', 'exists:product_variants,id'],
+            'company_id' => ['nullable', 'exists:companies,id'],
+            'created_by' => ['nullable', 'exists:users,id'],
+            'updated_by' => ['nullable', 'exists:users,id'],
         ];
     }
 }
