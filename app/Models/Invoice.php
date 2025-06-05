@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Auth;
 class Invoice extends Model
 {
     use HasFactory;
+
     protected $fillable = [
         'company_id',
         'user_id',
@@ -20,6 +21,7 @@ class Invoice extends Model
         'notes',
         'installment_plan_id',
     ];
+
     protected static function booted()
     {
         static::creating(function ($invoice) {
@@ -45,28 +47,50 @@ class Invoice extends Model
             $lastSerial = (int) substr($lastInvoice->invoice_number, -6);
         }
         $nextSerial = str_pad($lastSerial + 1, 6, '0', STR_PAD_LEFT);
-        return strtoupper($typeCode) . $datePart . $companyId . $nextSerial;
+        return strtoupper(self::shortenTypeCode($typeCode)) . '-' . $datePart . '-' . $companyId . '-' . $nextSerial;
     }
+
+    public static function shortenTypeCode(string $typeCode): string
+    {
+        $parts = explode('_', $typeCode);
+        if (count($parts) === 1) {
+            // كلمة واحدة: خذ أول 4 أحرف
+            return substr($typeCode, 0, 4);
+        }
+        // كلمتين أو أكثر: خذ أول حرفين من كل كلمة (حد أقصى 2 كلمات)
+        $shortenedParts = [];
+        foreach ($parts as $part) {
+            $shortenedParts[] = substr($part, 0, 3);
+        }
+
+        return implode('_', $shortenedParts);
+    }
+
     public function user()
     {
         return $this->belongsTo(User::class);
     }
+
     public function invoiceType()
     {
         return $this->belongsTo(InvoiceType::class);
     }
+
     public function items()
     {
         return $this->hasMany(InvoiceItem::class);
     }
+
     public function company()
     {
         return $this->belongsTo(Company::class);
     }
+
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
     }
+
     public function installmentPlan()
     {
         return $this->belongsTo(InstallmentPlan::class, 'installment_plan_id');

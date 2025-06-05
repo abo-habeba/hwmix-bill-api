@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use App\Models\Installment;
 use App\Http\Requests\Installment\StoreInstallmentRequest;
 use App\Http\Requests\Installment\UpdateInstallmentRequest;
 use App\Http\Resources\Installment\InstallmentResource;
+use App\Models\Installment;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class InstallmentController extends Controller
 {
@@ -16,7 +16,7 @@ class InstallmentController extends Controller
      */
     public function index()
     {
-        $installments = Installment::with(['installmentPlan', 'payments'])->paginate(20);
+        $installments = Installment::with(['installmentPlan'])->paginate(20);
         return InstallmentResource::collection($installments);
     }
 
