@@ -112,11 +112,12 @@ class InvoiceController extends Controller
                 ]);
 
                 for ($i = 0; $i < $planData['number_of_installments']; $i++) {
+                    // حساب due_date بناءً على نفس يوم start_date في كل شهر
                     $dueDate = $startDate->copy()->addMonthsNoOverflow($i);
 
                     Installment::create([
                         'installment_plan_id' => $installmentPlan->id,
-                        'due_date' => $dueDate,
+                        'due_date' => $dueDate, // تاريخ القسط: نفس اليوم من كل شهر
                         'amount' => $planData['installment_amount'],
                         'status' => $planData['status'] ?? 'confirmed',
                         'remaining' => $planData['installment_amount'],
