@@ -10,7 +10,7 @@ class Profit extends Model
         'source_type',
         'source_id',
         'created_by',
-        'customer_id',
+        'user_id',
         'company_id',
         'revenue_amount',
         'cost_amount',
@@ -23,10 +23,12 @@ class Profit extends Model
     {
         return $this->belongsTo(User::class, 'created_by');
     }
+
     public function customer()
     {
-        return $this->belongsTo(User::class, 'customer_id');
+        return $this->belongsTo(User::class, 'user_id');
     }
+
     public function company()
     {
         return $this->belongsTo(Company::class, 'company_id');

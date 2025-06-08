@@ -10,12 +10,13 @@ class StoreRevenueRequest extends FormRequest
     {
         return true;
     }
+
     public function rules(): array
     {
         return [
             'source_type' => 'required|string|max:255',
             'source_id' => 'required|integer',
-            'customer_id' => 'nullable|exists:users,id',
+            'user_id' => 'nullable|exists:users,id',
             'created_by' => 'nullable|exists:users,id',
             'wallet_id' => 'nullable|exists:cash_boxes,id',
             'company_id' => 'nullable|exists:companies,id',

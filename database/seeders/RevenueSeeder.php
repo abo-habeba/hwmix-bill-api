@@ -2,8 +2,8 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
 use App\Models\Revenue;
+use Illuminate\Database\Seeder;
 
 class RevenueSeeder extends Seeder
 {
@@ -12,7 +12,7 @@ class RevenueSeeder extends Seeder
         Revenue::create([
             'source_type' => 'sale_invoice',
             'source_id' => 1,
-            'customer_id' => 1,
+            'user_id' => 1,
             'created_by' => 1,
             'wallet_id' => 1,
             'company_id' => 1,
@@ -26,7 +26,7 @@ class RevenueSeeder extends Seeder
         Revenue::create([
             'source_type' => 'service_invoice',
             'source_id' => 2,
-            'customer_id' => 2,
+            'user_id' => 2,
             'created_by' => 1,
             'wallet_id' => 1,
             'company_id' => 1,

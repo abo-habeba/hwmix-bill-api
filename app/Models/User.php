@@ -5,21 +5,21 @@ namespace App\Models;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Exception;
 // use App\Models\Role;
-use App\Traits\Scopes;
+use App\Traits\Translations\Translatable;
 use App\Traits\Filterable;
 use App\Traits\LogsActivity;
 use App\Traits\RolePermissions;
-use Laravel\Sanctum\HasApiTokens;
-use Illuminate\Support\Facades\DB;
-use Spatie\Permission\Models\Role;
-use Spatie\Permission\Traits\HasRoles;
-use Illuminate\Notifications\Notifiable;
-use App\Traits\Translations\Translatable;
-use Spatie\Permission\Traits\HasPermissions;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Traits\Scopes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\DB;
+use Laravel\Sanctum\HasApiTokens;
+use Spatie\Permission\Models\Role;
+use Spatie\Permission\Traits\HasPermissions;
+use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable
 {
@@ -49,8 +49,6 @@ class User extends Authenticatable
         'customer_type',
     ];
 
-
-
     /**
      * The attributes that should be hidden for serialization.
      *
@@ -73,15 +71,18 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
     public function trans()
     {
         return $this->morphMany(Translation::class, 'model');
     }
+
     // Define the many-to-many relationship
     public function companies()
     {
         return $this->belongsToMany(Company::class, 'company_user', 'user_id', 'company_id');
     }
+
     public function balanceBox($id = null)
     {
         $cashBoxes = $this->cashBoxes;
@@ -90,29 +91,46 @@ class User extends Authenticatable
             : $cashBoxes->firstWhere('is_default', true);
         return $cashBox ? $cashBox->balance : 0;
     }
+
     public function cashBoxes()
     {
         return $this->hasMany(CashBox::class);
     }
+
     public function cashBoxeDefault()
     {
         return $this->hasOne(CashBox::class)->where('is_default', 1);
     }
+
     public function cashBoxesByCompany()
     {
         return $this->cashBoxes()->where('company_id', $this->company_id)->get();
     }
+
     public function createdRoles()
     {
         return $this->hasManyThrough(
             Role::class,
             RoleCompany::class,
-            'created_by', // المفتاح الخارجي في جدول RoleCompany يشير إلى المستخدم
-            'id',         // المفتاح الخارجي في جدول Role يشير إلى RoleCompany
-            'id',         // المفتاح الأساسي للمستخدم
-            'role_id'     // المفتاح في جدول RoleCompany يشير إلى جدول Role
+            'created_by',  // المفتاح الخارجي في جدول RoleCompany يشير إلى المستخدم
+            'id',  // المفتاح الخارجي في جدول Role يشير إلى RoleCompany
+            'id',  // المفتاح الأساسي للمستخدم
+            'role_id'  // المفتاح في جدول RoleCompany يشير إلى جدول Role
         );
     }
+
+    // كل الأقساط اللي تخص العميل ده
+    public function installments()
+    {
+        return $this->hasMany(Installment::class, 'user_id');
+    }
+
+    // كل الأقساط اللي الموظف ده أضافها
+    public function createdInstallments()
+    {
+        return $this->hasMany(Installment::class, 'created_by');
+    }
+
     public function getRolesWithPermissions()
     {
         return $this->roles->map(function ($role) {
@@ -128,11 +146,13 @@ class User extends Authenticatable
             ];
         });
     }
+
     // المعاملات التي قام بها المستخدم
     public function transactions()
     {
         return $this->hasMany(Transaction::class, 'user_id');
     }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
@@ -189,7 +209,6 @@ class User extends Authenticatable
             throw $e;
         }
     }
-
 
     // تحويل مبلغ بين المستخدمين
     public function transfer($cashBoxId, $targetUserId, $amount, $description = null)
@@ -255,13 +274,14 @@ class User extends Authenticatable
     {
         return $this->hasMany(Invoice::class);
     }
+
     public function installmentPlans()
     {
         return $this->hasMany(InstallmentPlan::class);
     }
+
     public function payments()
     {
         return $this->hasMany(Payment::class);
     }
-
 }

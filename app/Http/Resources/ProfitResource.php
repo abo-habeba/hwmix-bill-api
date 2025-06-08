@@ -13,7 +13,7 @@ class ProfitResource extends JsonResource
             'source_type' => $this->source_type,
             'source_id' => $this->source_id,
             'created_by' => $this->created_by,
-            'customer_id' => $this->customer_id,
+            'user_id' => $this->user_id,
             'company_id' => $this->company_id,
             'revenue_amount' => $this->revenue_amount,
             'cost_amount' => $this->cost_amount,

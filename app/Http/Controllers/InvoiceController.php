@@ -97,7 +97,7 @@ class InvoiceController extends Controller
 
                 $installmentPlan = InstallmentPlan::create([
                     'invoice_id' => $invoice->id,
-                    'customer_id' => $validatedData['user_id'] ?? null,
+                    'user_id' => $validatedData['user_id'] ?? null,
                     'company_id' => $validatedData['company_id'],
                     'created_by' => $validatedData['created_by'],
                     'total_amount' => $planData['total_amount'],

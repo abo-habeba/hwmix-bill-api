@@ -14,7 +14,7 @@ class RevenueFactory extends Factory
         return [
             'source_type' => $this->faker->randomElement(['sale_invoice', 'service_invoice']),
             'source_id' => $this->faker->numberBetween(1, 10),
-            'customer_id' => 1,
+            'user_id' => 1,
             'created_by' => 1,
             'wallet_id' => 1,
             'company_id' => 1,

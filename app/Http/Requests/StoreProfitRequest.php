@@ -10,13 +10,14 @@ class StoreProfitRequest extends FormRequest
     {
         return true;
     }
+
     public function rules(): array
     {
         return [
             'source_type' => 'required|string|max:255',
             'source_id' => 'required|integer',
             'created_by' => 'nullable|exists:users,id',
-            'customer_id' => 'nullable|exists:users,id',
+            'user_id' => 'nullable|exists:users,id',
             'company_id' => 'nullable|exists:companies,id',
             'revenue_amount' => 'required|numeric|min:0',
             'cost_amount' => 'required|numeric|min:0',

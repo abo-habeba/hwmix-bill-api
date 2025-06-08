@@ -12,15 +12,17 @@ return new class extends Migration {
     public function up(): void
     {
         Schema::create('installments', function (Blueprint $table) {
-            $table->id();  // رقم السطر
-            $table->foreignId('installment_plan_id')->constrained('installment_plans')->onDelete('cascade');  // خطة التقسيط
+            $table->id();
+            $table->foreignId('installment_plan_id')->constrained('installment_plans')->onDelete('cascade');
+            $table->foreignId('user_id')->constrained('users')->onDelete('cascade');  // << أضفت العلاقة دي
+            $table->foreignId('created_by')->constrained('users')->onDelete('cascade');  // << أضفت العلاقة دي  created_by
             $table->string('installment_number')->nullable();
-            $table->date('due_date');  // تاريخ الاستحقاق
-            $table->decimal('amount', 15, 2);  // قيمة القسط
-            $table->string('status');  // حالة القسط
-            $table->timestamp('paid_at')->nullable();  // تاريخ السداد
-            $table->decimal('remaining', 15, 2)->default(0);  // المتبقي
-            $table->timestamps();  // التواريخ
+            $table->date('due_date');
+            $table->decimal('amount', 15, 2);
+            $table->string('status');
+            $table->timestamp('paid_at')->nullable();
+            $table->decimal('remaining', 15, 2)->default(0);
+            $table->timestamps();
         });
     }
 

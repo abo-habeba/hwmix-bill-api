@@ -9,7 +9,7 @@ class InstallmentPlan extends Model
     use HasFactory;
 
     protected $fillable = [
-        'invoice_id', 'customer_id', 'total_amount', 'down_payment', 'remaining_amount', 'company_id', 'created_by',
+        'invoice_id', 'user_id', 'total_amount', 'down_payment', 'remaining_amount', 'company_id', 'created_by',
         'number_of_installments', 'installment_amount', 'start_date', 'end_date', 'status', 'notes'
     ];
 
@@ -20,7 +20,7 @@ class InstallmentPlan extends Model
 
     public function customer()
     {
-        return $this->belongsTo(User::class, 'customer_id');
+        return $this->belongsTo(User::class, 'user_id');
     }
 
     public function payments()

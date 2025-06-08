@@ -12,7 +12,7 @@ class RevenueResource extends JsonResource
             'id' => $this->id,
             'source_type' => $this->source_type,
             'source_id' => $this->source_id,
-            'customer_id' => $this->customer_id,
+            'user_id' => $this->user_id,
             'created_by' => $this->created_by,
             'wallet_id' => $this->wallet_id,
             'company_id' => $this->company_id,
