@@ -2,18 +2,18 @@
 
 namespace App\Http\Controllers;
 
-use Carbon\Carbon;
-use App\Models\Stock;
-use App\Models\Invoice;
-use App\Models\Product;
-use App\Models\Installment;
-use App\Models\InvoiceItem;
-use Illuminate\Http\Request;
-use App\Models\InstallmentPlan;
-use Illuminate\Support\Facades\DB;
-use App\Http\Resources\Invoice\InvoiceResource;
 use App\Http\Requests\Invoice\StoreInvoiceRequest;
 use App\Http\Requests\Invoice\UpdateInvoiceRequest;
+use App\Http\Resources\Invoice\InvoiceResource;
+use App\Models\Installment;
+use App\Models\InstallmentPlan;
+use App\Models\Invoice;
+use App\Models\InvoiceItem;
+use App\Models\Product;
+use App\Models\Stock;
+use Carbon\Carbon;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class InvoiceController extends Controller
 {
@@ -35,12 +35,10 @@ class InvoiceController extends Controller
         try {
             $user = auth()->user();
 
-
             $validatedData = $request->validated();
             $companyId = $validatedData['company_id'] = $validatedData['company_id'] ?? $user->company_id;
             $createdBy = $validatedData['created_by'] = $validatedData['created_by'] ?? $user->id;
             $validatedData['status'] = $request->input('status', 'confirmed');
-
 
             // إنشاء الفاتورة
             $invoice = Invoice::create([
@@ -63,8 +61,6 @@ class InvoiceController extends Controller
                 if (!isset($item['product_id'], $item['name'], $item['quantity'], $item['unit_price'], $item['discount'], $item['total'])) {
                     throw new \InvalidArgumentException('Missing required item fields.');
                 }
-
-
 
                 $invoice->items()->create([
                     'product_id' => $item['product_id'],
@@ -117,7 +113,7 @@ class InvoiceController extends Controller
 
                     Installment::create([
                         'installment_plan_id' => $installmentPlan->id,
-                        'due_date' => $dueDate, // تاريخ القسط: نفس اليوم من كل شهر
+                        'due_date' => $dueDate,  // تاريخ القسط: نفس اليوم من كل شهر
                         'amount' => $planData['installment_amount'],
                         'status' => $planData['status'] ?? 'confirmed',
                         'remaining' => $planData['installment_amount'],
@@ -133,7 +129,6 @@ class InvoiceController extends Controller
                 'message' => trans('messages.invoice_saved_successfully'),
                 'invoice' => new InvoiceResource($invoice),
             ], 201);
-
         } catch (\Exception $e) {
             DB::rollBack();
             \Log::error('Error occurred while processing invoice: ' . $e->getMessage(), ['exception' => $e]);
@@ -149,8 +144,6 @@ class InvoiceController extends Controller
             return response()->json($response, 500);
         }
     }
-
-
 
     // public function store(StoreInvoiceRequest $request)
     // {

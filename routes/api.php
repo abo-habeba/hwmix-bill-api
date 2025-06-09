@@ -1,31 +1,32 @@
 <?php
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\LogController;
-use App\Http\Controllers\AuthController;
-use App\Http\Controllers\RoleController;
-use App\Http\Controllers\UserController;
-use App\Http\Controllers\BrandController;
-use App\Http\Controllers\StockController;
-use App\Http\Controllers\CashBoxController;
-use App\Http\Controllers\CompanyController;
-use App\Http\Controllers\ProductController;
-use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\Backup\DatabaseBackupController;
 use App\Http\Controllers\AttributeController;
-use App\Http\Controllers\WarehouseController;
-use App\Http\Controllers\CashBoxTypeController;
-use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\AttributeValueController;
-use App\Http\Controllers\ProductVariantController;
-use App\Http\Controllers\InvoiceTypeController;
+use App\Http\Controllers\AuthController;
+use App\Http\Controllers\BrandController;
+use App\Http\Controllers\CashBoxController;
+use App\Http\Controllers\CashBoxTypeController;
+use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\CompanyController;
+use App\Http\Controllers\InstallmentController;
+use App\Http\Controllers\InstallmentPaymentDetailController;
+use App\Http\Controllers\InstallmentPlanController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\InvoiceItemController;
-use App\Http\Controllers\InstallmentPlanController;
-use App\Http\Controllers\InstallmentController;
+use App\Http\Controllers\InvoiceTypeController;
+use App\Http\Controllers\LogController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PaymentMethodController;
-use App\Http\Controllers\InstallmentPaymentDetailController;
+use App\Http\Controllers\ProductController;
+use App\Http\Controllers\ProductVariantController;
+use App\Http\Controllers\RoleController;
+use App\Http\Controllers\StockController;
+use App\Http\Controllers\TransactionController;
+use App\Http\Controllers\UserController;
+use App\Http\Controllers\WarehouseController;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
 
 // Route to run migrations and seeders without authentication (for development only)
 Route::get('run-seed', function (Request $request) {
@@ -46,12 +47,18 @@ Route::get('run-seed', function (Request $request) {
     }
 });
 
+Route::prefix('db')->controller(DatabaseBackupController::class)->group(function () {
+    Route::get('export', 'export');  // /db/export
+    Route::get('seed', 'runSeeders');  // /db/seed
+    Route::get('refresh', 'restoreAndFresh');  // /db/refresh
+});
+
 Route::post('register', [AuthController::class, 'register']);
 Route::post('login', [AuthController::class, 'login']);
 Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('logout', [AuthController::class, 'logout']);
     Route::get('/auth/check', [AuthController::class, 'checkLogin']);
-    //Auth Controller
+    // Auth Controller
     Route::get('me', [AuthController::class, 'me']);
     // User Controller
     Route::controller(UserController::class)
@@ -253,4 +260,4 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::apiResource('installment-payment-details', InstallmentPaymentDetailController::class);
 });
 
-require __DIR__.'/installments.php';
+require __DIR__ . '/installments.php';
