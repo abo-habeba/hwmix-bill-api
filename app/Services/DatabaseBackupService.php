@@ -61,9 +61,9 @@ class DatabaseBackupService
             $priorityTables = [
                 'companies' => 1,  // Companies should be seeded first
                 'permissions' => 2,
-                'roles' => 3,
-                'users' => 4,  // Users should be seeded after companies, permissions, and roles
-                'role_has_permissions' => 5,  // Depends on roles and permissions
+                     'users' => 3,  // Users should be seeded after companies, permissions, and roles
+                'roles' => 4,
+             'role_has_permissions' => 5,  // Depends on roles and permissions
                 'model_has_roles' => 6,  // Depends on roles and models (users)
                 'model_has_permissions' => 7,  // Depends on permissions and models (users)
             ];
