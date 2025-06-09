@@ -55,9 +55,13 @@ class DatabaseBackupController extends Controller
             $seedResult = Artisan::call('db:seed', [
                 '--class' => RunAllBackupSeeders::class
             ]);
-            if ($seedResult !== 0) {
-                return response()->json(['status' => '❌ Failed to run seeders'], 500);
-            }
+
+            $output = Artisan::output();
+
+            return response()->json([
+                'status' => $seedResult === 0 ? '✅ Success' : '❌ Failed',
+                'output' => $output,
+            ]);
 
             return response()->json(['status' => '✅ Restore + Migrate Fresh + Seed All Done']);
         } catch (Exception $e) {
