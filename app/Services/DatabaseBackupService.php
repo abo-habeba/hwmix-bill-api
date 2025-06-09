@@ -2,14 +2,17 @@
 
 namespace App\Services;
 
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 use Exception;
+use ZipArchive;
 
 class DatabaseBackupService
 {
     protected string $backupPath;
+    protected array $pivotTables = [];
 
     public function __construct()
     {
@@ -20,7 +23,7 @@ class DatabaseBackupService
     public function exportDataAndGenerateSeeders(array $excludeTables = []): array
     {
         try {
-            // حذف جميع ملفات الباك أب القديمة
+            // حذف ملفات النسخ الاحتياطي القديمة
             if (is_dir($this->backupPath)) {
                 $files = glob($this->backupPath . '/*');
                 foreach ($files as $file) {
@@ -31,15 +34,16 @@ class DatabaseBackupService
             }
 
             $databaseName = DB::getDatabaseName();
-            $tables = DB::select('SHOW TABLES');
+            $tablesObj = DB::select('SHOW TABLES');
             $key = "Tables_in_$databaseName";
+            $tables = array_map(fn($t) => $t->$key, $tablesObj);
+            $excludeTables = array_merge($excludeTables, ['migrations']);
+            $this->pivotTables = $this->detectPivotTables($tables);
 
             $seederClasses = [];
             $log = [];
 
-            foreach ($tables as $table) {
-                $tableName = $table->$key;
-
+            foreach ($tables as $tableName) {
                 if (in_array($tableName, $excludeTables)) {
                     $log[] = "⚠️ تم استثناء الجدول: $tableName";
                     continue;
@@ -48,32 +52,33 @@ class DatabaseBackupService
                 try {
                     $data = DB::table($tableName)->get();
                     if ($data->isEmpty()) {
-                        $log[] = "⚠️ جدول '$tableName' فاضي، تم تخطيه.";
+                        $log[] = "⚠️ جدول '$tableName' فارغ، تم تخطيه.";
                         continue;
                     }
 
-                    $jsonFile = "{$this->backupPath}/{$tableName}.json";
+                    if (in_array($tableName, $this->pivotTables)) {
+                        $data = $data->map(function ($row) {
+                            $arr = (array) $row;
+                            unset($arr['id']);
+                            return $arr;
+                        });
+                    }
+
+                    $jsonFile = "$this->backupPath/{$tableName}.json";
                     File::put($jsonFile, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 
-                    if (!File::exists($jsonFile) || filesize($jsonFile) == 0) {
+                    if (!File::exists($jsonFile) || filesize($jsonFile) === 0) {
                         throw new Exception("❌ فشل في حفظ ملف JSON للجدول: $tableName");
                     }
 
                     $seederClass = Str::studly($tableName) . 'BackupSeeder';
-                    $seederFile = "{$this->backupPath}/{$seederClass}.php";
-
+                    $seederFile = "$this->backupPath/{$seederClass}.php";
                     $primaryKeys = $this->getTablePrimaryKeys($tableName);
-
                     $seederContent = $this->generateSeederContent($seederClass, $tableName, $primaryKeys);
                     File::put($seederFile, $seederContent);
 
-                    if (!File::exists($seederFile) || filesize($seederFile) == 0) {
+                    if (!File::exists($seederFile) || filesize($seederFile) === 0) {
                         throw new Exception("❌ فشل في توليد Seeder لـ: $tableName");
-                    }
-
-                    $jsonCheck = json_decode(File::get($jsonFile), true);
-                    if (!is_array($jsonCheck)) {
-                        throw new Exception("❌ محتوى JSON غير صالح للجدول: $tableName");
                     }
 
                     $seederClasses[] = $seederClass;
@@ -84,84 +89,69 @@ class DatabaseBackupService
             }
 
             $this->generateMasterSeeder($seederClasses);
-
-            File::put("{$this->backupPath}/backup_log.txt", implode("\n", $log));
+            File::put("$this->backupPath/backup_log.txt", implode("\n", $log));
 
             return $seederClasses;
         } catch (Exception $e) {
-            File::put("{$this->backupPath}/backup_log.txt", $e->getMessage() . PHP_EOL, FILE_APPEND);
+            File::put("$this->backupPath/backup_log.txt", $e->getMessage() . PHP_EOL, FILE_APPEND);
             return [];
         }
     }
 
     public function runBackupSeeders()
     {
-        \Artisan::call('db:seed', [
+        Artisan::call('db:seed', [
             '--class' => 'Database\Seeders\Backup\RunAllBackupSeeders'
         ]);
     }
 
     protected function getTablePrimaryKeys(string $tableName): array
     {
-        // جلب أسماء الأعمدة المفتاحية (Primary Key) للجدول
         $databaseName = DB::getDatabaseName();
 
-        $results = DB::select("
-            SELECT COLUMN_NAME 
-            FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
-            WHERE TABLE_SCHEMA = ? 
-              AND TABLE_NAME = ? 
-              AND CONSTRAINT_NAME = 'PRIMARY'
-        ", [$databaseName, $tableName]);
+        $results = DB::select("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND CONSTRAINT_NAME = 'PRIMARY'", [$databaseName, $tableName]);
 
         return array_map(fn($row) => $row->COLUMN_NAME, $results);
     }
 
     protected function generateSeederContent(string $className, string $tableName, array $primaryKeys): string
     {
-        // إذا مفيش primary key، نستعمل insert فقط
         if (empty($primaryKeys)) {
-            $condition = "null"; // معناه insert بدون updateOrInsert
+            $condition = 'null';
+            $updateOrInsertCode = "DB::table('{$tableName}')->insert(\$row);";
         } else {
-            // نستخدم primary keys كشرط تحديث
-            $keysArray = "[\n";
-            foreach ($primaryKeys as $key) {
-                $keysArray .= "                    '{$key}' => \$row['{$key}'],\n";
-            }
-            $keysArray .= "                ]";
-            $condition = $keysArray;
-        }
+            $condition = "[\n"
+                . implode('', array_map(fn($key) => "                    '{$key}' => \$row['{$key}'],\n", $primaryKeys))
+                . '                ]';
 
-        $updateOrInsertCode = $condition === "null"
-            ? "DB::table('{$tableName}')->insert(\$row);"
-            : "DB::table('{$tableName}')->updateOrInsert({$condition}, \$row);";
+            $updateOrInsertCode = "DB::table('{$tableName}')->updateOrInsert({$condition}, \$row);";
+        }
 
         return <<<PHP
-<?php
+            <?php
 
-namespace Database\Seeders\Backup;
+            namespace Database\Seeders\Backup;
 
-use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\File;
+            use Illuminate\Database\Seeder;
+            use Illuminate\Support\Facades\DB;
+            use Illuminate\Support\Facades\File;
 
-class {$className} extends Seeder
-{
-    public function run()
-    {
-        \$json = File::get(database_path('seeders/Backup/{$tableName}.json'));
-        \$data = json_decode(\$json, true);
+            class {$className} extends Seeder
+            {
+                public function run()
+                {
+                    \$json = File::get(database_path('seeders/Backup/{$tableName}.json'));
+                    \$data = json_decode(\$json, true);
 
-        foreach (\$data as \$row) {
-            // إذا البيانات فارغة نتخطى
-            if (empty(\$row)) continue;
+                    foreach (\$data as \$row) {
+                        if (empty(\$row)) continue;
 
-            {$updateOrInsertCode}
-        }
-    }
-}
+                        {$updateOrInsertCode}
+                    }
+                }
+            }
 
-PHP;
+            PHP;
     }
 
     protected function generateMasterSeeder(array $classes): void
@@ -177,8 +167,29 @@ PHP;
         }
 
         usort($classes, function ($a, $b) use ($migrationOrder) {
-            $indexA = array_search(str_replace('BackupSeeder', '', $a), $migrationOrder);
-            $indexB = array_search(str_replace('BackupSeeder', '', $b), $migrationOrder);
+            $aName = str_replace('BackupSeeder', '', $a);
+            $bName = str_replace('BackupSeeder', '', $b);
+
+            $indexA = array_search($aName, $migrationOrder);
+            $indexB = array_search($bName, $migrationOrder);
+
+            if ($indexA === false)
+                $indexA = PHP_INT_MAX;
+            if ($indexB === false)
+                $indexB = PHP_INT_MAX;
+
+            // ترتيب يدوي للثنائي Permissions و ModelHasPermissions لو من نفس الميجريشن
+            if ($indexA === $indexB) {
+                $orderSpecial = [
+                    'Permissions' => 1,
+                    'ModelHasPermissions' => 2,
+                ];
+
+                $orderA = $orderSpecial[$aName] ?? 99;
+                $orderB = $orderSpecial[$bName] ?? 99;
+
+                return $orderA <=> $orderB;
+            }
 
             return $indexA <=> $indexB;
         });
@@ -187,31 +198,31 @@ PHP;
         $body = implode("\n", $lines);
 
         $content = <<<PHP
-<?php
+            <?php
 
-namespace Database\Seeders\Backup;
+            namespace Database\Seeders\Backup;
 
-use Illuminate\Database\Seeder;
+            use Illuminate\Database\Seeder;
 
-class RunAllBackupSeeders extends Seeder
-{
-    public function run()
-    {
-{$body}
-    }
-}
+            class RunAllBackupSeeders extends Seeder
+            {
+                public function run()
+                {
+            {$body}
+                }
+            }
 
-PHP;
+            PHP;
 
-        File::put("{$this->backupPath}/RunAllBackupSeeders.php", $content);
+        File::put("$this->backupPath/RunAllBackupSeeders.php", $content);
     }
 
     public function compressBackup(): void
     {
-        $zipFile = "{$this->backupPath}/backup.zip";
-        $zip = new \ZipArchive();
+        $zipFile = "$this->backupPath/backup.zip";
+        $zip = new ZipArchive();
 
-        if ($zip->open($zipFile, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) === true) {
+        if ($zip->open($zipFile, ZipArchive::CREATE | ZipArchive::OVERWRITE) === true) {
             $files = File::files($this->backupPath);
 
             foreach ($files as $file) {
@@ -222,5 +233,33 @@ PHP;
 
             $zip->close();
         }
+    }
+
+    protected function detectPivotTables(array $tables): array
+    {
+        $pivotTables = [];
+
+        foreach ($tables as $table) {
+            $primaryKeys = $this->getTablePrimaryKeys($table);
+
+            if (empty($primaryKeys) || (Str::contains($table, '_') && $this->hasOnlyForeignKeys($table))) {
+                $pivotTables[] = $table;
+            }
+        }
+
+        return $pivotTables;
+    }
+
+    protected function hasOnlyForeignKeys(string $table): bool
+    {
+        $columns = DB::getSchemaBuilder()->getColumnListing($table);
+
+        foreach ($columns as $column) {
+            if (!Str::endsWith($column, '_id') && !in_array($column, ['created_at', 'updated_at'])) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }
