@@ -48,7 +48,7 @@ Route::get('/dump', function () {
 });
 
 // Route to run migrations and seeders without authentication (for development only)
-Route::get('run-seed', function (Request $request) {
+Route::get('db/seed', function (Request $request) {
     try {
         \Artisan::call('migrate:fresh', ['--force' => true]);
         \Artisan::call('db:seed', [
