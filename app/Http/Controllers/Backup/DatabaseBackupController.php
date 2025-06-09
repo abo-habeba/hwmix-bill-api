@@ -53,7 +53,8 @@ class DatabaseBackupController extends Controller
 
             // الخطوة الثالثة: تشغيل جميع ملفات السيدر
             $seedResult = Artisan::call('db:seed', [
-                '--class' => RunAllBackupSeeders::class
+                '--class' => RunAllBackupSeeders::class,
+                '--force' => true,
             ]);
 
             $output = Artisan::output();
