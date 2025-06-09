@@ -28,6 +28,25 @@ use App\Http\Controllers\WarehouseController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
+use Illuminate\Support\Facades\Artisan;
+
+Route::get('/dump', function () {
+    try {
+        // شغل أمر composer dump-autoload من خلال shell_exec
+        $output = shell_exec('composer dump-autoload');
+
+        return response()->json([
+            'status' => '✅ dump-autoload تم بنجاح',
+            'output' => $output
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'status' => '❌ حصل خطأ',
+            'message' => $e->getMessage()
+        ]);
+    }
+});
+
 // Route to run migrations and seeders without authentication (for development only)
 Route::get('run-seed', function (Request $request) {
     try {
