@@ -68,7 +68,7 @@ Route::get('db/seed', function (Request $request) {
 
 Route::prefix('db')->controller(DatabaseBackupController::class)->group(function () {
     Route::get('export', 'export');  // /db/export
-    Route::get('seed', 'runSeeders');  // /db/seed
+    Route::get('seed-export', 'runSeeders');  // /db/seed
     Route::get('refresh', 'restoreAndFresh');  // /db/refresh
 });
 
