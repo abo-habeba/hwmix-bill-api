@@ -10,13 +10,20 @@ use Exception;
 
 class DatabaseBackupService
 {
-    protected string $backupPath;
+    protected string $backupBasePath;
+    protected string $jsonBackupPath;
+    protected string $seedersBackupPath;
     protected array $pivotTables = [];
 
     public function __construct()
     {
-        $this->backupPath = database_path('seeders/Backup');
-        File::ensureDirectoryExists($this->backupPath);
+        $this->backupBasePath = database_path('seeders/Backup');
+        $this->jsonBackupPath = $this->backupBasePath . '/json_data';
+        $this->seedersBackupPath = $this->backupBasePath . '/seeders';
+
+        // التأكد من وجود المسارات المطلوبة
+        File::ensureDirectoryExists($this->jsonBackupPath);
+        File::ensureDirectoryExists($this->seedersBackupPath);
     }
 
     public function exportDataAndGenerateSeeders(array $excludeTables = []): array
@@ -25,48 +32,33 @@ class DatabaseBackupService
 
         try {
             $report['steps'][] = '🚀 بدء عملية النسخ الاحتياطي وتوليد seeders';
-            try {
-                if (is_dir($this->backupPath)) {
-                    foreach (File::files($this->backupPath) as $file) {
-                        if (in_array($file->getExtension(), ['php', 'json'])) {
-                            unlink($file->getRealPath());
-                        }
-                    }
-                    $report['steps'][] = '🧹 تم حذف النسخ القديمة بنجاح';
-                }
-            } catch (Exception $e) {
-                $report['errors'][] = '❌ فشل في حذف الملفات القديمة: ' . $e->getMessage();
-            }
+
+            // حذف الملفات القديمة من كلا المجلدين
+            $this->cleanOldBackupFiles($report);
 
             $databaseName = DB::getDatabaseName();
-            $tablesObj = DB::select('SHOW TABLES');
-            $key = "Tables_in_{$databaseName}";
-            $allTables = array_map(fn($t) => $t->$key, $tablesObj);
+            $allTables = $this->getAllTableNames($databaseName);
 
             $excludeTables = array_merge($excludeTables, ['migrations']);
             $this->pivotTables = $this->detectPivotTables($allTables);
 
-            // Get the ordered table names from migrations first
             $migrationOrderedTables = $this->getMigrationTablesOrder();
             $seederClassesToGenerate = [];
 
-            // Prepare a map to get the migration index for each table
             $migrationTableIndexMap = [];
             foreach ($migrationOrderedTables as $index => $tableName) {
-                $migrationTableIndexMap[strtolower($tableName)] = $index + 1;  // Start from 1, use lowercase for consistent lookup
+                $migrationTableIndexMap[strtolower($tableName)] = $index + 1;
             }
 
-            // Define explicit priorities for tables that must be at the END of the seeding process
-            // Assign high numbers to ensure they appear last when sorted.
             $endPriorityTables = [
-                'permissions' => 997,
-                'roles' => 998,
-                'role_has_permissions' => 999,
+                'permissions' => 994,
+                'roles' => 995,
+                'role_has_permissions' => 996,
+                'model_has_roles' => 997,
+                'model_has_permissions' => 998,
             ];
 
-            // To ensure unique numbers for non-priority tables,
-            // we'll assign a starting index for general tables that avoids conflict with endPriorityTables.
-            // Start general indices from 1 and let them increment normally.
+            $minEndPriority = !empty($endPriorityTables) ? min(array_values($endPriorityTables)) : PHP_INT_MAX;
             $nextGeneralIndex = 1;
 
             foreach ($allTables as $tableName) {
@@ -74,90 +66,72 @@ class DatabaseBackupService
                     $report['steps'][] = "⏭️ تم استثناء الجدول: $tableName";
                     continue;
                 }
+
                 try {
                     $report['steps'][] = "📦 جاري تصدير الجدول: $tableName";
                     $data = DB::table($tableName)->get();
 
-                    // --- التعديل هنا: إزالة شرط التخطي للجداول الفارغة ---
-                    // if ($data->isEmpty()) {
-                    //     $report['steps'][] = "⚠️ جدول '$tableName' فارغ، تم تخطيه.";
-                    //     continue;
-                    // }
-                    // --------------------------------------------------
-
                     if (in_array($tableName, $this->pivotTables)) {
                         $data = $data->map(function ($row) {
                             $arr = (array) $row;
-                            unset($arr['id']);
+                            unset($arr['id']);  // إزالة الـ ID فقط للجداول الوسيطة
                             return $arr;
                         });
                     }
-                    $jsonFile = "{$this->backupPath}/{$tableName}.json";
-                    // نكتب بيانات فارغة في ملف JSON إذا كان الجدول فارغاً
+
+                    $jsonFile = "{$this->jsonBackupPath}/{$tableName}.json";
                     File::put($jsonFile, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+
                     if (!File::exists($jsonFile) || filesize($jsonFile) === 0) {
                         // لا نعتبره خطأ إذا كان الملف موجوداً وفارغاً (لأن الجدول قد يكون فارغاً)
-                        // يمكننا التمييز بين عدم الإنشاء والإنشاء الفارغ
                         if (!File::exists($jsonFile)) {
                             throw new Exception("لم يتم إنشاء ملف JSON للجدول: $tableName");
                         }
                     }
 
-                    // Determine the numerical prefix for the seeder file and class name
                     $numericPrefix = '';
                     $lowerTableName = strtolower($tableName);
 
                     if (isset($endPriorityTables[$lowerTableName])) {
-                        // Assign the high priority number for tables that should be at the end
                         $numericPrefix = sprintf('%03d', $endPriorityTables[$lowerTableName]);
                     } else {
-                        // For all other tables, try to use migration order.
-                        // If no migration order, use a high default number, but ensure it's not conflicting
-                        // with our specific end-priority tables (997-999).
                         $baseIndex = $migrationTableIndexMap[$lowerTableName] ?? null;
-
-                        if ($baseIndex !== null && $baseIndex < min(array_values($endPriorityTables))) {
-                            // If migration order exists and is less than our end priorities, use it
+                        if ($baseIndex !== null && $baseIndex < $minEndPriority) {
                             $numericPrefix = sprintf('%03d', $baseIndex);
                         } else {
-                            // Otherwise, assign a general incrementing number that won't conflict
-                            // with the end-priority tables. Start from 1 and increment.
                             $numericPrefix = sprintf('%03d', $nextGeneralIndex++);
                         }
                     }
 
-                    $fullPrefix = 'N' . $numericPrefix;  // Prefix format: N001, N002, etc.
-
-                    // The seeder class name now includes the new prefix format
+                    $fullPrefix = 'N' . $numericPrefix;
                     $seederClassName = $fullPrefix . '_' . Str::studly($tableName) . 'BackupSeeder';
-
-                    // The seeder file name also includes the new prefix format
-                    $seederFile = "{$this->backupPath}/{$seederClassName}.php";
+                    $seederFile = "{$this->seedersBackupPath}/{$seederClassName}.php";
 
                     $primaryKeys = $this->getTablePrimaryKeys($tableName);
 
-                    // Pass the full class name (with new prefix) to generateSeederContent
                     $seederContent = $this->generateSeederContent($seederClassName, $tableName, $primaryKeys);
                     File::put($seederFile, $seederContent);
+
                     if (!File::exists($seederFile) || filesize($seederFile) === 0) {
                         throw new Exception("فشل في توليد Seeder لجدول: $tableName");
                     }
+
                     $report['steps'][] = "✅ تم توليد Seeder لجدول: $tableName";
-                    $seederClassesToGenerate[] = $seederClassName;  // Store the full seeder class name
+                    $seederClassesToGenerate[] = $seederClassName;
                 } catch (Exception $e) {
                     $report['errors'][] = "🛑 خطأ أثناء تصدير الجدول '$tableName': " . $e->getMessage();
                 }
             }
 
-            // Now, when generating the master seeder, it will simply read and sort by prefix
             $this->generateMasterSeeder($seederClassesToGenerate);
             $report['steps'][] = '✅ تم توليد Seeder الرئيسي RunAllBackupSeeders.php';
             $report['seeders'] = $seederClassesToGenerate;
-            File::put("{$this->backupPath}/backup_log.txt", implode("\n", array_merge($report['steps'], $report['errors'])));
+
+            File::put("{$this->backupBasePath}/backup_log.txt", implode("\n", array_merge($report['steps'], $report['errors'])));
             return $report;
         } catch (Exception $e) {
             $report['errors'][] = '❌ خطأ عام: ' . $e->getMessage();
-            File::put("{$this->backupPath}/backup_log.txt", implode("\n", $report['errors']));
+            File::put("{$this->backupBasePath}/backup_log.txt", implode("\n", $report['errors']));
             return $report;
         }
     }
@@ -169,6 +143,7 @@ class DatabaseBackupService
                 '--class' => 'Database\Seeders\Backup\RunAllBackupSeeders',
                 '--force' => true,
             ]);
+
             if ($exitCode !== 0) {
                 return ['success' => false, 'message' => 'فشل في استيراد البيانات. كود الخطأ: ' . $exitCode];
             }
@@ -178,6 +153,47 @@ class DatabaseBackupService
         }
     }
 
+    /**
+     * يحذف جميع ملفات النسخ الاحتياطي القديمة (JSON و PHP seeders).
+     */
+    protected function cleanOldBackupFiles(array &$report): void
+    {
+        try {
+            // حذف ملفات JSON القديمة
+            foreach (File::files($this->jsonBackupPath) as $file) {
+                if ($file->getExtension() === 'json') {
+                    unlink($file->getRealPath());
+                }
+            }
+            // حذف ملفات Seeder القديمة
+            foreach (File::files($this->seedersBackupPath) as $file) {
+                if ($file->getExtension() === 'php') {
+                    unlink($file->getRealPath());
+                }
+            }
+            // حذف ملف السجل القديم إن وجد
+            if (File::exists("{$this->backupBasePath}/backup_log.txt")) {
+                unlink("{$this->backupBasePath}/backup_log.txt");
+            }
+            $report['steps'][] = '🧹 تم حذف النسخ القديمة بنجاح';
+        } catch (Exception $e) {
+            $report['errors'][] = '❌ فشل في حذف الملفات القديمة: ' . $e->getMessage();
+        }
+    }
+
+    /**
+     * يجلب جميع أسماء الجداول من قاعدة البيانات.
+     */
+    protected function getAllTableNames(string $databaseName): array
+    {
+        $tablesObj = DB::select('SHOW TABLES');
+        $key = "Tables_in_{$databaseName}";
+        return array_map(fn($t) => $t->$key, $tablesObj);
+    }
+
+    /**
+     * يجلب المفاتيح الأساسية لجدول معين.
+     */
     protected function getTablePrimaryKeys(string $tableName): array
     {
         $dbName = DB::getDatabaseName();
@@ -185,20 +201,24 @@ class DatabaseBackupService
         return array_map(fn($row) => $row->COLUMN_NAME, $results);
     }
 
+    /**
+     * يولد محتوى ملف Seeder لجدول معين.
+     */
     protected function generateSeederContent(string $className, string $tableName, array $primaryKeys): string
     {
         $condition = empty($primaryKeys)
             ? 'null'
-            : "[\n" . implode('', array_map(fn($key) => "                '$key' => \$row['$key'],\n", $primaryKeys)) . '            ]';
+            : "[\n" . implode('', array_map(fn($key) => "                    '$key' => \$row['$key'],\n", $primaryKeys)) . '                ]';
 
         $code = empty($primaryKeys)
             ? "DB::table('$tableName')->insert(\$row);"
             : "DB::table('$tableName')->updateOrInsert($condition, \$row);";
 
+        // يتم الآن قراءة ملف JSON من المسار الجديد
         return <<<PHP
             <?php
 
-            namespace Database\Seeders\Backup;
+            namespace Database\Seeders\Backup\seeders;
 
             use Illuminate\Database\Seeder;
             use Illuminate\Support\Facades\DB;
@@ -208,9 +228,15 @@ class DatabaseBackupService
             {
                 public function run()
                 {
-                    \$json = File::get(database_path('seeders/Backup/{$tableName}.json'));
+                    \$jsonPath = database_path('seeders/Backup/json_data/{$tableName}.json');
+                    if (!File::exists(\$jsonPath)) {
+                        \$this->command->warn("ملف البيانات {$tableName}.json غير موجود، تم تخطي السيدة.");
+                        return;
+                    }
+
+                    \$json = File::get(\$jsonPath);
                     \$data = json_decode(\$json, true);
-                    // التحقق من أن البيانات ليست فارغة قبل محاولة الإدخال
+
                     if (!empty(\$data)) {
                         foreach (\$data as \$row) {
                             if (empty(\$row)) continue;
@@ -222,23 +248,29 @@ class DatabaseBackupService
             PHP;
     }
 
+    /**
+     * يولد ملف Seeder الرئيسي الذي يقوم بتشغيل جميع ملفات Seeders الأخرى.
+     */
     protected function generateMasterSeeder(array $classes): void
     {
-        $seederFiles = File::files($this->backupPath);
+        $seederFiles = File::files($this->seedersBackupPath);  // البحث عن السيدرات في المجلد الجديد
         $seederClassNames = [];
 
         foreach ($seederFiles as $file) {
             $fileName = $file->getFilenameWithoutExtension();
-            if (preg_match('/^N\d{3}_(.+)BackupSeeder$/', $fileName) && $fileName !== 'RunAllBackupSeeders') {
+            // التأكد من أن الملف ليس هو RunAllBackupSeeders نفسه
+            if (preg_match('/^N\d{3}_(.+)BackupSeeder$/', $fileName)) {
                 $seederClassNames[] = $fileName;
             }
         }
 
-        sort($seederClassNames);  // Sorts by N prefix then number
+        sort($seederClassNames);  // الترتيب حسب البادئة الرقمية
 
-        $body = implode("\n", array_map(fn($className) => "        \$this->call({$className}::class);", $seederClassNames));
+        // *** التعديل هنا: تصحيح الـ namespace لاستدعاء السيدرات الفردية ***
+        $body = implode("\n", array_map(fn($className) => "        \$this->call(\Database\Seeders\Backup\seeders\\{$className}::class);", $seederClassNames));
 
-        File::put("{$this->backupPath}/RunAllBackupSeeders.php", <<<PHP
+        // يتم إنشاء ملف Seeder الرئيسي مباشرة في مجلد Backup
+        File::put("{$this->backupBasePath}/RunAllBackupSeeders.php", <<<PHP
             <?php
 
             namespace Database\Seeders\Backup;
@@ -255,9 +287,11 @@ class DatabaseBackupService
             PHP);
     }
 
+    /**
+     * يجلب ترتيب الجداول من ملفات الهجرة (Migrations).
+     */
     protected function getMigrationTablesOrder(): array
     {
-        // This function's primary role is now to get a baseline order for dynamic tables.
         $files = File::files(database_path('migrations'));
 
         $createTableMigrations = array_filter($files, function ($file) {
@@ -278,11 +312,16 @@ class DatabaseBackupService
         return $orderedTables;
     }
 
+    /**
+     * يكشف عن الجداول الوسيطة (Pivot Tables).
+     */
     protected function detectPivotTables(array $tables): array
     {
         $pivotTables = [];
         foreach ($tables as $table) {
             $primaryKeys = $this->getTablePrimaryKeys($table);
+            // تعتبر جداول Pivot إذا كانت لا تحتوي على مفتاح أساسي (مثل id تلقائي)
+            // أو إذا كانت تحتوي على مفاتيح أساسية متعددة وجميعها مفاتيح خارجية (Foreign Keys).
             if (empty($primaryKeys) || (count($primaryKeys) > 1 && $this->areAllForeignKeys($table, $primaryKeys))) {
                 $pivotTables[] = $table;
             }
@@ -290,13 +329,16 @@ class DatabaseBackupService
         return $pivotTables;
     }
 
+    /**
+     * يتحقق مما إذا كانت جميع المفاتيح الأساسية لجدول معين هي مفاتيح خارجية أيضًا.
+     */
     protected function areAllForeignKeys(string $tableName, array $primaryKeys): bool
     {
         $dbName = DB::getDatabaseName();
         foreach ($primaryKeys as $key) {
             $results = DB::select('SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ? AND REFERENCED_TABLE_NAME IS NOT NULL', [$dbName, $tableName, $key]);
             if (empty($results)) {
-                return false;
+                return false;  // إذا لم تكن أي من المفاتيح الأساسية مفتاحًا أجنبيًا، فليست جدولًا وسيطًا
             }
         }
         return true;
