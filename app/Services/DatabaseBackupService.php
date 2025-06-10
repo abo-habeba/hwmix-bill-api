@@ -53,19 +53,15 @@ class DatabaseBackupService
             // Prepare a map to get the migration index for each table
             $migrationTableIndexMap = [];
             foreach ($migrationOrderedTables as $index => $tableName) {
-                $migrationTableIndexMap[strtolower($tableName)] = $index + 1;  // Start from 1, use lowercase for consistent lookup
+                $migrationTableIndexMap[strtolower($tableName)] = $index + 1; // Start from 1, use lowercase for consistent lookup
             }
 
-            // Define explicit priorities for critical tables to ensure correct seeding order
-            // Companies must come first as many other tables (like users) depend on it.
-            $priorityTables = [
-                'companies' => 1,  // Companies should be seeded first
-                'permissions' => 2,
-                'roles' => 3,
-                'users' => 4,  // Users should be seeded after companies, permissions, and roles
-                'role_has_permissions' => 5,  // Depends on roles and permissions
-                'model_has_roles' => 6,  // Depends on roles and models (users)
-                'model_has_permissions' => 7,  // Depends on permissions and models (users)
+            // Define explicit priorities for tables that must be at the END of the seeding process
+            // Assign high numbers to ensure they appear last when sorted.
+            $endPriorityTables = [
+                'permissions' => 997,
+                'roles' => 998,
+                'role_has_permissions' => 999,
             ];
 
             // To ensure unique numbers for non-priority tables,
@@ -121,7 +117,7 @@ class DatabaseBackupService
                         }
                     }
 
-                    $fullPrefix = 'N' . $numericPrefix;  // Prefix format: N001, N002, etc.
+                    $fullPrefix = 'N' . $numericPrefix; // Prefix format: N001, N002, etc.
 
                     // The seeder class name now includes the new prefix format
                     $seederClassName = $fullPrefix . '_' . Str::studly($tableName) . 'BackupSeeder';
@@ -138,7 +134,7 @@ class DatabaseBackupService
                         throw new Exception("فشل في توليد Seeder لجدول: $tableName");
                     }
                     $report['steps'][] = "✅ تم توليد Seeder لجدول: $tableName";
-                    $seederClassesToGenerate[] = $seederClassName;  // Store the full seeder class name
+                    $seederClassesToGenerate[] = $seederClassName; // Store the full seeder class name
                 } catch (Exception $e) {
                     $report['errors'][] = "🛑 خطأ أثناء تصدير الجدول '$tableName': " . $e->getMessage();
                 }
@@ -191,27 +187,27 @@ class DatabaseBackupService
             : "DB::table('$tableName')->updateOrInsert($condition, \$row);";
 
         return <<<PHP
-            <?php
+<?php
 
-            namespace Database\Seeders\Backup;
+namespace Database\Seeders\Backup;
 
-            use Illuminate\Database\Seeder;
-            use Illuminate\Support\Facades\DB;
-            use Illuminate\Support\Facades\File;
+use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 
-            class {$className} extends Seeder
-            {
-                public function run()
-                {
-                    \$json = File::get(database_path('seeders/Backup/{$tableName}.json'));
-                    \$data = json_decode(\$json, true);
-                    foreach (\$data as \$row) {
-                        if (empty(\$row)) continue;
-                        {$code}
-                    }
-                }
-            }
-            PHP;
+class {$className} extends Seeder
+{
+    public function run()
+    {
+        \$json = File::get(database_path('seeders/Backup/{$tableName}.json'));
+        \$data = json_decode(\$json, true);
+        foreach (\$data as \$row) {
+            if (empty(\$row)) continue;
+            {$code}
+        }
+    }
+}
+PHP;
     }
 
     protected function generateMasterSeeder(array $classes): void
@@ -226,25 +222,25 @@ class DatabaseBackupService
             }
         }
 
-        sort($seederClassNames);  // Sorts by N prefix then number
+        sort($seederClassNames); // Sorts by N prefix then number
 
         $body = implode("\n", array_map(fn($className) => "        \$this->call({$className}::class);", $seederClassNames));
 
         File::put("{$this->backupPath}/RunAllBackupSeeders.php", <<<PHP
-            <?php
+<?php
 
-            namespace Database\Seeders\Backup;
+namespace Database\Seeders\Backup;
 
-            use Illuminate\Database\Seeder;
+use Illuminate\Database\Seeder;
 
-            class RunAllBackupSeeders extends Seeder
-            {
-                public function run()
-                {
-            {$body}
-                }
-            }
-            PHP);
+class RunAllBackupSeeders extends Seeder
+{
+    public function run()
+    {
+{$body}
+    }
+}
+PHP);
     }
 
     protected function getMigrationTablesOrder(): array
@@ -286,7 +282,7 @@ class DatabaseBackupService
     {
         $dbName = DB::getDatabaseName();
         foreach ($primaryKeys as $key) {
-            $results = DB::select('SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ? AND REFERENCED_TABLE_NAME IS NOT NULL', [$dbName, $tableName, $key]);
+            $results = DB::select("SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ? AND REFERENCED_TABLE_NAME IS NOT NULL", [$dbName, $tableName, $key]);
             if (empty($results)) {
                 return false;
             }
