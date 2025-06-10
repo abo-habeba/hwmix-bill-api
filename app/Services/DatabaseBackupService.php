@@ -46,7 +46,7 @@ class DatabaseBackupService
             $excludeTables = array_merge($excludeTables, ['migrations']);
             $this->pivotTables = $this->detectPivotTables($allTables);
 
-            // Get the ordered table names from migrations first (for general ordering)
+            // Get the ordered table names from migrations first
             $migrationOrderedTables = $this->getMigrationTablesOrder();
             $seederClassesToGenerate = [];
 
@@ -56,21 +56,18 @@ class DatabaseBackupService
                 $migrationTableIndexMap[strtolower($tableName)] = $index + 1;  // Start from 1, use lowercase for consistent lookup
             }
 
-            // Define explicit priorities for critical tables to ensure correct seeding order
-            // Companies must come first as many other tables (like users) depend on it.
-            $priorityTables = [
-                'companies' => 1,  // Companies should be seeded first
-                'permissions' => 2,
-                'roles' => 3,
-                'users' => 4,  // Users should be seeded after companies, permissions, and roles
-                'role_has_permissions' => 5,  // Depends on roles and permissions
-                'model_has_roles' => 6,  // Depends on roles and models (users)
-                'model_has_permissions' => 7,  // Depends on permissions and models (users)
+            // Define explicit priorities for tables that must be at the END of the seeding process
+            // Assign high numbers to ensure they appear last when sorted.
+            $endPriorityTables = [
+                'permissions' => 997,
+                'roles' => 998,
+                'role_has_permissions' => 999,
             ];
 
             // To ensure unique numbers for non-priority tables,
-            // we'll assign a starting index after the highest priority number.
-            $nextGeneralIndex = max(array_values($priorityTables)) + 1;
+            // we'll assign a starting index for general tables that avoids conflict with endPriorityTables.
+            // Start general indices from 1 and let them increment normally.
+            $nextGeneralIndex = 1;
 
             foreach ($allTables as $tableName) {
                 if (in_array($tableName, $excludeTables)) {
@@ -101,19 +98,22 @@ class DatabaseBackupService
                     $numericPrefix = '';
                     $lowerTableName = strtolower($tableName);
 
-                    if (isset($priorityTables[$lowerTableName])) {
-                        $numericPrefix = sprintf('%03d', $priorityTables[$lowerTableName]);
+                    if (isset($endPriorityTables[$lowerTableName])) {
+                        // Assign the high priority number for tables that should be at the end
+                        $numericPrefix = sprintf('%03d', $endPriorityTables[$lowerTableName]);
                     } else {
-                        // For non-priority tables, use migration order if available, otherwise a high number
-                        // and ensure it's unique by using and incrementing nextGeneralIndex
-                        $baseIndex = $migrationTableIndexMap[$lowerTableName] ?? 999;
+                        // For all other tables, try to use migration order.
+                        // If no migration order, use a high default number, but ensure it's not conflicting
+                        // with our specific end-priority tables (997-999).
+                        $baseIndex = $migrationTableIndexMap[$lowerTableName] ?? null;
 
-                        // If the base index from migration order is smaller than or equal to our highest priority,
-                        // assign it the next available general index to avoid conflicts.
-                        if ($baseIndex <= max(array_values($priorityTables))) {
-                            $numericPrefix = sprintf('%03d', $nextGeneralIndex++);
-                        } else {
+                        if ($baseIndex !== null && $baseIndex < min(array_values($endPriorityTables))) {
+                            // If migration order exists and is less than our end priorities, use it
                             $numericPrefix = sprintf('%03d', $baseIndex);
+                        } else {
+                            // Otherwise, assign a general incrementing number that won't conflict
+                            // with the end-priority tables. Start from 1 and increment.
+                            $numericPrefix = sprintf('%03d', $nextGeneralIndex++);
                         }
                     }
 
@@ -245,8 +245,7 @@ class DatabaseBackupService
 
     protected function getMigrationTablesOrder(): array
     {
-        // This function's primary role is now to get a baseline order,
-        // but explicit priority numbers in exportDataAndGenerateSeeders will override this for specific tables.
+        // This function's primary role is now to get a baseline order for dynamic tables.
         $files = File::files(database_path('migrations'));
 
         $createTableMigrations = array_filter($files, function ($file) {
