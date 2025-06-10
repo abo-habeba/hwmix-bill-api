@@ -53,7 +53,7 @@ class DatabaseBackupService
             // Prepare a map to get the migration index for each table
             $migrationTableIndexMap = [];
             foreach ($migrationOrderedTables as $index => $tableName) {
-                $migrationTableIndexMap[strtolower($tableName)] = $index + 1; // Start from 1, use lowercase for consistent lookup
+                $migrationTableIndexMap[strtolower($tableName)] = $index + 1;  // Start from 1, use lowercase for consistent lookup
             }
 
             // Define explicit priorities for tables that must be at the END of the seeding process
@@ -77,10 +77,14 @@ class DatabaseBackupService
                 try {
                     $report['steps'][] = "📦 جاري تصدير الجدول: $tableName";
                     $data = DB::table($tableName)->get();
-                    if ($data->isEmpty()) {
-                        $report['steps'][] = "⚠️ جدول '$tableName' فارغ، تم تخطيه.";
-                        continue;
-                    }
+
+                    // --- التعديل هنا: إزالة شرط التخطي للجداول الفارغة ---
+                    // if ($data->isEmpty()) {
+                    //     $report['steps'][] = "⚠️ جدول '$tableName' فارغ، تم تخطيه.";
+                    //     continue;
+                    // }
+                    // --------------------------------------------------
+
                     if (in_array($tableName, $this->pivotTables)) {
                         $data = $data->map(function ($row) {
                             $arr = (array) $row;
@@ -89,9 +93,14 @@ class DatabaseBackupService
                         });
                     }
                     $jsonFile = "{$this->backupPath}/{$tableName}.json";
+                    // نكتب بيانات فارغة في ملف JSON إذا كان الجدول فارغاً
                     File::put($jsonFile, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
                     if (!File::exists($jsonFile) || filesize($jsonFile) === 0) {
-                        throw new Exception("لم يتم إنشاء ملف JSON للجدول: $tableName");
+                        // لا نعتبره خطأ إذا كان الملف موجوداً وفارغاً (لأن الجدول قد يكون فارغاً)
+                        // يمكننا التمييز بين عدم الإنشاء والإنشاء الفارغ
+                        if (!File::exists($jsonFile)) {
+                            throw new Exception("لم يتم إنشاء ملف JSON للجدول: $tableName");
+                        }
                     }
 
                     // Determine the numerical prefix for the seeder file and class name
@@ -117,7 +126,7 @@ class DatabaseBackupService
                         }
                     }
 
-                    $fullPrefix = 'N' . $numericPrefix; // Prefix format: N001, N002, etc.
+                    $fullPrefix = 'N' . $numericPrefix;  // Prefix format: N001, N002, etc.
 
                     // The seeder class name now includes the new prefix format
                     $seederClassName = $fullPrefix . '_' . Str::studly($tableName) . 'BackupSeeder';
@@ -134,7 +143,7 @@ class DatabaseBackupService
                         throw new Exception("فشل في توليد Seeder لجدول: $tableName");
                     }
                     $report['steps'][] = "✅ تم توليد Seeder لجدول: $tableName";
-                    $seederClassesToGenerate[] = $seederClassName; // Store the full seeder class name
+                    $seederClassesToGenerate[] = $seederClassName;  // Store the full seeder class name
                 } catch (Exception $e) {
                     $report['errors'][] = "🛑 خطأ أثناء تصدير الجدول '$tableName': " . $e->getMessage();
                 }
@@ -187,27 +196,30 @@ class DatabaseBackupService
             : "DB::table('$tableName')->updateOrInsert($condition, \$row);";
 
         return <<<PHP
-<?php
+            <?php
 
-namespace Database\Seeders\Backup;
+            namespace Database\Seeders\Backup;
 
-use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\File;
+            use Illuminate\Database\Seeder;
+            use Illuminate\Support\Facades\DB;
+            use Illuminate\Support\Facades\File;
 
-class {$className} extends Seeder
-{
-    public function run()
-    {
-        \$json = File::get(database_path('seeders/Backup/{$tableName}.json'));
-        \$data = json_decode(\$json, true);
-        foreach (\$data as \$row) {
-            if (empty(\$row)) continue;
-            {$code}
-        }
-    }
-}
-PHP;
+            class {$className} extends Seeder
+            {
+                public function run()
+                {
+                    \$json = File::get(database_path('seeders/Backup/{$tableName}.json'));
+                    \$data = json_decode(\$json, true);
+                    // التحقق من أن البيانات ليست فارغة قبل محاولة الإدخال
+                    if (!empty(\$data)) {
+                        foreach (\$data as \$row) {
+                            if (empty(\$row)) continue;
+                            {$code}
+                        }
+                    }
+                }
+            }
+            PHP;
     }
 
     protected function generateMasterSeeder(array $classes): void
@@ -222,25 +234,25 @@ PHP;
             }
         }
 
-        sort($seederClassNames); // Sorts by N prefix then number
+        sort($seederClassNames);  // Sorts by N prefix then number
 
         $body = implode("\n", array_map(fn($className) => "        \$this->call({$className}::class);", $seederClassNames));
 
         File::put("{$this->backupPath}/RunAllBackupSeeders.php", <<<PHP
-<?php
+            <?php
 
-namespace Database\Seeders\Backup;
+            namespace Database\Seeders\Backup;
 
-use Illuminate\Database\Seeder;
+            use Illuminate\Database\Seeder;
 
-class RunAllBackupSeeders extends Seeder
-{
-    public function run()
-    {
-{$body}
-    }
-}
-PHP);
+            class RunAllBackupSeeders extends Seeder
+            {
+                public function run()
+                {
+            {$body}
+                }
+            }
+            PHP);
     }
 
     protected function getMigrationTablesOrder(): array
@@ -282,7 +294,7 @@ PHP);
     {
         $dbName = DB::getDatabaseName();
         foreach ($primaryKeys as $key) {
-            $results = DB::select("SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ? AND REFERENCED_TABLE_NAME IS NOT NULL", [$dbName, $tableName, $key]);
+            $results = DB::select('SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ? AND REFERENCED_TABLE_NAME IS NOT NULL', [$dbName, $tableName, $key]);
             if (empty($results)) {
                 return false;
             }
