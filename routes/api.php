@@ -26,9 +26,8 @@ use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WarehouseController;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
-
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Route;
 
 Route::get('/dump', function () {
     try {
@@ -67,10 +66,16 @@ Route::get('db/seed', function (Request $request) {
 });
 
 Route::prefix('db')->controller(DatabaseBackupController::class)->group(function () {
-    Route::get('export', 'export');  // /db/export
-    Route::get('seed-export', 'runSeeders');  // /db/seed
-    Route::get('refresh', 'restoreAndFresh');  // /db/refresh
+    // 🔄 [GET] /db/export: إنشاء نسخة احتياطية من البيانات كسيدر
+    Route::get('export', 'export');
+
+    // 🚀 [GET] /db/seed-export: تشغيل السيدرز اللي اتولدت قبل كده
+    Route::get('seed-export', 'runSeeders');
+
+    // 🧨 [GET] /db/refresh:  إنشاء نسخة احتياطية من البيانات كسيدر عمل فريش للقاعدة واسترجاع النسخة الاحتياطية
+    Route::get('refresh', 'restoreAndFresh');
 });
+
 
 Route::post('register', [AuthController::class, 'register']);
 Route::post('login', [AuthController::class, 'login']);
