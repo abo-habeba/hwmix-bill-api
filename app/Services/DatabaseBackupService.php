@@ -56,12 +56,16 @@ class DatabaseBackupService
                 $migrationTableIndexMap[strtolower($tableName)] = $index + 1;  // Start from 1, use lowercase for consistent lookup
             }
 
-            // Define explicit priorities for tables that must be at the END of the seeding process
-            // Assign high numbers to ensure they appear last when sorted.
-            $endPriorityTables = [
-                'permissions' => 997,
-                'roles' => 998,
-                'role_has_permissions' => 999,
+            // Define explicit priorities for critical tables to ensure correct seeding order
+            // Companies must come first as many other tables (like users) depend on it.
+            $priorityTables = [
+                'companies' => 1,  // Companies should be seeded first
+                'permissions' => 2,
+                'roles' => 3,
+                'users' => 4,  // Users should be seeded after companies, permissions, and roles
+                'role_has_permissions' => 5,  // Depends on roles and permissions
+                'model_has_roles' => 6,  // Depends on roles and models (users)
+                'model_has_permissions' => 7,  // Depends on permissions and models (users)
             ];
 
             // To ensure unique numbers for non-priority tables,
