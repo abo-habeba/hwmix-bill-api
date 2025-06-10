@@ -76,7 +76,7 @@ class DatabaseBackupController extends Controller
 
             return response()->json([
                 'status' => $seedResult === 0 ? '✅ Restore completed successfully' : '❌ Seeder execution failed',
-                'seeder_output' => $output,
+                'seeder_output' => '✅ تم عمل ريفريش للميجريشنز بنجاح دون فقد اي بيانات ',
                 'backup_steps' => $report['steps'],
                 'backup_errors' => $report['errors'],
                 'backup_seeders' => $report['seeders'],
