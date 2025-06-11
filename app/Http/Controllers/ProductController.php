@@ -2,12 +2,13 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Product;
-use Illuminate\Support\Facades\DB;
-use App\Http\Resources\Product\ProductResource;
 use App\Http\Requests\Product\StoreProductRequest;
 use App\Http\Requests\Product\UpdateProductRequest;
+use App\Http\Resources\Product\ProductResource;
+use App\Models\Product;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+
 use function Laravel\Prompts\error;
 
 class ProductController extends Controller
@@ -28,15 +29,18 @@ class ProductController extends Controller
         if ($request->filled('search')) {
             $search = $request->input('search');
             $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%$search%")
+                $q
+                    ->where('name', 'like', "%$search%")
                     ->orWhere('description', 'like', "%$search%")
                     ->orWhere('slug', 'like', "%$search%")
                     ->orWhereHas('category', function ($q) use ($search) {
-                        $q->where('name', 'like', "%$search%")
+                        $q
+                            ->where('name', 'like', "%$search%")
                             ->orWhere('description', 'like', "%$search%");
                     })
                     ->orWhereHas('brand', function ($q) use ($search) {
-                        $q->where('name', 'like', "%$search%")
+                        $q
+                            ->where('name', 'like', "%$search%")
                             ->orWhere('description', 'like', "%$search%");
                     });
             });
@@ -60,54 +64,54 @@ class ProductController extends Controller
     {
         DB::beginTransaction();
         try {
-            // استرجاع بيانات المستخدم المُصادق عليه
             $authUser = auth()->user();
 
-            // التحقق من البيانات المدخلة
             $validatedData = $request->validated();
             $validatedData['company_id'] = $validatedData['company_id'] ?? $authUser->company_id;
             $validatedData['created_by'] = $validatedData['created_by'] ?? $authUser->id;
 
-            // توليد الـ slug قبل الإنشاء
-            $validatedData['slug'] = Product::generateSlug($request->input('name'));
-            // إنشاء المنتج بكل البيانات مرة واحدة
+            $validatedData['slug'] = Product::generateSlug($validatedData['name']);
+
             $product = Product::create($validatedData);
 
-            // التحقق من وجود متغيرات
             if ($request->has('variants')) {
                 foreach ($request->input('variants') as $variantData) {
                     $variantData['warehouse_id'] = $request->input('warehouse_id');
                     $variantData['tax_rate'] ??= 0;
 
-                    // إنشاء متغير المنتج
+                    // تأكد من أن أسعار البيع موجودة في المتغير
+                    unset($variantData['purchase_price']);
+
                     $variant = $product->variants()->create(
                         collect($variantData)->except(['attributes', 'stock'])->toArray()
                     );
 
-                    // إضافة الخصائص المرتبطة بالمتغير
+                    // attributes
                     if (!empty($variantData['attributes'])) {
                         foreach ($variantData['attributes'] as $attributeData) {
                             if (empty($attributeData['attribute_id']) || empty($attributeData['attribute_value_id'])) {
-                                continue; // تخطي إذا كان أحد الحقلين غير موجود أو null
+                                continue;
                             }
+
                             $variant->attributes()->create([
                                 'attribute_id' => $attributeData['attribute_id'],
                                 'attribute_value_id' => $attributeData['attribute_value_id'],
-                                'company_id' => $validatedData['company_id'] ?? $authUser->company_id,
-                                'created_by' => $validatedData['created_by'] ?? $authUser->id,
+                                'company_id' => $validatedData['company_id'],
+                                'created_by' => $validatedData['created_by'],
                             ]);
                         }
                     }
 
-                    // إضافة المخزون المرتبط بالمتغير
+                    // stock
                     if (!empty($variantData['stock'])) {
                         $variant->stock()->create([
                             'quantity' => $variantData['stock']['quantity'] ?? 0,
                             'expiry_date' => $variantData['stock']['expiry_date'] ?? null,
                             'status' => $variantData['stock']['status'] ?? 'available',
+                            'purchase_price' => $variantData['stock']['purchase_price'] ?? 0,
                             'warehouse_id' => $request->input('warehouse_id'),
-                            'company_id' => $validatedData['company_id'] ?? $authUser->company_id,
-                            'created_by' => $validatedData['created_by'] ?? $authUser->id,
+                            'company_id' => $validatedData['company_id'],
+                            'created_by' => $validatedData['created_by'],
                         ]);
                     }
                 }
@@ -130,9 +134,6 @@ class ProductController extends Controller
             return response()->json([
                 'message' => 'حدث خطأ أثناء الحفظ.',
                 'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
             ], 500);
         }
     }
@@ -150,13 +151,12 @@ class ProductController extends Controller
             // تحديث بيانات المنتج
             $product->update($validatedData);
 
-            // تحديث slug إذا تغير الاسم
+            // تحديث slug إذا الاسم اتغير
             if ($request->has('name')) {
                 $slug = Product::generateSlug($request->input('name'));
                 $product->update(['slug' => $slug]);
             }
 
-            // تحديث المتغيرات (variants)
             if ($request->has('variants')) {
                 $variantIds = [];
 
@@ -165,7 +165,10 @@ class ProductController extends Controller
                     $variantData['warehouse_id'] = $request->input('warehouse_id');
                     $variantData['tax_rate'] = $variantData['tax_rate'] ?? 0;
 
-                    // تحديث أو إنشاء المتغير
+                    // حذف purchase_price من المتغير
+                    unset($variantData['purchase_price']);
+
+                    // إنشاء أو تحديث المتغير
                     if ($variantId) {
                         $variant = $product->variants()->find($variantId);
                         if ($variant) {
@@ -179,7 +182,7 @@ class ProductController extends Controller
 
                     $variantIds[] = $variant->id;
 
-                    // تحديث أو إنشاء الخصائص (attributes) للمتغير
+                    // الخصائص
                     if (isset($variantData['attributes'])) {
                         $attrIds = [];
 
@@ -188,23 +191,23 @@ class ProductController extends Controller
                                 continue;
                             }
 
-                            // ابحث عن السطر حسب attribute_id
-                            $attr = $variant->attributes()
+                            $attr = $variant
+                                ->attributes()
                                 ->where('attribute_id', $attrData['attribute_id'])
                                 ->first();
 
                             if ($attr) {
                                 $attr->update([
                                     'attribute_value_id' => $attrData['attribute_value_id'],
-                                    'company_id' => $validatedData['company_id'] ?? $authUser->company_id,
-                                    'created_by' => $validatedData['created_by'] ?? $authUser->id,
+                                    'company_id' => $validatedData['company_id'],
+                                    'created_by' => $validatedData['created_by'],
                                 ]);
                             } else {
                                 $attr = $variant->attributes()->create([
                                     'attribute_id' => $attrData['attribute_id'],
                                     'attribute_value_id' => $attrData['attribute_value_id'],
-                                    'company_id' => $validatedData['company_id'] ?? $authUser->company_id,
-                                    'created_by' => $validatedData['created_by'] ?? $authUser->id,
+                                    'company_id' => $validatedData['company_id'],
+                                    'created_by' => $validatedData['created_by'],
                                 ]);
                             }
 
@@ -215,13 +218,15 @@ class ProductController extends Controller
                         $variant->attributes()->whereNotIn('id', $attrIds)->delete();
                     }
 
-                    // تحديث أو إنشاء المخزون المرتبط بالمتغير (لو موجود)
+                    // تحديث المخزون
                     if (!empty($variantData['stock'])) {
                         $stock = $variant->stock;
+
                         $stockData = [
                             'quantity' => $variantData['stock']['quantity'] ?? 0,
                             'expiry_date' => $variantData['stock']['expiry_date'] ?? null,
                             'status' => $variantData['stock']['status'] ?? 'available',
+                            'purchase_price' => $variantData['stock']['purchase_price'] ?? 0,
                             'warehouse_id' => $request->input('warehouse_id'),
                             'company_id' => $validatedData['company_id'],
                             'created_by' => $validatedData['created_by'],
@@ -258,7 +263,6 @@ class ProductController extends Controller
                 'details' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
             ], 500);
         }
     }

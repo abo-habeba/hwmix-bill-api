@@ -2,12 +2,13 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Traits\Blameable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 
 class ProductVariantAttribute extends Model
 {
-    use HasFactory;
+    use HasFactory, Blameable;
 
     protected $fillable = ['product_variant_id', 'attribute_id', 'attribute_value_id', 'company_id', 'created_by'];
 

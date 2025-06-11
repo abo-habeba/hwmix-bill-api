@@ -12,7 +12,7 @@ class WarehouseSeeder extends Seeder
         Warehouse::create([
             'name' => 'المخزن الرئيسي',
             'location' => 'الموقع الرئيسي',
-            'manager_name' => 'مدير المخزن',
+            'manager' => 'مدير المخزن',
             'capacity' => 1000,
             'status' => 'active',
             'company_id' => 1,

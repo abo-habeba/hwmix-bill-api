@@ -12,13 +12,17 @@ return new class extends Migration {
     {
         Schema::create('warehouses', function (Blueprint $table) {
             $table->id();
-            $table->string('name');
-            $table->string('location')->nullable();
-            $table->string('manager_name')->nullable();
-            $table->integer('capacity')->nullable();
-            $table->enum('status', ['active', 'inactive'])->default('active');
-            $table->foreignId('company_id')->constrained()->onDelete('cascade');
-            $table->foreignId('created_by')->constrained('users')->onDelete('cascade');
+
+            $table->string('name');  // اسم المخزن
+            $table->string('location')->nullable();  // موقع المخزن
+            $table->string('manager')->nullable();  // اسم المسؤول
+            $table->integer('capacity')->nullable();  // السعة
+
+            $table->enum('status', ['active', 'inactive'])->default('active');  // حالة المخزن
+
+            $table->foreignId('company_id')->constrained()->onDelete('cascade');  // الشركة المالكة
+            $table->foreignId('created_by')->constrained('users')->onDelete('cascade');  // أنشئ بواسطة
+
             $table->timestamps();
         });
     }

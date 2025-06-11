@@ -2,18 +2,30 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 
 class Warehouse extends Model
 {
-    use HasFactory;
+    use HasFactory, \App\Traits\Blameable;
 
-    protected $fillable = ['company_id', 'created_by', 'name', 'location'];
+    protected $fillable = [
+        'name', 'location', 'manager', 'capacity', 'status', 'company_id', 'created_by'
+    ];
+
+    protected $casts = [
+        'capacity' => 'integer',
+        'status' => 'boolean',
+    ];
 
     public function company()
     {
         return $this->belongsTo(Company::class);
+    }
+
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'created_by');
     }
 
     public function stocks()
@@ -21,4 +33,3 @@ class Warehouse extends Model
         return $this->hasMany(Stock::class);
     }
 }
-

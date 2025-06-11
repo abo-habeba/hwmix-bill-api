@@ -23,8 +23,19 @@ class UpdateProductVariantRequest extends FormRequest
     {
         return [
             'product_id' => 'sometimes|required|exists:products,id',
-            'sku' => 'sometimes|required|string|max:255',
-            'price' => 'sometimes|required|numeric|min:0'
+            'company_id' => 'sometimes|exists:companies,id',
+            'created_by' => 'sometimes|exists:users,id',
+            'barcode' => 'sometimes|nullable|string|max:255|unique:product_variants,barcode,' . $this->id,
+            'sku' => 'sometimes|nullable|string|max:255|unique:product_variants,sku,' . $this->id,
+            'retail_price' => 'sometimes|nullable|numeric|min:0',
+            'wholesale_price' => 'sometimes|nullable|numeric|min:0',
+            'profit_margin' => 'sometimes|nullable|numeric|min:0|max:100',
+            'image' => 'sometimes|nullable|string|max:255',
+            'weight' => 'sometimes|nullable|numeric|min:0',
+            'dimensions' => 'sometimes|nullable|string|max:255',
+            'tax' => 'sometimes|nullable|numeric|min:0|max:100',
+            'discount' => 'sometimes|nullable|numeric|min:0',
+            'status' => 'sometimes|nullable|in:active,inactive,discontinued',
         ];
     }
 }

@@ -2,47 +2,57 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Traits\Blameable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 
 class ProductVariant extends Model
 {
-    use HasFactory;
+    use HasFactory, Blameable;
 
     protected $fillable = [
         'barcode',
         'sku',
-        'purchase_price',
-        'wholesale_price',
         'retail_price',
-        'stock_threshold',
-        'status',
-        'expiry_date',
-        'image_url',
+        'wholesale_price',
+        'image',
         'weight',
         'dimensions',
-        'tax_rate',
+        'tax',
         'discount',
-        'product_id',
-        'warehouse_id',
-        'company_id',
-        'created_by'
+        'status',
+        'product_id'
     ];
+
+    protected $casts = [
+        'retail_price' => 'decimal:2',
+        'wholesale_price' => 'decimal:2',
+        'weight' => 'decimal:2',
+        'dimensions' => 'array',  // Assuming dimensions is stored as an array
+        'tax' => 'decimal:2',
+        'discount' => 'decimal:2',
+        'status' => 'boolean',
+    ];
+
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function company()
+    {
+        return $this->belongsTo(Company::class);
+    }
+
+    public function stocks()
+    {
+        return $this->hasMany(Stock::class, 'variant_id');
+    }
 
     public function product()
     {
         return $this->belongsTo(Product::class);
-    }
-
-    public function warehouse()
-    {
-        return $this->belongsTo(Warehouse::class);
-    }
-
-    public function stock()
-    {
-        return $this->hasOne(Stock::class, 'product_variant_id');
     }
 
     public function attributes()
@@ -88,5 +98,4 @@ class ProductVariant extends Model
 
         return $barcode;
     }
-
 }

@@ -2,8 +2,8 @@
 
 namespace App\Http\Resources\Warehouse;
 
-use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Http\Request;
 
 class WarehouseResource extends JsonResource
 {
@@ -18,13 +18,14 @@ class WarehouseResource extends JsonResource
             'id' => $this->id,
             'name' => $this->name,
             'location' => $this->location,
-            'manager_name' => $this->manager_name,
+            'manager' => $this->manager,
             'capacity' => $this->capacity,
             'status' => $this->status,
-            'company_id' => $this->company_id,
-            'created_by' => $this->created_by,
-            'created_at' => $this->created_at ? $this->created_at->format('Y-m-d H:i:s') : null,
-            'updated_at' => $this->updated_at ? $this->updated_at->format('Y-m-d H:i:s') : null,
+            'company' => new CompanyResource($this->whenLoaded('company')),
+            'creator' => new UserResource($this->whenLoaded('creator')),
+            'stocks' => StockResource::collection($this->whenLoaded('stocks')),
+            'created_at' => $this->created_at?->format('Y-m-d H:i:s'),
+            'updated_at' => $this->updated_at?->format('Y-m-d H:i:s'),
         ];
     }
 }

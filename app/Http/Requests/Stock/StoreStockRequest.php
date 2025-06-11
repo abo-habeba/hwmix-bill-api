@@ -22,18 +22,18 @@ class StoreStockRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'quantity' => ['required', 'integer', 'min:0'],
-            'reserved_quantity' => ['nullable', 'integer', 'min:0'],
-            'expiry_date' => ['nullable', 'date'],
-            'status' => ['nullable', 'in:available,unavailable,expired'],
-            'batch_number' => ['nullable', 'string', 'max:255'],
-            'unit_cost' => ['nullable', 'numeric', 'min:0'],
-            'location' => ['nullable', 'string', 'max:255'],
-            'warehouse_id' => ['required', 'exists:warehouses,id'],
-            'product_variant_id' => ['required', 'exists:product_variants,id'],
-            'company_id' => ['nullable', 'exists:companies,id'],
-            'created_by' => ['nullable', 'exists:users,id'],
-            'updated_by' => ['nullable', 'exists:users,id'],
+            'qty' => 'required|integer|min:0',
+            'reserved' => 'nullable|integer|min:0',
+            'min_qty' => 'nullable|integer|min:0',
+            'cost' => 'nullable|numeric|min:0',
+            'batch' => 'nullable|string|max:255',
+            'expiry' => 'nullable|date',
+            'loc' => 'nullable|string|max:255',
+            'status' => 'required|in:available,unavailable,expired',
+            'variant_id' => 'required|exists:product_variants,id',
+            'warehouse_id' => 'required|exists:warehouses,id',
+            'company_id' => 'required|exists:companies,id',
+            'created_by' => 'required|exists:users,id',
         ];
     }
 }

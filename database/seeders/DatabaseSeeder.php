@@ -24,12 +24,10 @@ class DatabaseSeeder extends Seeder
             BrandSeeder::class,
             ProductSeeder::class,
             InvoiceTypeSeeder::class,
-            AttributeValueSeeder::class,
-            StockSeeder::class,
             InvoiceItemSeeder::class,
             AttributeSeeder::class,
+            AttributeValueSeeder::class,
             RevenueSeeder::class,
-            ProductVariantAttributeSeeder::class,
         ]);
     }
 }

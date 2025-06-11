@@ -49,13 +49,13 @@ class DatabaseBackupController extends Controller
             $service = new DatabaseBackupService();
 
             // 1. تصدير البيانات وتوليد السيدرز
-            $report = $service->exportDataAndGenerateSeeders();
-            if (!$report || !empty($report['errors'])) {
-                return response()->json([
-                    'status' => '❌ Failed to export data and generate seeders',
-                    'details' => $report
-                ], 500);
-            }
+            // $report = $service->exportDataAndGenerateSeeders();
+            // if (!$report || !empty($report['errors'])) {
+            //     return response()->json([
+            //         'status' => '❌ Failed to export data and generate seeders',
+            //         'details' => $report
+            //     ], 500);
+            // }
 
             // 2. عمل fresh للـ migrations
             $migrateResult = Artisan::call('migrate:fresh', ['--force' => true]);

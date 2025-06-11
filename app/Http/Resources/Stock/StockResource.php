@@ -2,8 +2,8 @@
 
 namespace App\Http\Resources\Stock;
 
-use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Http\Request;
 
 class StockResource extends JsonResource
 {
@@ -14,6 +14,23 @@ class StockResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        return parent::toArray($request);
+        return [
+            'id' => $this->id,
+            'qty' => $this->qty,
+            'reserved' => $this->reserved,
+            'min_qty' => $this->min_qty,
+            'cost' => $this->cost,
+            'batch' => $this->batch,
+            'expiry' => $this->expiry,
+            'loc' => $this->loc,
+            'status' => $this->status,
+            'variant' => new ProductVariantResource($this->whenLoaded('variant')),
+            'warehouse' => new WarehouseResource($this->whenLoaded('warehouse')),
+            'company' => new CompanyResource($this->whenLoaded('company')),
+            'creator' => new UserResource($this->whenLoaded('creator')),
+            'updater' => new UserResource($this->whenLoaded('updater')),
+            'created_at' => $this->created_at?->format('Y-m-d H:i:s'),
+            'updated_at' => $this->updated_at?->format('Y-m-d H:i:s'),
+        ];
     }
 }

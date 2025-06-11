@@ -354,8 +354,15 @@ class DatabaseBackupService
     protected function processAndGenerateSeeder(string $tableName, int &$nextGeneralIndex, array &$report, array &$seederClassesToGenerate): void
     {
         try {
-            $report['steps'][] = "📦 جاري تصدير الجدول: {$tableName}";
             $data = DB::table($tableName)->get();
+
+            // ** تخطي الجداول الفارغة**
+            if ($data->isEmpty()) {
+                $report['steps'][] = "⏩ تم تخطي الجدول الفارغ: {$tableName}";
+                return;  // الخروج من الدالة إذا كان الجدول فارغًا
+            }
+
+            $report['steps'][] = "📦 جاري تصدير الجدول: {$tableName}";
 
             if (in_array($tableName, $this->pivotTables)) {
                 $data = $data->map(function ($row) {

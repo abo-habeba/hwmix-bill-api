@@ -12,19 +12,24 @@ return new class extends Migration {
     {
         Schema::create('products', function (Blueprint $table) {
             $table->id();
-            $table->string('name');
-            $table->string('slug')->unique();
-            $table->boolean('is_active')->default(true);
-            $table->boolean('featured')->default(false);
-            $table->boolean('is_returnable')->default(true);
-            $table->timestamp('published_at')->nullable();
-            $table->text('description')->nullable();
-            $table->text('description_long')->nullable();
-            $table->foreignId('company_id')->constrained()->onDelete('cascade');
-            $table->foreignId('created_by')->constrained('users')->onDelete('cascade');
-            $table->foreignId('category_id')->constrained()->onDelete('cascade');
-            $table->foreignId('brand_id')->nullable()->constrained()->onDelete('set null');
-            $table->foreignId('warehouse_id')->constrained()->onDelete('cascade');
+
+            $table->string('name');  // اسم المنتج
+            $table->string('slug')->unique();  // اسم URL-friendly
+
+            $table->boolean('active')->default(true);  // هل المنتج مفعل
+            $table->boolean('featured')->default(false);  // منتج مميز
+            $table->boolean('returnable')->default(true);  // هل يقبل الاسترجاع
+
+            $table->text('desc')->nullable();  // وصف قصير
+            $table->text('desc_long')->nullable();  // وصف تفصيلي
+            $table->timestamp('published_at')->nullable();  // تاريخ النشر
+
+            $table->foreignId('category_id')->constrained()->onDelete('cascade');  // التصنيف
+            $table->foreignId('brand_id')->nullable()->constrained()->nullOnDelete();  // الماركة
+
+            $table->foreignId('company_id')->constrained()->onDelete('cascade');  // الشركة المالكة
+            $table->foreignId('created_by')->constrained('users')->onDelete('cascade');  // أنشئ بواسطة
+
             $table->timestamps();
         });
     }

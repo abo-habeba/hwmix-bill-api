@@ -12,8 +12,7 @@ class AttributeValueSeeder extends Seeder
     {
         $attributeValues = [
             [
-                'id' => 1,
-                'attribute_id' => 3,
+                'attribute_id' => 1,
                 'created_by' => 1,
                 'name' => 'احمر',
                 'color' => '#F44336',
@@ -21,8 +20,7 @@ class AttributeValueSeeder extends Seeder
                 'updated_at' => '2025-06-09 23:44:08'
             ],
             [
-                'id' => 2,
-                'attribute_id' => 3,
+                'attribute_id' => 1,
                 'created_by' => 1,
                 'name' => 'ازرق',
                 'color' => '#2196F3',
@@ -30,8 +28,7 @@ class AttributeValueSeeder extends Seeder
                 'updated_at' => '2025-06-09 23:44:38'
             ],
             [
-                'id' => 3,
-                'attribute_id' => 3,
+                'attribute_id' => 1,
                 'created_by' => 1,
                 'name' => 'اسود',
                 'color' => '#000000',
@@ -39,8 +36,7 @@ class AttributeValueSeeder extends Seeder
                 'updated_at' => '2025-06-09 23:44:51'
             ],
             [
-                'id' => 4,
-                'attribute_id' => 4,
+                'attribute_id' => 2,
                 'created_by' => 1,
                 'name' => 'XL',
                 'color' => null,
@@ -48,8 +44,7 @@ class AttributeValueSeeder extends Seeder
                 'updated_at' => '2025-06-09 23:45:30'
             ],
             [
-                'id' => 5,
-                'attribute_id' => 4,
+                'attribute_id' => 2,
                 'created_by' => 1,
                 'name' => '3XL',
                 'color' => null,
@@ -57,8 +52,7 @@ class AttributeValueSeeder extends Seeder
                 'updated_at' => '2025-06-09 23:46:29'
             ],
             [
-                'id' => 6,
-                'attribute_id' => 4,
+                'attribute_id' => 2,
                 'created_by' => 1,
                 'name' => 'كبير',
                 'color' => null,
@@ -66,8 +60,7 @@ class AttributeValueSeeder extends Seeder
                 'updated_at' => '2025-06-09 23:45:44'
             ],
             [
-                'id' => 7,
-                'attribute_id' => 4,
+                'attribute_id' => 2,
                 'created_by' => 1,
                 'name' => 'صغير',
                 'color' => null,
@@ -75,8 +68,7 @@ class AttributeValueSeeder extends Seeder
                 'updated_at' => '2025-06-09 23:45:50'
             ],
             [
-                'id' => 8,
-                'attribute_id' => 4,
+                'attribute_id' => 2,
                 'created_by' => 1,
                 'name' => 'متوسط',
                 'color' => null,
@@ -84,8 +76,7 @@ class AttributeValueSeeder extends Seeder
                 'updated_at' => '2025-06-09 23:45:59'
             ],
             [
-                'id' => 9,
-                'attribute_id' => 4,
+                'attribute_id' => 2,
                 'created_by' => 1,
                 'name' => '2XL',
                 'color' => null,

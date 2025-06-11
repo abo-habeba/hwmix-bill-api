@@ -2,24 +2,40 @@
 
 namespace App\Models;
 
+use App\Traits\Blameable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Product extends Model
 {
-    use HasFactory;
+    use HasFactory, Blameable;
 
     protected $fillable = [
-        'company_id',
-        'category_id',
-        'created_by',
-        'warehouse_id',
-        'brand_id',
         'name',
-        'description',
-        'price',
         'slug',
+        'active',
+        'featured',
+        'returnable',
+        'desc',
+        'desc_long',
+        'published_at',
+        'category_id',
+        'brand_id',
+        'company_id',
+        'created_by'
     ];
+
+    protected $casts = [
+        'active' => 'boolean',
+        'featured' => 'boolean',
+        'returnable' => 'boolean',
+        'published_at' => 'datetime',
+    ];
+
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
 
     public function company()
     {
@@ -41,57 +57,33 @@ class Product extends Model
     {
         return $this->hasMany(ProductVariant::class);
     }
-    public function warehouse()
-    {
-        return $this->belongsTo(Warehouse::class);
-    }
-
-    // علاقة المنتج مع المخزون (stock)
-    // public function stock()
-    // {
-    //     return $this->hasOne(Stock::class); // يمكن تعديلها إذا كان منتج واحد يمكن أن يكون له عدة مخزونات
-    // }
-
 
     // علاقة المنتج مع الصور
-    // public function images()
-    // {
-    //     return $this->hasMany(ProductImage::class); // إذا كان هناك صور متعددة
-    // }
-
-    // علاقة المنتج مع الطلبات (order_items) إذا كنت تستخدم هذا النموذج
-    // public function orderItems()
-    // {
-    //     return $this->hasMany(OrderItem::class);
-    // }
-
-    // إذا كان لديك خاصية خصومات للمنتجات
-    // public function discount()
-    // {
-    //     return $this->hasOne(ProductDiscount::class); // إذا كان منتج واحد يحتوي على خصم واحد
-    // }
+    public function images()
+    {
+        return $this->hasMany(ProductImage::class); // إذا كان هناك صور متعددة
+    }
 
     // دالة لتوليد الـ slug
     public static function generateSlug($name)
-{
-    $slug = preg_replace('/[^\p{Arabic}a-z0-9\s-]/u', '', strtolower($name));
-    $slug = preg_replace('/\s+/', '-', trim($slug));
-    $slug = preg_replace('/-+/', '-', $slug);
+    {
+        $slug = preg_replace('/[^\p{Arabic}a-z0-9\s-]/u', '', strtolower($name));
+        $slug = preg_replace('/\s+/', '-', trim($slug));
+        $slug = preg_replace('/-+/', '-', $slug);
 
-    // في حال كانت النتيجة فارغة
-    if (empty($slug)) {
-        $slug = 'منتج'; // أو 'product' إن كنت تفضل الإنجليزي
+        // في حال كانت النتيجة فارغة
+        if (empty($slug)) {
+            $slug = 'منتج';  // أو 'product' إن كنت تفضل الإنجليزي
+        }
+
+        $originalSlug = $slug;
+        $i = 1;
+        // التأكد من uniqueness
+        while (self::where('slug', $slug)->exists()) {
+            $slug = $originalSlug . '-' . $i;
+            $i++;
+        }
+
+        return $slug;
     }
-
-    $originalSlug = $slug;
-    $i = 1;
-    // التأكد من uniqueness
-    while (self::where('slug', $slug)->exists()) {
-        $slug = $originalSlug . '-' . $i;
-        $i++;
-    }
-
-    return $slug;
-}
-
-}
+};

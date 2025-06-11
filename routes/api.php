@@ -72,10 +72,9 @@ Route::prefix('db')->controller(DatabaseBackupController::class)->group(function
     // 🚀 [GET] /db/seed-export: تشغيل السيدرز اللي اتولدت قبل كده
     Route::get('seed-export', 'runSeeders');
 
-    // 🧨 [GET] /db/refresh:  إنشاء نسخة احتياطية من البيانات كسيدر عمل فريش للقاعدة واسترجاع النسخة الاحتياطية
+    // 🧨 [GET] /db/refresh:   عمل فريش للقاعدة واسترجاع النسخة الاحتياطية
     Route::get('refresh', 'restoreAndFresh');
 });
-
 
 Route::post('register', [AuthController::class, 'register']);
 Route::post('login', [AuthController::class, 'login']);

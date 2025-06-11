@@ -21,22 +21,21 @@ class StoreProductVariantRequest extends FormRequest
      */
     public function rules(): array
     {
-       return [
+        return [
             'barcode' => 'nullable|string|unique:product_variants,barcode,' . $this->id,
             'sku' => 'nullable|string|unique:product_variants,sku,' . $this->id,
-            'purchase_price' => 'required|numeric|min:0',
-            'wholesale_price' => 'required|numeric|min:0',
-            'retail_price' => 'required|numeric|min:0',
-            'stock_threshold' => 'nullable|integer|min:0',
-            'status' => 'required|in:active,inactive,discontinued',
-            'expiry_date' => 'nullable|date',
-            'image_url' => 'nullable|string',
+            'retail_price' => 'nullable|numeric|min:0',
+            'wholesale_price' => 'nullable|numeric|min:0',
+            'profit_margin' => 'nullable|numeric|min:0|max:100',
+            'image' => 'nullable|string|max:255',
             'weight' => 'nullable|numeric|min:0',
-            'dimensions' => 'nullable|string',
-            'tax_rate' => 'nullable|numeric|min:0|max:100',
+            'dimensions' => 'nullable|string|max:255',
+            'tax' => 'nullable|numeric|min:0|max:100',
             'discount' => 'nullable|numeric|min:0',
+            'status' => 'required|in:active,inactive,discontinued',
             'product_id' => 'required|exists:products,id',
-            'warehouse_id' => 'required|exists:warehouses,id',
+            'company_id' => 'required|exists:companies,id',
+            'created_by' => 'required|exists:users,id',
         ];
     }
 }

@@ -12,21 +12,27 @@ return new class extends Migration {
     {
         Schema::create('product_variants', function (Blueprint $table) {
             $table->id();
-            $table->string('barcode')->unique()->nullable();
-            $table->string('sku')->unique()->nullable();
-            $table->decimal('purchase_price', 10, 2)->default(0);
-            $table->decimal('wholesale_price', 10, 2)->default(0);
-            $table->decimal('retail_price', 10, 2)->default(0);
-            $table->integer('stock_threshold')->default(0)->default(0);
-            $table->enum('status', ['active', 'inactive', 'discontinued'])->default('active');
-            $table->date('expiry_date')->nullable();
-            $table->string('image_url')->nullable();
-            $table->decimal('weight', 8, 2)->nullable();
-            $table->text('dimensions')->nullable();
-            $table->decimal('tax_rate', 5, 2)->default(0);
-            $table->decimal('discount', 8, 2)->nullable();
-            $table->foreignId('product_id')->constrained()->onDelete('cascade');
-            $table->foreignId('warehouse_id')->constrained()->cascadeOnDelete();
+
+            $table->string('barcode')->unique()->nullable();  // باركود
+            $table->string('sku')->unique()->nullable();  // رمز التخزين الداخلي
+
+            $table->decimal('retail_price', 10, 2)->nullable();  // سعر البيع قطاعي
+            $table->decimal('wholesale_price', 10, 2)->nullable();  // سعر البيع جملة
+            $table->decimal('profit_margin', 5, 2)->nullable();  //  هامش الربح
+
+            $table->string('image')->nullable();  // صورة المتغير
+            $table->decimal('weight', 8, 2)->nullable();  // الوزن
+            $table->string('dimensions')->nullable();  // الأبعاد
+
+            $table->decimal('tax', 5, 2)->nullable();  // نسبة الضريبة
+            $table->decimal('discount', 8, 2)->nullable();  // الخصم
+
+            $table->enum('status', ['active', 'inactive', 'discontinued'])->default('active');  // حالة المتغير
+
+            $table->foreignId('product_id')->constrained()->onDelete('cascade');  // مرتبط بمنتج
+            $table->foreignId('created_by')->constrained('users')->onDelete('cascade');  // أنشئ بواسطة
+            $table->foreignId('company_id')->constrained()->onDelete('cascade');  // الشركة المالكة
+
             $table->timestamps();
         });
     }

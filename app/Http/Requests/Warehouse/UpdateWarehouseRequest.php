@@ -22,13 +22,13 @@ class UpdateWarehouseRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name'         => 'sometimes|required|string|max:255',
-            'location'     => 'nullable|string|max:255',
-            'manager_name' => 'nullable|string|max:255',
-            'capacity'     => 'nullable|integer',
-            'status'       => 'sometimes|required|in:active,inactive',
-            'company_id'   => 'sometimes|nullable|exists:companies,id',
-            'created_by'   => 'sometimes|nullable|exists:users,id',
+            'name' => 'sometimes|required|string|max:255',
+            'location' => 'sometimes|nullable|string|max:255',
+            'manager' => 'sometimes|nullable|string|max:255',
+            'capacity' => 'sometimes|nullable|integer|min:0',
+            'status' => 'sometimes|required|in:active,inactive',
+            'company_id' => 'sometimes|required|exists:companies,id',
+            'created_by' => 'sometimes|required|exists:users,id',
         ];
     }
 }
