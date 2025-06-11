@@ -2,14 +2,26 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
 use App\Models\Company;
+use Illuminate\Database\Seeder;
 
 class CompanySeeder extends Seeder
 {
     public function run(): void
     {
-        // إنشاء شركتين فيك
-        Company::factory()->count(2)->create();
+        Company::create([
+            'name' => 'شركة نور الاسلام',
+            'email' => 'info@alnoor.com',
+            'phone' => '01006444992',
+            'address' => '456 شارع نور الاسلام، القاهرة',
+            'created_by' => 1,
+        ]);
+        Company::create([
+            'name' => 'شركة هونكس',
+            'email' => 'info@hwunex.com',
+            'phone' => '01006444991',
+            'address' => '123 شارع هونكس، القاهرة',
+            'created_by' => 1,
+        ]);
     }
 }

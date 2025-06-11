@@ -10,13 +10,29 @@ class BrandSeeder extends Seeder
     public function run(): void
     {
         // بيانات فيك للماركات (ماركتين فقط)
-        for ($i = 0; $i < 2; $i++) {
             Brand::create([
-                'name' => 'ماركة ' . ($i + 1),
-                'description' => 'وصف الماركة ' . ($i + 1),
+                'name' => 'الطوخي',
+                'description' => ' ماركة الطوخي للملابس الجاهزة',
                 'company_id' => 1,
                 'created_by' => 1,
             ]);
-        }
+            Brand::create([
+                'name' => 'الدهان',
+                'description' => ' ماركة الدهان  للادوات المنزلية',
+                'company_id' => 1,
+                'created_by' => 1,
+            ]);
+            Brand::create([
+                'name' => 'فاتيكا',
+                'description' => ' ماركة فاتيكا للعناية بالشعر',
+                'company_id' => 1,
+                'created_by' => 1,
+            ]);
+            Brand::create([
+                'name' => 'بيتي',
+                'description' => ' ماركة بيتي للادوات المنزلية',
+                'company_id' => 1,
+                'created_by' => 1,
+            ]);
     }
 }
