@@ -13,18 +13,19 @@ use function Laravel\Prompts\error;
 
 class ProductController extends Controller
 {
+    protected array $relations = [
+        'company',
+        'creator',
+        'variants',
+        // 'variants.product',
+        'variants.attributes.attribute',
+        'variants.attributes.attributeValue',
+        'variants.stocks.warehouse',
+    ];
+
     public function index(Request $request)
     {
-        // $query = Product::with(['category', 'brand', 'variants.attributes.attributeValue']);
-        $query = Product::with(relations: [
-            'category',
-            'category.parent',
-            'brand',
-            'warehouse',
-            'variants.stock.warehouse',
-            'variants.attributes.attribute',
-            'variants.attributes.attributeValue',
-        ]);
+        $query = Product::with($this->relations);
         // بحث نصي عام
         if ($request->filled('search')) {
             $search = $request->input('search');

@@ -2,8 +2,12 @@
 
 namespace App\Http\Resources\Stock;
 
-use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Http\Request;
+use App\Http\Resources\User\UserResource;
+use App\Http\Resources\Company\CompanyResource;
+use Illuminate\Http\Resources\Json\JsonResource;
+use App\Http\Resources\Warehouse\WarehouseResource;
+use App\Http\Resources\ProductVariant\ProductVariantResource;
 
 class StockResource extends JsonResource
 {

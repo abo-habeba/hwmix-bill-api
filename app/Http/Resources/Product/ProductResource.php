@@ -5,8 +5,12 @@ namespace App\Http\Resources\Product;
 use App\Http\Resources\Brand\BrandResource;
 use App\Http\Resources\Category\CategoryResource;
 use App\Http\Resources\Company\CompaniesResource;
+use App\Http\Resources\Company\CompanyResource;
+use App\Http\Resources\Product\ProductResource;
 use App\Http\Resources\ProductVariant\ProductVariantResource;
-use App\Http\Resources\User\UserResource;
+use App\Http\Resources\ProductVariantAttribute\ProductVariantAttributeResource;
+use App\Http\Resources\Stock\StockResource;
+use App\Http\Resources\User\UserBasicResource;
 use App\Http\Resources\Variant\VariantResource;
 use App\Http\Resources\Warehouse\WarehouseResource;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -18,22 +22,20 @@ class ProductResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'barcode' => $this->barcode,
-            'sku' => $this->sku,
-            'retail_price' => $this->retail_price,
-            'wholesale_price' => $this->wholesale_price,
-            'profit_margin' => $this->profit_margin,
-            'image' => $this->image,
-            'weight' => $this->weight,
-            'dimensions' => $this->dimensions,
-            'tax' => $this->tax,
-            'discount' => $this->discount,
-            'status' => $this->status,
-            'product' => new ProductResource($this->whenLoaded('product')),
+            'name' => $this->name,
+            'slug' => $this->slug,
+            'active' => (bool) $this->active,
+            'featured' => (bool) $this->featured,
+            'returnable' => (bool) $this->returnable,
+            'desc' => $this->desc,  // تم إرجاع الاسم إلى 'desc'
+            'desc_long' => $this->desc_long,  // تم إرجاع الاسم إلى 'desc_long'
+            'category_id' => $this->category_id,
+            'brand_id' => $this->whenNotNull($this->brand_id),
+            'company_id' => $this->company_id,
             'company' => new CompanyResource($this->whenLoaded('company')),
-            'creator' => new UserResource($this->whenLoaded('creator')),
-            'attributes' => ProductVariantAttributeResource::collection($this->whenLoaded('attributes')),
-            'stocks' => StockResource::collection($this->whenLoaded('stocks')),
+            'creator' => new UserBasicResource($this->whenLoaded('creator')),
+            'variants' => ProductVariantResource::collection($this->whenLoaded('variants')),
+            'published_at' => $this->whenNotNull($this->published_at ? $this->published_at->format('Y-m-d H:i:s') : null),
             'created_at' => $this->created_at?->format('Y-m-d H:i:s'),
             'updated_at' => $this->updated_at?->format('Y-m-d H:i:s'),
         ];

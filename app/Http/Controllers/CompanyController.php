@@ -21,26 +21,26 @@ class CompanyController extends Controller
         try {
             $authUser = auth()->user();
             $query = Company::query();
-            // 'companys_all', // جميع الشركات
-            // 'companys_all_own', // الشركات التابعين له
-            // 'companys_all_self', // عرض الشركات الخاص به
-            if ($authUser->hasAnyPermission(['companys_all', 'company_owner', 'super_admin'])) {
 
-            } elseif ($authUser->hasPermissionTo('companys_show_own')) {
-                $query->own();
-            } elseif ($authUser->hasPermissionTo('companys_show_self')) {
-                $query->self();
-            } else {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);
+            $canSeeAllCompanies = $authUser->hasAnyPermission(['companys_all', 'company_owner', 'super_admin']);
+
+            if (!$canSeeAllCompanies) {
+                if ($authUser->hasPermissionTo('companys_show_own')) {
+                    $query->own();
+                } elseif ($authUser->hasPermissionTo('companys_show_self')) {
+                    $query->self();
+                } else {
+                    return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);
+                }
             }
+
+            // شروط created_at
             if (!empty($request->get('created_at_from'))) {
                 $query->where('created_at', '>=', $request->get('created_at_from') . ' 00:00:00');
             }
-
             if (!empty($request->get('created_at_to'))) {
                 $query->where('created_at', '<=', $request->get('created_at_to') . ' 23:59:59');
             }
-
 
             $perPage = max(1, $request->get('per_page', 10));
             $sortField = $request->get('sort_by', 'id');
@@ -48,9 +48,13 @@ class CompanyController extends Controller
 
             $query->orderBy($sortField, $sortOrder);
 
-            $query->whereHas('users', function ($query) use ($authUser) {
-                $query->where('user_id', $authUser->id);
-            });
+            // هنا الشرط المنطقي: طبق whereHas فقط إذا لم يكن المستخدم يملك صلاحية رؤية كل الشركات
+            if (!$canSeeAllCompanies) {
+                $query->whereHas('users', function ($q) use ($authUser) {
+                    $q->where('user_id', $authUser->id);
+                });
+            }
+            // ملاحظة: تأكد من أن الـ scopes (own و self) تُطبق بالفعل الشرط على ربط المستخدمين.
 
             // جلب البيانات مع التصفية والصفحات
             $querys = $query->paginate($perPage);
@@ -62,17 +66,15 @@ class CompanyController extends Controller
                 'last_page' => $querys->lastPage(),
             ]);
 
-            // return response()->json([
-            //     'data' => CompanyResource::collection($query->get()),
-            // ]);
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
     /**
      * Store a newly created resource in storage.
+*  value: 'companys_create', name: 'إنشاء شركة'
      */
-    // { value: 'companys_create', name: 'إنشاء شركة' },
+
 
     public function store(CompanyRequest $request)
     {

@@ -199,6 +199,14 @@ class RolesAndPermissionsSeeder extends Seeder
         ]);
         $user->givePermissionTo($permissions);
 
+        // مزامنة المستخدم مع جميع الشركات
+        $companyIds = Company::pluck('id')->toArray();
+        $pivotData = [];
+        foreach ($companyIds as $companyId) {
+            $pivotData[$companyId] = ['created_by' => $user->id];
+        }
+        $user->companies()->sync($pivotData);
+
         $cashBoxType = CashBoxType::create([
             'name' => 'نقدي',
             'description' => 'النوع الافتراضي للسيستم',

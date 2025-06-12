@@ -9,9 +9,28 @@ trait Scopes
     public function scopeCompany(Builder $query)
     {
         $user = auth()->user();
-        $query->where('company_id', $user->company_id);
+        if (!$user) return $query;
+
+        // إذا كان حقل معرف الشركه في الجدول فارغ  يتم تطبيق منطق النطاق
+        $query->where(function($q) use ($user) {
+            $q->where(function($subQ) {
+                $subQ->whereNull('company_id')->orWhere('company_id', '');
+            })
+            ->orWhere(function($subQ) use ($user) {
+                $subQ->where('company_id', $user->company_id);
+            });
+        });
+
+        // إذا كان السجل معرف الشركه فارغ  نطبق منطق له
+        $query->orWhere(function($q) use ($user) {
+            $q->whereNull('company_id')->orWhere('company_id', '');
+            $subUsers = \App\Models\User::where('created_by', $user->id)->pluck('id');
+            $q->whereIn('created_by', $subUsers->push($user->id));
+        });
+
         return $query;
     }
+
     public function scopeOwn(Builder $query)
     {
         $user = auth()->user();
@@ -21,6 +40,8 @@ trait Scopes
             $query->whereIn('created_by', $subUsers->push($user->id));
         }
     }
+
+
     public function scopeSelf(Builder $query)
     {
         $user = auth()->user();
@@ -29,6 +50,7 @@ trait Scopes
             $query->where('created_by', $user->id);
         }
     }
+
 
     /**
      * Scope a query to only include records created by the current user or their sub-users.

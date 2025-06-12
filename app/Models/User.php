@@ -83,6 +83,12 @@ class User extends Authenticatable
         return $this->belongsToMany(Company::class, 'company_user', 'user_id', 'company_id');
     }
 
+    public function companyUsersCash()
+{
+    return $this->belongsToMany(Company::class, 'user_company_cash', 'user_id', 'company_id')
+                ->withPivot('cash_box_id', 'created_by'); // أضف الحقول الإضافية التي تريد الوصول إليها
+}
+
     public function balanceBox($id = null)
     {
         $cashBoxes = $this->cashBoxes;

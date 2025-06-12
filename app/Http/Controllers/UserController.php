@@ -82,7 +82,7 @@ class UserController extends Controller
 
         $query->orderBy($sortField, $sortOrder);
 
-        $users = $query->with('companies')->paginate($perPage);
+        $users = $query->with(['companies',])->paginate($perPage);
 
         return response()->json([
             'data' => UserResource::collection($users->items()),
@@ -136,7 +136,16 @@ class UserController extends Controller
                 throw new \Exception("نوع الخزنة الافتراضي غير موجود.");
             }
 
-            $user->companies()->sync($validatedData['company_ids']);
+            // تعديل ربط الشركات ليشمل created_by في جدول pivot
+
+            $pivotData = [];
+
+            $companyIds = $validatedData['company_ids'] ?? [ $authUser->id];
+
+            foreach ($companyIds as $companyId) {
+                $pivotData[$companyId] = ['created_by' => $authUser->id];
+            }
+            $user->companies()->sync($pivotData);
             $user->logCreated(' بانشاء  المستخدم ' . $user->nickname);
             DB::commit();
             return new UserResource($user);
