@@ -2,14 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\Product\StoreProductRequest;
+use App\Http\Requests\Product\UpdateProductRequest;
+use App\Http\Resources\Product\ProductResource;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\Stock;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use App\Http\Requests\Product\StoreProductRequest;
-use App\Http\Requests\Product\UpdateProductRequest;
-use App\Http\Resources\Product\ProductResource;
 use Illuminate\Support\Facades\Log;
 
 class ProductController extends Controller
@@ -17,10 +17,12 @@ class ProductController extends Controller
     protected array $relations = [
         'company',
         'creator',
+        'category',
+        'brand',
         'variants',
         'variants.attributes.attribute',
         'variants.attributes.attributeValue',
-        'variants.stocks.warehouse', // تأكد أن العلاقة هي 'stocks' وليست 'stock'
+        'variants.stocks.warehouse',  // تأكد أن العلاقة هي 'stocks' وليست 'stock'
     ];
 
     public function index(Request $request)
@@ -68,6 +70,9 @@ class ProductController extends Controller
             $createdBy = $authUser->id;
 
             $validatedData = $request->validated();
+            $validatedData['active'] = (bool) ($validatedData['active'] ?? false);
+            $validatedData['featured'] = (bool) ($validatedData['featured'] ?? false);
+            $validatedData['returnable'] = (bool) ($validatedData['returnable'] ?? false);
             $validatedData['company_id'] = $validatedData['company_id'] ?? $companyId;
             $validatedData['created_by'] = $validatedData['created_by'] ?? $createdBy;
             $validatedData['slug'] = Product::generateSlug($validatedData['name']);
@@ -113,7 +118,7 @@ class ProductController extends Controller
                                 'company_id' => $companyId,
                                 'created_by' => $createdBy,
                             ];
-                            $variant->stocks()->create($stockCreateData); // استخدم stocks() هنا
+                            $variant->stocks()->create($stockCreateData);  // استخدم stocks() هنا
                         }
                     }
                 }
@@ -138,7 +143,6 @@ class ProductController extends Controller
         return ProductResource::make($product->load($this->relations));
     }
 
-
     public function update(UpdateProductRequest $request, Product $product)
     {
         DB::beginTransaction();
@@ -146,10 +150,12 @@ class ProductController extends Controller
         try {
             $authUser = auth()->user();
             $companyId = $authUser->company_id;
-            $updatedBy = $authUser->id; // استخدم updatedBy لتحديث السجلات
+            $updatedBy = $authUser->id;  // استخدم updatedBy لتحديث السجلات
 
             $validatedData = $request->validated();
-
+            $validatedData['active'] = (bool) ($validatedData['active'] ?? false);
+            $validatedData['featured'] = (bool) ($validatedData['featured'] ?? false);
+            $validatedData['returnable'] = (bool) ($validatedData['returnable'] ?? false);
             $productData = [
                 'name' => $validatedData['name'],
                 'slug' => $validatedData['slug'] ?? Product::generateSlug($validatedData['name']),
@@ -159,7 +165,7 @@ class ProductController extends Controller
                 'category_id' => $validatedData['category_id'],
                 'brand_id' => $validatedData['brand_id'] ?? null,
                 'company_id' => $validatedData['company_id'] ?? $companyId,
-                'active' => $validatedData['active'] ?? true, // تأكد من وجود هذه الحقول في الـ request
+                'active' => $validatedData['active'] ?? true,  // تأكد من وجود هذه الحقول في الـ request
                 'featured' => $validatedData['featured'] ?? false,
                 'returnable' => $validatedData['returnable'] ?? true,
             ];
@@ -168,7 +174,7 @@ class ProductController extends Controller
 
             // معالجة المتغيرات (Variants)
             $requestedVariantIds = collect($validatedData['variants'] ?? [])->pluck('id')->filter()->all();
-            $product->variants()->whereNotIn('id', $requestedVariantIds)->delete(); // حذف المتغيرات غير الموجودة في الطلب
+            $product->variants()->whereNotIn('id', $requestedVariantIds)->delete();  // حذف المتغيرات غير الموجودة في الطلب
 
             if (!empty($validatedData['variants']) && is_array($validatedData['variants'])) {
                 foreach ($validatedData['variants'] as $variantData) {
@@ -183,7 +189,7 @@ class ProductController extends Controller
                         'dimensions' => $variantData['dimensions'] ?? null,
                         'tax' => $variantData['tax'] ?? null,
                         'discount' => $variantData['discount'] ?? null,
-                        'status' => $variantData['status'] ?? 'active', // قيمة افتراضية
+                        'status' => $variantData['status'] ?? 'active',  // قيمة افتراضية
                         'company_id' => $variantData['company_id'] ?? $companyId,
                         'created_by' => $variantData['created_by'] ?? $authUser->id,
                         'product_id' => $product->id,
@@ -196,14 +202,14 @@ class ProductController extends Controller
 
                     // معالجة خصائص المتغير (Attributes)
                     $requestedAttributeIds = collect($variantData['attributes'] ?? [])
-                                                ->filter(fn($attr) => isset($attr['attribute_id']) && isset($attr['attribute_value_id']))
-                                                ->map(fn($attr) => [
-                                                    'attribute_id' => $attr['attribute_id'],
-                                                    'attribute_value_id' => $attr['attribute_value_id'],
-                                                    'company_id' => $companyId,
-                                                    'created_by' => $authUser->id,
-                                                ])
-                                                ->all();
+                        ->filter(fn($attr) => isset($attr['attribute_id']) && isset($attr['attribute_value_id']))
+                        ->map(fn($attr) => [
+                            'attribute_id' => $attr['attribute_id'],
+                            'attribute_value_id' => $attr['attribute_value_id'],
+                            'company_id' => $companyId,
+                            'created_by' => $authUser->id,
+                        ])
+                        ->all();
 
                     // حذف الخصائص القديمة للمتغير ثم إنشاء الجديدة.
                     // هذه الطريقة أبسط وتضمن مزامنة كاملة، ولكنها تحذف وتنشئ كل مرة.
@@ -215,7 +221,7 @@ class ProductController extends Controller
 
                     // معالجة سجلات المخزون (Stocks)
                     $requestedStockIds = collect($variantData['stocks'] ?? [])->pluck('id')->filter()->all();
-                    $variant->stocks()->whereNotIn('id', $requestedStockIds)->delete(); // حذف سجلات المخزون غير الموجودة في الطلب
+                    $variant->stocks()->whereNotIn('id', $requestedStockIds)->delete();  // حذف سجلات المخزون غير الموجودة في الطلب
 
                     if (!empty($variantData['stocks']) && is_array($variantData['stocks'])) {
                         foreach ($variantData['stocks'] as $stockData) {
