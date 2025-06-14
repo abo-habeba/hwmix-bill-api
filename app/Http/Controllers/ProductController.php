@@ -2,14 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Product;
+use App\Models\ProductVariant;
+use App\Models\Stock;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use App\Http\Requests\Product\StoreProductRequest;
 use App\Http\Requests\Product\UpdateProductRequest;
 use App\Http\Resources\Product\ProductResource;
-use App\Models\Product;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-
-use function Laravel\Prompts\error;
+use Illuminate\Support\Facades\Log;
 
 class ProductController extends Controller
 {
@@ -17,16 +18,15 @@ class ProductController extends Controller
         'company',
         'creator',
         'variants',
-        // 'variants.product',
         'variants.attributes.attribute',
         'variants.attributes.attributeValue',
-        'variants.stocks.warehouse',
+        'variants.stocks.warehouse', // تأكد أن العلاقة هي 'stocks' وليست 'stock'
     ];
 
     public function index(Request $request)
     {
         $query = Product::with($this->relations);
-        // بحث نصي عام
+
         if ($request->filled('search')) {
             $search = $request->input('search');
             $query->where(function ($q) use ($search) {
@@ -47,12 +47,10 @@ class ProductController extends Controller
             });
         }
 
-        // ترتيب
         $sortBy = $request->input('sort_by', 'id');
         $sortOrder = $request->input('sort_order', 'desc');
         $query->orderBy($sortBy, $sortOrder);
 
-        // Pagination
         $perPage = $request->input('per_page', 10);
         $products = $query->paginate($perPage);
 
@@ -66,29 +64,25 @@ class ProductController extends Controller
         DB::beginTransaction();
         try {
             $authUser = auth()->user();
+            $companyId = $authUser->company_id;
+            $createdBy = $authUser->id;
 
             $validatedData = $request->validated();
-            $validatedData['company_id'] = $validatedData['company_id'] ?? $authUser->company_id;
-            $validatedData['created_by'] = $validatedData['created_by'] ?? $authUser->id;
-
+            $validatedData['company_id'] = $validatedData['company_id'] ?? $companyId;
+            $validatedData['created_by'] = $validatedData['created_by'] ?? $createdBy;
             $validatedData['slug'] = Product::generateSlug($validatedData['name']);
 
             $product = Product::create($validatedData);
 
-            if ($request->has('variants')) {
+            if ($request->has('variants') && is_array($request->input('variants'))) {
                 foreach ($request->input('variants') as $variantData) {
-                    $variantData['warehouse_id'] = $request->input('warehouse_id');
-                    $variantData['tax_rate'] ??= 0;
+                    $variantCreateData = collect($variantData)->except(['attributes', 'stocks'])->toArray();
+                    $variantCreateData['company_id'] = $validatedData['company_id'];
+                    $variantCreateData['created_by'] = $validatedData['created_by'];
 
-                    // تأكد من أن أسعار البيع موجودة في المتغير
-                    unset($variantData['purchase_price']);
+                    $variant = $product->variants()->create($variantCreateData);
 
-                    $variant = $product->variants()->create(
-                        collect($variantData)->except(['attributes', 'stock'])->toArray()
-                    );
-
-                    // attributes
-                    if (!empty($variantData['attributes'])) {
+                    if (!empty($variantData['attributes']) && is_array($variantData['attributes'])) {
                         foreach ($variantData['attributes'] as $attributeData) {
                             if (empty($attributeData['attribute_id']) || empty($attributeData['attribute_value_id'])) {
                                 continue;
@@ -97,47 +91,53 @@ class ProductController extends Controller
                             $variant->attributes()->create([
                                 'attribute_id' => $attributeData['attribute_id'],
                                 'attribute_value_id' => $attributeData['attribute_value_id'],
-                                'company_id' => $validatedData['company_id'],
-                                'created_by' => $validatedData['created_by'],
+                                'company_id' => $companyId,
+                                'created_by' => $createdBy,
                             ]);
                         }
                     }
 
-                    // stock
-                    if (!empty($variantData['stock'])) {
-                        $variant->stock()->create([
-                            'quantity' => $variantData['stock']['quantity'] ?? 0,
-                            'expiry_date' => $variantData['stock']['expiry_date'] ?? null,
-                            'status' => $variantData['stock']['status'] ?? 'available',
-                            'purchase_price' => $variantData['stock']['purchase_price'] ?? 0,
-                            'warehouse_id' => $request->input('warehouse_id'),
-                            'company_id' => $validatedData['company_id'],
-                            'created_by' => $validatedData['created_by'],
-                        ]);
+                    // التعامل مع مصفوفة المخزون (stocks)
+                    if (!empty($variantData['stocks']) && is_array($variantData['stocks'])) {
+                        foreach ($variantData['stocks'] as $stockData) {
+                            $stockCreateData = [
+                                'qty' => $stockData['qty'] ?? 0,
+                                'reserved' => $stockData['reserved'] ?? 0,
+                                'min_qty' => $stockData['min_qty'] ?? 0,
+                                'cost' => $stockData['cost'] ?? null,
+                                'batch' => $stockData['batch'] ?? null,
+                                'expiry' => $stockData['expiry'] ?? null,
+                                'loc' => $stockData['loc'] ?? null,
+                                'status' => $stockData['status'] ?? 'available',
+                                'warehouse_id' => $stockData['warehouse_id'] ?? null,
+                                'company_id' => $companyId,
+                                'created_by' => $createdBy,
+                            ];
+                            $variant->stocks()->create($stockCreateData); // استخدم stocks() هنا
+                        }
                     }
                 }
             }
 
             DB::commit();
 
-            return new ProductResource($product->load([
-                'category',
-                'category.parent',
-                'brand',
-                'warehouse',
-                'variants.stock.warehouse',
-                'variants.attributes.attribute',
-                'variants.attributes.attributeValue',
-            ]));
+            return ProductResource::make($product->load($this->relations));
         } catch (\Exception $e) {
             DB::rollBack();
+            Log::error('Product store failed: ' . $e->getMessage(), ['exception' => $e, 'trace' => $e->getTraceAsString()]);
 
             return response()->json([
-                'message' => 'حدث خطأ أثناء الحفظ.',
+                'message' => 'حدث خطأ أثناء حفظ المنتج.',
                 'details' => $e->getMessage(),
             ], 500);
         }
     }
+
+    public function show(Product $product)
+    {
+        return ProductResource::make($product->load($this->relations));
+    }
+
 
     public function update(UpdateProductRequest $request, Product $product)
     {
@@ -145,175 +145,143 @@ class ProductController extends Controller
 
         try {
             $authUser = auth()->user();
+            $companyId = $authUser->company_id;
+            $updatedBy = $authUser->id; // استخدم updatedBy لتحديث السجلات
+
             $validatedData = $request->validated();
-            $validatedData['company_id'] = $validatedData['company_id'] ?? $authUser->company_id;
-            $validatedData['created_by'] = $validatedData['created_by'] ?? $authUser->id;
 
-            // تحديث بيانات المنتج
-            $product->update($validatedData);
+            $productData = [
+                'name' => $validatedData['name'],
+                'slug' => $validatedData['slug'] ?? Product::generateSlug($validatedData['name']),
+                'desc' => $validatedData['desc'] ?? null,
+                'desc_long' => $validatedData['desc_long'] ?? null,
+                'published_at' => $validatedData['published_at'] ?? null,
+                'category_id' => $validatedData['category_id'],
+                'brand_id' => $validatedData['brand_id'] ?? null,
+                'company_id' => $validatedData['company_id'] ?? $companyId,
+                'active' => $validatedData['active'] ?? true, // تأكد من وجود هذه الحقول في الـ request
+                'featured' => $validatedData['featured'] ?? false,
+                'returnable' => $validatedData['returnable'] ?? true,
+            ];
 
-            // تحديث slug إذا الاسم اتغير
-            if ($request->has('name')) {
-                $slug = Product::generateSlug($request->input('name'));
-                $product->update(['slug' => $slug]);
-            }
+            $product->update($productData);
 
-            if ($request->has('variants')) {
-                $variantIds = [];
+            // معالجة المتغيرات (Variants)
+            $requestedVariantIds = collect($validatedData['variants'] ?? [])->pluck('id')->filter()->all();
+            $product->variants()->whereNotIn('id', $requestedVariantIds)->delete(); // حذف المتغيرات غير الموجودة في الطلب
 
-                foreach ($request->input('variants') as $variantData) {
-                    $variantId = $variantData['id'] ?? null;
-                    $variantData['warehouse_id'] = $request->input('warehouse_id');
-                    $variantData['tax_rate'] = $variantData['tax_rate'] ?? 0;
+            if (!empty($validatedData['variants']) && is_array($validatedData['variants'])) {
+                foreach ($validatedData['variants'] as $variantData) {
+                    $variantCreateUpdateData = [
+                        'barcode' => $variantData['barcode'] ?? null,
+                        'sku' => $variantData['sku'] ?? null,
+                        'retail_price' => $variantData['retail_price'] ?? null,
+                        'wholesale_price' => $variantData['wholesale_price'] ?? null,
+                        // 'profit_margin' => $variantData['profit_margin'] ?? null, // يتم حسابه عادة
+                        'image' => $variantData['image'] ?? null,
+                        'weight' => $variantData['weight'] ?? null,
+                        'dimensions' => $variantData['dimensions'] ?? null,
+                        'tax' => $variantData['tax'] ?? null,
+                        'discount' => $variantData['discount'] ?? null,
+                        'status' => $variantData['status'] ?? 'active', // قيمة افتراضية
+                        'company_id' => $variantData['company_id'] ?? $companyId,
+                        'created_by' => $variantData['created_by'] ?? $authUser->id,
+                        'product_id' => $product->id,
+                    ];
 
-                    // حذف purchase_price من المتغير
-                    unset($variantData['purchase_price']);
+                    $variant = ProductVariant::updateOrCreate(
+                        ['id' => $variantData['id'] ?? null, 'product_id' => $product->id],
+                        $variantCreateUpdateData
+                    );
 
-                    // إنشاء أو تحديث المتغير
-                    if ($variantId) {
-                        $variant = $product->variants()->find($variantId);
-                        if ($variant) {
-                            $variant->update(collect($variantData)->except(['id', 'attributes', 'stock'])->toArray());
-                        } else {
-                            $variant = $product->variants()->create(collect($variantData)->except(['id', 'attributes', 'stock'])->toArray());
+                    // معالجة خصائص المتغير (Attributes)
+                    $requestedAttributeIds = collect($variantData['attributes'] ?? [])
+                                                ->filter(fn($attr) => isset($attr['attribute_id']) && isset($attr['attribute_value_id']))
+                                                ->map(fn($attr) => [
+                                                    'attribute_id' => $attr['attribute_id'],
+                                                    'attribute_value_id' => $attr['attribute_value_id'],
+                                                    'company_id' => $companyId,
+                                                    'created_by' => $authUser->id,
+                                                ])
+                                                ->all();
+
+                    // حذف الخصائص القديمة للمتغير ثم إنشاء الجديدة.
+                    // هذه الطريقة أبسط وتضمن مزامنة كاملة، ولكنها تحذف وتنشئ كل مرة.
+                    // إذا كان الأداء حساساً جداً، يمكن استخدام syncWithPivotValues أو مقارنة يدوية.
+                    $variant->attributes()->delete();
+                    if (!empty($requestedAttributeIds)) {
+                        $variant->attributes()->createMany($requestedAttributeIds);
+                    }
+
+                    // معالجة سجلات المخزون (Stocks)
+                    $requestedStockIds = collect($variantData['stocks'] ?? [])->pluck('id')->filter()->all();
+                    $variant->stocks()->whereNotIn('id', $requestedStockIds)->delete(); // حذف سجلات المخزون غير الموجودة في الطلب
+
+                    if (!empty($variantData['stocks']) && is_array($variantData['stocks'])) {
+                        foreach ($variantData['stocks'] as $stockData) {
+                            $stockCreateUpdateData = [
+                                'qty' => $stockData['qty'] ?? 0,
+                                'reserved' => $stockData['reserved'] ?? 0,
+                                'min_qty' => $stockData['min_qty'] ?? 0,
+                                'cost' => $stockData['cost'] ?? null,
+                                'batch' => $stockData['batch'] ?? null,
+                                'expiry' => $stockData['expiry'] ?? null,
+                                'loc' => $stockData['loc'] ?? null,
+                                'status' => $stockData['status'] ?? 'available',
+                                'warehouse_id' => $stockData['warehouse_id'] ?? null,
+                                'company_id' => $stockData['company_id'] ?? $companyId,
+                                'created_by' => $stockData['created_by'] ?? $authUser->id,
+                                'updated_by' => $updatedBy,
+                                'variant_id' => $variant->id,
+                            ];
+
+                            Stock::updateOrCreate(
+                                ['id' => $stockData['id'] ?? null, 'variant_id' => $variant->id],
+                                $stockCreateUpdateData
+                            );
                         }
                     } else {
-                        $variant = $product->variants()->create(collect($variantData)->except(['id', 'attributes', 'stock'])->toArray());
-                    }
-
-                    $variantIds[] = $variant->id;
-
-                    // الخصائص
-                    if (isset($variantData['attributes'])) {
-                        $attrIds = [];
-
-                        foreach ($variantData['attributes'] as $attrData) {
-                            if (empty($attrData['attribute_id']) || empty($attrData['attribute_value_id'])) {
-                                continue;
-                            }
-
-                            $attr = $variant
-                                ->attributes()
-                                ->where('attribute_id', $attrData['attribute_id'])
-                                ->first();
-
-                            if ($attr) {
-                                $attr->update([
-                                    'attribute_value_id' => $attrData['attribute_value_id'],
-                                    'company_id' => $validatedData['company_id'],
-                                    'created_by' => $validatedData['created_by'],
-                                ]);
-                            } else {
-                                $attr = $variant->attributes()->create([
-                                    'attribute_id' => $attrData['attribute_id'],
-                                    'attribute_value_id' => $attrData['attribute_value_id'],
-                                    'company_id' => $validatedData['company_id'],
-                                    'created_by' => $validatedData['created_by'],
-                                ]);
-                            }
-
-                            $attrIds[] = $attr->id;
-                        }
-
-                        // حذف الخصائص غير المرسلة
-                        $variant->attributes()->whereNotIn('id', $attrIds)->delete();
-                    }
-
-                    // تحديث المخزون
-                    if (!empty($variantData['stock'])) {
-                        $stock = $variant->stock;
-
-                        $stockData = [
-                            'quantity' => $variantData['stock']['quantity'] ?? 0,
-                            'expiry_date' => $variantData['stock']['expiry_date'] ?? null,
-                            'status' => $variantData['stock']['status'] ?? 'available',
-                            'purchase_price' => $variantData['stock']['purchase_price'] ?? 0,
-                            'warehouse_id' => $request->input('warehouse_id'),
-                            'company_id' => $validatedData['company_id'],
-                            'created_by' => $validatedData['created_by'],
-                        ];
-
-                        if ($stock) {
-                            $stock->update($stockData);
-                        } else {
-                            $variant->stock()->create($stockData);
-                        }
+                        // إذا لم يتم إرسال أي سجلات مخزون للمتغير، فقم بحذف جميع سجلات المخزون الحالية لهذا المتغير
+                        $variant->stocks()->delete();
                     }
                 }
-
-                // حذف المتغيرات غير المرسلة
-                $product->variants()->whereNotIn('id', $variantIds)->delete();
+            } else {
+                // إذا لم يتم إرسال أي متغيرات، فقم بحذف جميع متغيرات المنتج (والتي ستحذف مخازنها وخصائصها تلقائيًا)
+                $product->variants()->delete();
             }
 
             DB::commit();
 
-            return new ProductResource($product->load([
-                'category',
-                'category.parent',
-                'brand',
-                'warehouse',
-                'variants.stock.warehouse',
-                'variants.attributes.attribute',
-                'variants.attributes.attributeValue',
-            ]));
+            return ProductResource::make($product->load($this->relations));
         } catch (\Exception $e) {
             DB::rollBack();
+            Log::error('Product update failed: ' . $e->getMessage(), ['exception' => $e, 'trace' => $e->getTraceAsString()]);
 
             return response()->json([
-                'message' => 'حدث خطأ أثناء التحديث.',
+                'message' => 'حدث خطأ أثناء تحديث المنتج.',
                 'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
             ], 500);
         }
     }
 
-    public function search(Request $request)
-    {
-        $query = Product::query();
-
-        if ($request->has('name')) {
-            $query->where('name', 'like', '%' . $request->name . '%');
-        }
-
-        if ($request->has('category_id')) {
-            $query->where('category_id', $request->category_id);
-        }
-
-        if ($request->has('brand_id')) {
-            $query->where('brand_id', $request->brand_id);
-        }
-
-        $products = $query->with([
-            'category',
-            'category.parent',
-            'brand',
-            'warehouse',
-            'variants.stock.warehouse',
-            'variants.attributes.attribute',
-            'variants.attributes.attributeValue',
-        ])->get();
-
-        return ProductResource::collection($products);
-    }
-
-    public function show(Product $product)
-    {
-        $product->load([
-            'category',
-            'category.parent',
-            'brand',
-            'warehouse',
-            'variants.stock.warehouse',
-            'variants.attributes.attribute',
-            'variants.attributes.attributeValue',
-        ]);
-        return new ProductResource($product);
-    }
-
     public function destroy(Product $product)
     {
-        $product->delete();
-        return response()->json(['message' => 'Product deleted successfully']);
+        DB::beginTransaction();
+        try {
+            // حذف المتغيرات المتعلقة، والتي بدورها ستحذف سجلات المخزون والخصائص
+            $product->variants()->delete();
+            $product->delete();
+
+            DB::commit();
+            return response()->json(null, 204);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Product deletion failed: ' . $e->getMessage(), ['exception' => $e, 'trace' => $e->getTraceAsString()]);
+
+            return response()->json([
+                'message' => 'حدث خطأ أثناء حذف المنتج.',
+                'details' => $e->getMessage(),
+            ], 500);
+        }
     }
 }

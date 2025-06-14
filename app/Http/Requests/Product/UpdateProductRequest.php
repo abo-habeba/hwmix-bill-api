@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Product;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UpdateProductRequest extends FormRequest
 {
@@ -13,47 +14,73 @@ class UpdateProductRequest extends FormRequest
 
     public function rules()
     {
-        return [
-            'name' => 'sometimes|required|string|max:255',
-            'slug' => 'sometimes|required|string|unique:products,slug,' . $this->product->id,
-            'is_active' => 'sometimes',
-            'featured' => 'sometimes',
-            'is_returnable' => 'sometimes',
-            'meta_data' => 'nullable|json',
-            'published_at' => 'nullable|date',
-            'description' => 'nullable|string',
-            'description_long' => 'nullable|string',
-            'company_id' => 'sometimes|required|exists:companies,id',
-            'created_by' => 'sometimes|required|exists:users,id',
-            'category_id' => 'sometimes|required|exists:categories,id',
-            'brand_id' => 'nullable|exists:brands,id',
-            'warehouse_id' => 'sometimes|required|exists:warehouses,id',
-            // المتغيرات
-            'variants' => 'nullable|array|distinct',
-            'variants.*.id' => 'nullable|exists:variants,id',
-            'variants.*.barcode' => 'nullable|string|max:255',
-            'variants.*.sku' => 'nullable|string|max:255',
-            'variants.*.wholesale_price' => 'nullable|numeric|min:0',
-            'variants.*.retail_price' => 'nullable|numeric|min:0',
-            'variants.*.stock_threshold' => 'nullable|integer|min:0',
-            'variants.*.status' => 'nullable|string|max:50',
-            'variants.*.expiry_date' => 'nullable|date',
-            'variants.*.image_url' => 'nullable|string|max:255',
-            'variants.*.weight' => 'nullable|numeric|min:0',
-            'variants.*.dimensions' => 'nullable|string|max:255',
-            'variants.*.tax_rate' => 'nullable|numeric|min:0',
-            'variants.*.discount' => 'nullable|numeric|min:0',
-            // الخصائص
-            'variants.*.attributes' => 'nullable|array|distinct',
-            'variants.*.attributes.*.id' => 'nullable|exists:variant_attributes,id',
-            'variants.*.attributes.*.attribute_id' => 'nullable|exists:attributes,id',
-            'variants.*.attributes.*.attribute_value_id' => 'nullable|exists:attribute_values,id',
-            // المخزون
-            'variants.*.stock' => 'nullable|array',
-            'variants.*.stock.quantity' => 'nullable|integer|min:0',
-            'variants.*.stock.expiry_date' => 'nullable|date',
-            'variants.*.stock.status' => 'nullable|string|max:50',
-            'variants.*.stock.purchase_price' => 'nullable|numeric|min:0',  // ✅ مضافة هنا صح
+        $productId = $this->route('product')->id ?? null;
+
+        $rules = [
+            'name' => 'required|string|max:255',
+            'slug' => [
+                'nullable',
+                'string',
+                'max:255',
+                Rule::unique('products', 'slug')->ignore($productId),
+            ],
+            'published_at' => 'sometimes|nullable|date',
+            'desc' => 'sometimes|nullable|string',
+            'desc_long' => 'sometimes|nullable|string',
+            'category_id' => 'required|exists:categories,id',
+            'brand_id' => 'sometimes|nullable|exists:brands,id',
+            'company_id' => 'sometimes|nullable|exists:companies,id',
+            'created_by' => 'sometimes|nullable|exists:users,id',
+            'variants' => 'required|array|min:1',
+            'variants.*.id' => 'sometimes|nullable|exists:product_variants,id',
+            'variants.*.retail_price' => 'sometimes|nullable|numeric|min:0',
+            'variants.*.wholesale_price' => 'sometimes|nullable|numeric|min:0',
+            'variants.*.profit_margin' => 'sometimes|nullable|numeric|min:0|max:100',
+            'variants.*.image' => 'sometimes|nullable|string|max:255',
+            'variants.*.weight' => 'sometimes|nullable|numeric|min:0',
+            'variants.*.dimensions' => 'sometimes|nullable|string|max:255',
+            'variants.*.tax' => 'sometimes|nullable|numeric|min:0|max:100',
+            'variants.*.discount' => 'sometimes|nullable|numeric|min:0',
+            'variants.*.status' => 'sometimes|nullable|string|in:active,inactive,discontinued',
+            'variants.*.created_by' => 'sometimes|nullable|exists:users,id',
+            'variants.*.company_id' => 'sometimes|nullable|exists:companies,id',
+            // التعديل هنا: السماح بأن تكون الخصائص اختيارية تماماً أو تحتوي على قيم فارغة
+            'variants.*.attributes' => 'sometimes|nullable|array',  // يمكن أن تكون موجودة كـ [] أو null
+            'variants.*.attributes.*.attribute_id' => 'sometimes|nullable|exists:attributes,id',  // ليست مطلوبة إذا كانت موجودة
+            'variants.*.attributes.*.attribute_value_id' => 'sometimes|nullable|exists:attribute_values,id',  // ليست مطلوبة إذا كانت موجودة
+            'variants.*.stocks' => 'required|array|min:1',
+            'variants.*.stocks.*.id' => 'sometimes|nullable|exists:stocks,id',
+            'variants.*.stocks.*.qty' => 'sometimes|nullable|integer|min:0',
+            'variants.*.stocks.*.reserved' => 'sometimes|nullable|integer|min:0',
+            'variants.*.stocks.*.expiry' => 'sometimes|nullable|date',
+            'variants.*.stocks.*.status' => 'sometimes|nullable|string|in:available,unavailable,expired',
+            'variants.*.stocks.*.batch' => 'sometimes|nullable|string|max:255',
+            'variants.*.stocks.*.cost' => 'sometimes|nullable|numeric|min:0',
+            'variants.*.stocks.*.loc' => 'sometimes|nullable|string|max:255',
+            'variants.*.stocks.*.warehouse_id' => 'sometimes|nullable|exists:warehouses,id',
+            'variants.*.stocks.*.company_id' => 'sometimes|nullable|exists:companies,id',
+            'variants.*.stocks.*.created_by' => 'sometimes|nullable|exists:users,id',
+            'variants.*.stocks.*.updated_by' => 'sometimes|nullable|exists:users,id',
         ];
+
+        foreach ($this->input('variants', []) as $index => $variant) {
+            $variantId = $variant['id'] ?? null;
+
+            $rules["variants.{$index}.barcode"] = [
+                'nullable',
+                'string',
+                'max:255',
+                Rule::unique('product_variants', 'barcode')->ignore($variantId),
+            ];
+
+            $rules["variants.{$index}.sku"] = [
+                'nullable',
+                'string',
+                'max:255',
+                Rule::unique('product_variants', 'sku')->ignore($variantId),
+            ];
+        }
+
+        return $rules;
     }
 }

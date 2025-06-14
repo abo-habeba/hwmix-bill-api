@@ -32,7 +32,6 @@ class ProductVariant extends Model
         'dimensions' => 'array',  // Assuming dimensions is stored as an array
         'tax' => 'decimal:2',
         'discount' => 'decimal:2',
-        'status' => 'boolean',
     ];
 
     public function creator()

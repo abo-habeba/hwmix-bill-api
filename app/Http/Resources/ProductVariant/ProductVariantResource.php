@@ -53,7 +53,7 @@ class ProductVariantResource extends JsonResource
             'attributes' => ProductVariantAttributeResource::collection($this->whenLoaded('attributes')),
             'creator' => new UserBasicResource($this->whenLoaded('creator')),
             'company' => new CompanyResource($this->whenLoaded('company')),
-            'stock' => new StockResource($this->whenLoaded('stock')),
+            'stocks' => StockResource::collection($this->whenLoaded('stocks')),
         ];
     }
 }

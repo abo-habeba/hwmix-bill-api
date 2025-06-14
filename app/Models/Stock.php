@@ -23,7 +23,6 @@ class Stock extends Model
         'min_qty' => 'integer',
         'cost' => 'decimal:2',
         'expiry' => 'datetime',
-        'status' => 'boolean',
     ];
 
     protected static function booted()

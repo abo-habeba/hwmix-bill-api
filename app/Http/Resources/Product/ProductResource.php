@@ -6,7 +6,6 @@ use App\Http\Resources\Brand\BrandResource;
 use App\Http\Resources\Category\CategoryResource;
 use App\Http\Resources\Company\CompaniesResource;
 use App\Http\Resources\Company\CompanyResource;
-use App\Http\Resources\Product\ProductResource;
 use App\Http\Resources\ProductVariant\ProductVariantResource;
 use App\Http\Resources\ProductVariantAttribute\ProductVariantAttributeResource;
 use App\Http\Resources\Stock\StockResource;
@@ -40,4 +39,5 @@ class ProductResource extends JsonResource
             'updated_at' => $this->updated_at?->format('Y-m-d H:i:s'),
         ];
     }
+
 }
