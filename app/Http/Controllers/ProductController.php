@@ -22,7 +22,7 @@ class ProductController extends Controller
         'variants',
         'variants.attributes.attribute',
         'variants.attributes.attributeValue',
-        'variants.stocks.warehouse',  // تأكد أن العلاقة هي 'stocks' وليست 'stock'
+        'variants.stocks.warehouse',
     ];
 
     public function index(Request $request)
@@ -34,17 +34,17 @@ class ProductController extends Controller
             $query->where(function ($q) use ($search) {
                 $q
                     ->where('name', 'like', "%$search%")
-                    ->orWhere('description', 'like', "%$search%")
+                    ->orWhere('desc', 'like', "%$search%")
                     ->orWhere('slug', 'like', "%$search%")
                     ->orWhereHas('category', function ($q) use ($search) {
                         $q
                             ->where('name', 'like', "%$search%")
-                            ->orWhere('description', 'like', "%$search%");
+                            ->orWhere('desc', 'like', "%$search%");
                     })
                     ->orWhereHas('brand', function ($q) use ($search) {
                         $q
                             ->where('name', 'like', "%$search%")
-                            ->orWhere('description', 'like', "%$search%");
+                            ->orWhere('desc', 'like', "%$search%");
                     });
             });
         }

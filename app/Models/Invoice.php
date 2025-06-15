@@ -4,17 +4,19 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
+use App\Traits\LogsActivity;
+use App\Traits\Blameable;
 
 class Invoice extends Model
 {
-    use HasFactory;
+    use HasFactory, LogsActivity, Blameable;
 
     protected $fillable = [
         'company_id',
         'user_id',
         'created_by',
-        'invoice_type_id',
         'invoice_number',
+        'invoice_type_id',
         'due_date',
         'status',
         'total_amount',
@@ -30,6 +32,10 @@ class Invoice extends Model
                 $companyId = Auth::user()->company_id;
                 $invoice->invoice_number = self::generateInvoiceNumber($type->code, $companyId);
             }
+
+            // Set default values for company_id and created_by
+            $invoice->company_id = $invoice->company_id ?? Auth::user()->company_id;
+            $invoice->created_by = $invoice->created_by ?? Auth::id();
         });
     }
 

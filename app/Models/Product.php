@@ -58,11 +58,11 @@ class Product extends Model
         return $this->hasMany(ProductVariant::class);
     }
 
-    // علاقة المنتج مع الصور
-    public function images()
-    {
-        return $this->hasMany(ProductImage::class);  // إذا كان هناك صور متعددة
-    }
+    // // علاقة المنتج مع الصور
+    // public function images()
+    // {
+    //     return $this->hasMany(ProductImage::class);  // إذا كان هناك صور متعددة
+    // }
 
     // دالة لتوليد الـ slug
     public static function generateSlug($name)

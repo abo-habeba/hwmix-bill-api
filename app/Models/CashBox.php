@@ -7,6 +7,7 @@ use App\Traits\Scopes;
 use App\Models\Company;
 use App\Traits\LogsActivity;
 use App\Traits\RolePermissions;
+use App\Traits\Blameable;
 use App\Models\Scopes\CompanyScope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Attributes\ScopedBy;
@@ -15,7 +16,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 #[ScopedBy([CompanyScope::class])]
 class CashBox extends Model
 {
-    use Scopes, LogsActivity, RolePermissions;
+    use Scopes, LogsActivity, RolePermissions, Blameable;
     protected $fillable = [
         'name',
         'balance',

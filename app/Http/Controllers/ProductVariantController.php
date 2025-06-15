@@ -5,15 +5,45 @@ namespace App\Http\Controllers;
 use App\Http\Requests\ProductVariant\StoreProductVariantRequest;
 use App\Http\Requests\ProductVariant\UpdateProductVariantRequest;
 use App\Http\Resources\ProductVariant\ProductVariantResource;
+use App\Models\Product;
 use App\Models\ProductVariant;
 use Illuminate\Http\Request;
 
 class ProductVariantController extends Controller
 {
-    public function index()
+    protected $relations = [
+        'creator',
+        'company.users',
+        'company.userCompanyCash',
+        'company.images',
+        'stocks.variant',
+        'stocks.warehouse',
+        'stocks.company',
+        'product.creator',
+        'product.company',
+        'product.category',
+        'product.brand',
+        'attributes.variant',
+        'attributes.attribute',
+        'attributes.attributeValue',
+    ];
+
+    public function index(Request $request)
     {
-        $productVariants = ProductVariant::with('product', 'warehouse', 'stock', 'attributes.attribute', 'attributes.attributeValue')->get();
-        return ProductVariantResource::collection($productVariants);
+        $query = ProductVariant::with($this->relations);
+
+        if ($request->filled('search')) {
+            $search = $request->input('search');
+            $query->where(function ($q) use ($search) {
+                $q
+                    ->where('sku', 'like', "%$search%")
+                    ->orWhereHas('product', function ($q) use ($search) {
+                        $q->where('name', 'like', "%$search%");
+                    });
+            });
+        }
+
+        return $query->paginate();
     }
 
     public function store(StoreProductVariantRequest $request)
@@ -38,15 +68,12 @@ class ProductVariantController extends Controller
             $productVariant->stock()->create($request->input('stock'));
         }
 
-        return new ProductVariantResource($productVariant->load([
-            'product', 'warehouse', 'stock', 'attributes.attribute', 'attributes.attributeValue'
-        ]));
+        return new ProductVariantResource($productVariant->load($this->relations));
     }
 
-    public function show(string $id)
+    public function show($id)
     {
-        $productVariant = ProductVariant::findOrFail($id);
-        return new ProductVariantResource($productVariant);
+        return ProductVariant::with($this->relations)->findOrFail($id);
     }
 
     public function update(UpdateProductVariantRequest $request, string $id)
@@ -90,9 +117,7 @@ class ProductVariantController extends Controller
             }
         }
 
-        return new ProductVariantResource($productVariant->load([
-            'product', 'warehouse', 'stock', 'attributes.attribute', 'attributes.attributeValue'
-        ]));
+        return new ProductVariantResource($productVariant->load($this->relations));
     }
 
     public function destroy(string $id)
@@ -107,26 +132,25 @@ class ProductVariantController extends Controller
      */
     public function searchByProduct(Request $request)
     {
-        $query = \App\Models\Product::query();
+        $query =
+            Product::query();
         $search = $request->get('search');
         if (empty($search) || mb_strlen($search) <= 2) {
             return ProductVariantResource::collection(collect([]));
         }
-        $query->where(function($q) use ($search) {
-            $q->where('name', 'like', "%$search%")
-              ->orWhere('description', 'like', "%$search%");
+        $query->where(function ($q) use ($search) {
+            $q
+                ->where('name', 'like', "%$search%")
+                ->orWhere('desc', 'like', "%$search%");
         });
         $perPage = max(1, (int) $request->get('per_page', 10));
-        $products = $query->with(['variants.product', 'variants.warehouse', 'variants.stock', 'variants.attributes.attribute', 'variants.attributes.attributeValue'])->paginate($perPage);
-        $variants = $products->getCollection()->flatMap(function($product) {
+        $products = $query->with(['variants' => function ($query) {
+            $query->with($this->relations);
+        }])->paginate($perPage);
+        $variants = $products->getCollection()->flatMap(function ($product) {
             return $product->variants;
         });
-        // إعادة النتائج مع معلومات الباجينيشن
-        return response()->json([
-            'data' => ProductVariantResource::collection($variants),
-            'total' => $products->total(),
-            'current_page' => $products->currentPage(),
-            'last_page' => $products->lastPage(),
-        ]);
+
+        return ProductVariantResource::collection($variants);
     }
 }

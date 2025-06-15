@@ -31,12 +31,14 @@ class ProductVariantResource extends JsonResource
             'weight' => $this->weight,
             'dimensions' => $this->dimensions,
             'tax' => $this->tax,
+            'quantity' => $this->stocks->where('status', 'available')->sum('qty'),
             'discount' => $this->discount,
             'status' => $this->status,
             'created_at' => $this->created_at?->format('Y-m-d H:i:s'),
             'updated_at' => $this->updated_at?->format('Y-m-d H:i:s'),
             // ✅ دي الحقول الخاصة بالمنتج، هنرجعها فقط لو العلاقة محمّلة
             $this->mergeWhen($this->relationLoaded('product'), [
+                'product_id' => $this->product->id,
                 'product_name' => $this->product->name,
                 'product_slug' => $this->product->slug,
                 'product_active' => (bool) $this->product->active,

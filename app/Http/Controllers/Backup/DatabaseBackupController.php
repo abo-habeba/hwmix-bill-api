@@ -24,7 +24,10 @@ class DatabaseBackupController extends Controller
         } catch (Exception $e) {
             return response()->json([
                 'status' => '❌ Fatal Error',
-                'message' => $e->getMessage()
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
             ], 500);
         }
     }
@@ -34,11 +37,17 @@ class DatabaseBackupController extends Controller
         try {
             $service = new DatabaseBackupService();
             $service->runBackupSeeders();
-            return response()->json(['status' => '✅ Backup seeders ran successfully']);
+
+            return response()->json([
+                'status' => '✅ Backup seeders ran successfully'
+            ]);
         } catch (Exception $e) {
             return response()->json([
                 'status' => '❌ Error running seeders',
-                'message' => $e->getMessage()
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
             ], 500);
         }
     }
@@ -49,20 +58,22 @@ class DatabaseBackupController extends Controller
             $service = new DatabaseBackupService();
 
             // 1. تصدير البيانات وتوليد السيدرز
-            // $report = $service->exportDataAndGenerateSeeders();
-            // if (!$report || !empty($report['errors'])) {
-            //     return response()->json([
-            //         'status' => '❌ Failed to export data and generate seeders',
-            //         'details' => $report
-            //     ], 500);
-            // }
+            $report = $service->exportDataAndGenerateSeeders();
+            if (!$report || !empty($report['errors'])) {
+                return response()->json([
+                    'status' => '❌ Failed to export data and generate seeders',
+                    'details' => $report
+                ], 500);
+            }
 
             // 2. عمل fresh للـ migrations
             $migrateResult = Artisan::call('migrate:fresh', ['--force' => true]);
+            $migrateOutput = Artisan::output();
+
             if ($migrateResult !== 0) {
                 return response()->json([
                     'status' => '❌ Failed to refresh migrations',
-                    'output' => Artisan::output()
+                    'migrate_output' => $migrateOutput,
                 ], 500);
             }
 
@@ -71,20 +82,23 @@ class DatabaseBackupController extends Controller
                 '--class' => RunAllBackupSeeders::class,
                 '--force' => true,
             ]);
-
-            $output = Artisan::output();
+            $seederOutput = Artisan::output();
 
             return response()->json([
                 'status' => $seedResult === 0 ? '✅ Restore completed successfully' : '❌ Seeder execution failed',
-                'seeder_output' => '✅ تم عمل ريفريش للميجريشنز بنجاح دون فقد اي بيانات ',
-                'backup_steps' => $report['steps'],
-                'backup_errors' => $report['errors'],
-                'backup_seeders' => $report['seeders'],
+                'migrate_output' => $migrateOutput,
+                'seeder_output' => $seederOutput,
+                'backup_steps' => $report['steps'] ?? [],
+                'backup_errors' => $report['errors'] ?? [],
+                'backup_seeders' => $report['seeders'] ?? [],
             ]);
         } catch (Exception $e) {
             return response()->json([
                 'status' => '❌ Error in restore/migrate',
-                'message' => $e->getMessage()
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
             ], 500);
         }
     }

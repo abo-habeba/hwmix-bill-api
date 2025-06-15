@@ -6,7 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class InstallmentPlan extends Model
 {
-    use HasFactory;
+    use HasFactory ,
+        \App\Traits\Blameable; // Assuming you have a Blameable trait for tracking created_by
 
     protected $fillable = [
         'invoice_id', 'user_id', 'total_amount', 'down_payment', 'remaining_amount', 'company_id', 'created_by',

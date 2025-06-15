@@ -2,23 +2,21 @@
 
 namespace App\Models;
 
-use App\Models\Scopes\LatestScope;
-use App\Traits\Scopes;
+use App\Traits\Translations\Translatable;
+use App\Traits\Blameable;
 use App\Traits\Filterable;
 use App\Traits\LogsActivity;
 use App\Traits\RolePermissions;
-use Laravel\Sanctum\HasApiTokens;
-use App\Models\Scopes\CompanyScope;
-use Spatie\Permission\Traits\HasRoles;
+use App\Traits\Scopes;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Notifications\Notifiable;
-use App\Traits\Translations\Translatable;
-// use Illuminate\Database\Eloquent\Attributes\ScopedBy;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-// #[ScopedBy([CompanyScope::class])]
+use Laravel\Sanctum\HasApiTokens;
+use Spatie\Permission\Traits\HasRoles;
+
 class ActivityLog extends Model
 {
-    use HasFactory, Notifiable, Translatable, HasRoles, HasApiTokens, Filterable, Scopes, RolePermissions, LogsActivity;
+    use HasFactory, Notifiable, Translatable, HasRoles, HasApiTokens, Filterable, Scopes, RolePermissions, LogsActivity, Blameable;
 
     protected $fillable = [
         'action',
