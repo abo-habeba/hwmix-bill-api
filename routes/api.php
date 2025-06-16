@@ -11,6 +11,7 @@ use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\InstallmentController;
 use App\Http\Controllers\InstallmentPaymentDetailController;
+use App\Http\Controllers\InstallmentPaymentController;
 use App\Http\Controllers\InstallmentPlanController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\InvoiceItemController;
@@ -20,6 +21,8 @@ use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PaymentMethodController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductVariantController;
+use App\Http\Controllers\ProfitController;
+use App\Http\Controllers\RevenueController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\StockController;
 use App\Http\Controllers\TransactionController;
@@ -275,12 +278,52 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::put('payment/{payment}', 'update');
         Route::delete('payment/{payment}', 'destroy');
     });
+    // PaymentMethod Controller
+    Route::controller(PaymentMethodController::class)
+        ->group(function () {
+            Route::get('payment-methods', 'index');
+            Route::post('payment-method', 'store');
 
-    // Payment Methods
-    Route::get('payment-methods', [\App\Http\Controllers\PaymentMethodController::class, 'index']);
-    Route::apiResource('revenues', \App\Http\Controllers\RevenueController::class);
-    Route::apiResource('profits', \App\Http\Controllers\ProfitController::class);
-    Route::apiResource('installment-payment-details', InstallmentPaymentDetailController::class);
+            Route::get('payment-method/{paymentMethod}', 'show');
+            Route::put('payment-method/{paymentMethod}', 'update');
+            Route::delete('payment-method/delete/{paymentMethod}', 'destroy');
+        });
+    Route::controller(InstallmentPaymentController::class)
+        ->group(function () {
+            Route::get('installment-payments', 'index');
+            Route::post('installment-payment', 'store');
+            Route::post('installment-payment/pay', 'payInstallments');
+            Route::get('installment-payment/{installmentPayment}', 'show');
+            Route::put('installment-payment/{installmentPayment}', 'update');
+            Route::delete('installment-payment/delete/{installmentPayment}', 'destroy');
+        });
+    // Revenue Controller
+    Route::controller(RevenueController::class)
+        ->group(function () {
+            Route::get('revenues', 'index');
+            Route::post('revenue', 'store');
+            Route::get('revenue/{revenue}', 'show');
+            Route::put('revenue/{revenue}', 'update');
+            Route::delete('revenue/delete/{revenue}', 'destroy');
+        });
+    // Profit Controller
+    Route::controller(ProfitController::class)
+        ->group(function () {
+            Route::get('profits', 'index');
+            Route::post('profit', 'store');
+            Route::get('profit/{profit}', 'show');
+            Route::put('profit/{profit}', 'update');
+            Route::delete('profit/delete/{profit}', 'destroy');
+        });
+    // InstallmentPaymentDetail Controller
+    Route::controller(InstallmentPaymentDetailController::class)
+        ->group(function () {
+            Route::get('installment-payment-details', 'index');
+            Route::post('installment-payment-detail', 'store');
+            Route::get('installment-payment-detail/{installmentPaymentDetail}', 'show');
+            Route::put('installment-payment-detail/{installmentPaymentDetail}', 'update');
+            Route::delete('installment-payment-detail/delete/{installmentPaymentDetail}', 'destroy');
+        });
 });
 
 require __DIR__ . '/installments.php';

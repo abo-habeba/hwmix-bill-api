@@ -8,16 +8,31 @@ use App\Http\Resources\Installment\InstallmentResource;
 use App\Models\Installment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Arr;
 
 class InstallmentController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $installments = Installment::with(['installmentPlan'])->paginate(20);
-        return InstallmentResource::collection($installments);
+        $query = Installment::with(['installmentPlan', 'user', 'creator']);
+
+        // الترتيب
+        $sortBy = $request->get('sort_by', 'due_date');
+        $sortOrder = $request->get('sort_order', 'asc');
+
+        $query->orderBy($sortBy, $sortOrder === 'desc' ? 'desc' : 'asc');
+
+        // التصفحة
+        $perPage = (int) $request->get('limit', 20);
+        $installments = $query->paginate($perPage);
+
+        return response()->json([
+            'data' => InstallmentResource::collection($installments->items()),
+            'total' => $installments->total(),
+        ]);
     }
 
     /**

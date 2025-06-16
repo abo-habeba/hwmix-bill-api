@@ -20,6 +20,8 @@ class ProductVariantResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        // $cost = $this->stocks->where('status', 'available')->sortByDesc('created_at')->first();
+        // dd($cost);
         return [
             'id' => $this->id,
             // بيانات متغير المنتج
@@ -31,7 +33,9 @@ class ProductVariantResource extends JsonResource
             'weight' => $this->weight,
             'dimensions' => $this->dimensions,
             'tax' => $this->tax,
+            'cost' => $this->stocks->where('status', 'available')->sortByDesc('created_at')->first()?->cost ?? 0,
             'quantity' => $this->stocks->where('status', 'available')->sum('qty'),
+            'stocks' => StockResource::collection($this->whenLoaded('stocks')),
             'discount' => $this->discount,
             'status' => $this->status,
             'created_at' => $this->created_at?->format('Y-m-d H:i:s'),
@@ -55,7 +59,7 @@ class ProductVariantResource extends JsonResource
             'attributes' => ProductVariantAttributeResource::collection($this->whenLoaded('attributes')),
             'creator' => new UserBasicResource($this->whenLoaded('creator')),
             'company' => new CompanyResource($this->whenLoaded('company')),
-            'stocks' => StockResource::collection($this->whenLoaded('stocks')),
+            // 'stocks' => StockResource::collection($this->whenLoaded('stocks')),
         ];
     }
 }

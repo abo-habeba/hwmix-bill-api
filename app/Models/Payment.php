@@ -1,12 +1,13 @@
 <?php
 namespace App\Models;
 
+use App\Traits\Blameable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Payment extends Model
 {
-    use HasFactory;
+    use HasFactory,Blameable;
     protected $fillable = [
         'user_id', 'payment_date', 'amount', 'method', 'notes', 'is_split'
     ];

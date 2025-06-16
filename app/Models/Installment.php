@@ -1,13 +1,14 @@
 <?php
 namespace App\Models;
 
+use App\Traits\Blameable;
+use App\Traits\LogsActivity;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Installment extends Model
 {
-    use HasFactory,
-        \App\Traits\Blameable;  // Assuming you have a Blameable trait for tracking created_by
+    use HasFactory, LogsActivity, Blameable;
 
     protected $fillable = [
         'installment_plan_id',
@@ -26,11 +27,13 @@ class Installment extends Model
         return $this->belongsTo(InstallmentPlan::class);
     }
 
-    // public function payments()
-    // {
-    //     return $this->belongsToMany(Payment::class, 'payment_installment')
-    //         ->withPivot('allocated_amount')->withTimestamps();
-    // }
+    public function payments()
+    {
+        return $this
+            ->belongsToMany(Payment::class, 'payment_installment')
+            ->withPivot('allocated_amount')
+            ->withTimestamps();
+    }
 
     // القسط يخص عميل
     public function user()
@@ -42,5 +45,10 @@ class Installment extends Model
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function withPayments()
+    {
+        return $this->load('payments');
     }
 }

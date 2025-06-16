@@ -24,7 +24,7 @@ class InstallmentService
 
         // تحليل start_date مرة واحدة وتحويلها للتنسيق المطلوب
         $parsedStartDate = Carbon::parse($installmentPlanData['start_date']);
-        $formattedStartDate = $parsedStartDate->format('Y-m-d H:i:s'); // تنسيق MySQL DATETIME
+        $formattedStartDate = $parsedStartDate->format('Y-m-d H:i:s');  // تنسيق MySQL DATETIME
 
         // إنشاء خطة الأقساط
         $installmentPlan = InstallmentPlan::create([
@@ -35,9 +35,9 @@ class InstallmentService
             'remaining_amount' => $installmentPlanData['total_amount'] - $installmentPlanData['down_payment'],
             'number_of_installments' => $numberOfInstallments,
             'installment_amount' => $installmentPlanData['installment_amount'],
-            'start_date' => $formattedStartDate, // استخدام التاريخ بالتنسيق الصحيح
-            'end_date' => $parsedStartDate->copy()->addMonths($numberOfInstallments)->format('Y-m-d H:i:s'), // استخدام copy للحفاظ على التاريخ الأصلي ثم تحويله
-            'status' => 'pending',
+            'start_date' => $formattedStartDate,
+            'end_date' => $parsedStartDate->copy()->addMonths($numberOfInstallments)->format('Y-m-d H:i:s'),  // استخدام copy للحفاظ على التاريخ الأصلي ثم تحويله
+            'status' => 'لم يتم الدفع',
             'notes' => $installmentPlanData['notes'] ?? null,
         ]);
 
@@ -46,10 +46,10 @@ class InstallmentService
             Installment::create([
                 'installment_plan_id' => $installmentPlan->id,
                 'installment_number' => $i,
-                // تحويل تاريخ الاستحقاق إلى التنسيق الصحيح قبل الحفظ
                 'due_date' => $parsedStartDate->copy()->addMonths($i)->format('Y-m-d H:i:s'),
                 'amount' => $installmentPlanData['installment_amount'],
-                'status' => 'pending',
+                'remaining' => $installmentPlanData['installment_amount'],
+                'status' => 'لم يتم الدفع',
                 'user_id' => $data['user_id'],
             ]);
         }

@@ -14,6 +14,11 @@ class InstallmentPlan extends Model
         'number_of_installments', 'installment_amount', 'start_date', 'end_date', 'status', 'notes'
     ];
 
+    protected $casts = [
+        'start_date' => 'datetime',
+        'end_date' => 'datetime',
+    ];
+
     public function invoice()
     {
         return $this->belongsTo(Invoice::class);
@@ -29,8 +34,8 @@ class InstallmentPlan extends Model
         return $this->hasMany(InstallmentPayment::class);
     }
 
-    public function schedules()
+    public function installments()
     {
-        return $this->hasMany(InstallmentPlanSchedule::class);
+        return $this->hasMany(Installment::class);
     }
 }

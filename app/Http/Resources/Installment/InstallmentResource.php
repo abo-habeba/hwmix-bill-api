@@ -1,8 +1,9 @@
 <?php
 namespace App\Http\Resources\Installment;
 
+use App\Http\Resources\InstallmentPlan\InstallmentPlanBasicResource;
+use App\Http\Resources\User\UserBasicResource;
 use Illuminate\Http\Resources\Json\JsonResource;
-
 class InstallmentResource extends JsonResource
 {
     public function toArray($request)
@@ -22,7 +23,7 @@ class InstallmentResource extends JsonResource
             'updated_at' => $this->updated_at,
             'user' => new UserBasicResource($this->whenLoaded('user')),
             'creator' => new UserBasicResource($this->whenLoaded('creator')),
-            'installment_plan' => new InstallmentPlanResource($this->whenLoaded('installmentPlan')),
+            'installment_plan' => new InstallmentPlanBasicResource($this->whenLoaded('installmentPlan')),
         ];
     }
 }
