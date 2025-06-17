@@ -91,7 +91,6 @@ class InvoiceCreationService implements DocumentServiceInterface
             $installmentService = new \App\Services\InstallmentService();
             $installmentService->createInstallments($data, $invoice->id);
         }
-
         // زيادة رصيد المستخدم عند إنشاء فاتورة بيع
         if ($data['invoice_type_code'] === 'sale') {
             $authUser = auth()->user();

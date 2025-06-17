@@ -51,9 +51,7 @@ class InstallmentPaymentService
             if ($installments->isEmpty()) {
                 throw new Exception('جميع الأقساط المحددة مدفوعة بالكامل.');
             }
-
             $updatedInstallments = [];
-
             // ❸ توزيع المبلغ على الأقساط
             foreach ($installments as $installment) {
                 if ($remainingAmount <= 0) {
@@ -63,7 +61,6 @@ class InstallmentPaymentService
                 $newRemaining = $installment->remaining - $allocatedAmount;
                 $newStatus = $newRemaining <= 0 ? 'تم الدفع' : $installment->status;
                 $newPaidAt = $newRemaining <= 0 ? ($options['paid_at'] ?? now()) : $installment->paid_at;
-
                 $installment->update([
                     'remaining' => $newRemaining,
                     'status' => $newStatus,
@@ -71,18 +68,14 @@ class InstallmentPaymentService
                 ]);
                 // تسجيل في سجل الأحداث (logs)
                 $installment->logCreated('تم سداد مبلغ ' . $allocatedAmount . ' من القسط بنجاح.');
-
                 // ربط القسط بالدفعة
                 $payment->installments()->attach($installment->id, [
                     'allocated_amount' => $allocatedAmount,
                 ]);
-
                 $remainingAmount -= $allocatedAmount;
-
                 // إضافة القسط المعدل إلى المصفوفة
                 $updatedInstallments[] = $installment;
             }
-
             Revenue::create([
                 'cash_box_id' => $cashBoxId,
                 'amount' => $amount,

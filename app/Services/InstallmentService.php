@@ -6,52 +6,112 @@ use App\Models\Installment;
 use App\Models\InstallmentPlan;
 use Carbon\Carbon;
 
+/**
+ * خدمة إنشاء خطط الأقساط والأقساط الفردية بدقة عالية
+ *
+ * المزايا:
+ *  ▸ حسابات DECIMAL عبر BCMath (لا كسور عائمة)
+ *  ▸ تقريب القسط القياسى لأعلى مضاعف متغير (1، 5، 10 …)
+ *  ▸ لا يُنشئ قسطًا بقيمة صفر—يتوقف فور انتهاء المبلغ
+ *  ▸ يُحدِّث عدد الأقساط الفعلى و end_date بعد الإنشاء
+ */
 class InstallmentService
 {
     /**
-     * Create installment plan and installments.
+     * أنشئ خطة أقساط وأقساطها.
      *
-     * @param array $data
-     * @param int $invoiceId
+     * @param  array $data      البيانات القادمة من الـ Frontend
+     * @param  int   $invoiceId رقم الفاتورة
      * @return void
      */
     public function createInstallments(array $data, int $invoiceId): void
     {
-        $installmentPlanData = $data['installment_plan'];
+        /*-------------------------------------------------
+        | 1. بيانات أساسية                               |
+        --------------------------------------------------*/
+        $planData = $data['installment_plan'];
+        $userId = $data['user_id'];
+        $startDate = Carbon::parse($planData['start_date']);
+        $roundStep = isset($planData['round_step']) && $planData['round_step'] > 0
+            ? (int) $planData['round_step']  // قيمة التقريب (1، 5، 10 …)
+            : 10;  // افتراضى = 10
 
-        // التأكد من تحويل number_of_installments إلى integer
-        $numberOfInstallments = (int) $installmentPlanData['number_of_installments'];
+        /*-------------------------------------------------
+        | 2. حساب المبالغ بدقة                            |
+        --------------------------------------------------*/
+        $totalAmount = $planData['total_amount'];  // إجمالى الفاتورة
+        $downPayment = $planData['down_payment'];  // المقدم
+        $installmentsN = (int) $planData['number_of_installments'];
 
-        // تحليل start_date مرة واحدة وتحويلها للتنسيق المطلوب
-        $parsedStartDate = Carbon::parse($installmentPlanData['start_date']);
-        $formattedStartDate = $parsedStartDate->format('Y-m-d H:i:s');  // تنسيق MySQL DATETIME
+        $remaining = bcsub($totalAmount, $downPayment, 2);  // المتبقّى
+        $avgInst = bcdiv($remaining, $installmentsN, 2);  // متوسط القسط قبل التقريب
 
-        // إنشاء خطة الأقساط
-        $installmentPlan = InstallmentPlan::create([
+        // دالة تقريب ديناميكى لأعلى مضاعف roundStep
+        $ceilTo = static function (string $val, int $step): string {
+            $rounded = ceil((float) $val / $step) * $step;
+            return number_format($rounded, 2, '.', '');
+        };
+
+        $stdInst = $ceilTo($avgInst, $roundStep);  // القسط القياسى بعد التقريب
+
+        /*-------------------------------------------------
+        | 3. إنشاء خطة الأقساط                            |
+        --------------------------------------------------*/
+        $planModel = InstallmentPlan::create([
             'invoice_id' => $invoiceId,
-            'user_id' => $data['user_id'],
-            'total_amount' => $installmentPlanData['total_amount'],
-            'down_payment' => $installmentPlanData['down_payment'],
-            'remaining_amount' => $installmentPlanData['total_amount'] - $installmentPlanData['down_payment'],
-            'number_of_installments' => $numberOfInstallments,
-            'installment_amount' => $installmentPlanData['installment_amount'],
-            'start_date' => $formattedStartDate,
-            'end_date' => $parsedStartDate->copy()->addMonths($numberOfInstallments)->format('Y-m-d H:i:s'),  // استخدام copy للحفاظ على التاريخ الأصلي ثم تحويله
+            'user_id' => $userId,
+            'total_amount' => $totalAmount,
+            'down_payment' => $downPayment,
+            'remaining_amount' => $remaining,
+            'number_of_installments' => $installmentsN,  // يُحدَّث لاحقًا بالعدد الفعلى
+            'installment_amount' => $stdInst,
+            'start_date' => $startDate->format('Y-m-d H:i:s'),
+            'end_date' => null,  // يُحدَّث لاحقًا
             'status' => 'لم يتم الدفع',
-            'notes' => $installmentPlanData['notes'] ?? null,
+            'notes' => $planData['notes'] ?? null,
         ]);
 
-        // إنشاء الأقساط الفردية
-        for ($i = 1; $i <= $numberOfInstallments; $i++) {
+        /*-------------------------------------------------
+        | 4. إنشاء الأقساط الفردية                        |
+        --------------------------------------------------*/
+        $paidSum = '0.00';
+        $count = 0;
+        $lastDate = null;
+
+        for ($i = 1; $i <= $installmentsN; $i++) {
+            $left = bcsub($remaining, $paidSum, 2);  // المتبقّى قبل هذا القسط
+            if (bccomp($left, '0.00', 2) <= 0)
+                break;  // توقّف إذا خلص المبلغ
+
+            // لو القسط القياسى أكبر من المتبقّى ⇒ آخر قسط
+            $amount = (bccomp($stdInst, $left, 2) === 1 || $i === $installmentsN)
+                ? $left
+                : $stdInst;
+
+            $due = $startDate->copy()->addMonths($i)->format('Y-m-d');  // YYYY-MM-DD
+
             Installment::create([
-                'installment_plan_id' => $installmentPlan->id,
+                'installment_plan_id' => $planModel->id,
                 'installment_number' => $i,
-                'due_date' => $parsedStartDate->copy()->addMonths($i)->format('Y-m-d H:i:s'),
-                'amount' => $installmentPlanData['installment_amount'],
-                'remaining' => $installmentPlanData['installment_amount'],
+                'due_date' => $due,
+                'amount' => $amount,
+                'remaining' => $amount,
                 'status' => 'لم يتم الدفع',
-                'user_id' => $data['user_id'],
+                'user_id' => $userId,
             ]);
+
+            // تحديث المجاميع
+            $paidSum = bcadd($paidSum, $amount, 2);
+            $lastDate = $due;
+            $count = $i;
         }
+
+        /*-------------------------------------------------
+        | 5. تحديث بيانات الخطة                           |
+        --------------------------------------------------*/
+        $planModel->update([
+            'end_date' => $lastDate,
+            'number_of_installments' => $count,  // العدد الفعلى
+        ]);
     }
 }
