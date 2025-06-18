@@ -66,7 +66,7 @@ class InstallmentService
             'number_of_installments' => $installmentsN,  // يُحدَّث لاحقًا بالعدد الفعلى
             'installment_amount' => $stdInst,
             'start_date' => $startDate->format('Y-m-d H:i:s'),
-            'end_date' => null,  // يُحدَّث لاحقًا
+            'end_date' => $startDate->copy()->addMonths($installmentsN)->format('Y-m-d'),
             'status' => 'لم يتم الدفع',
             'notes' => $planData['notes'] ?? null,
         ]);
