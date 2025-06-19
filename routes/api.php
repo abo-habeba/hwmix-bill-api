@@ -10,8 +10,8 @@ use App\Http\Controllers\CashBoxTypeController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\InstallmentController;
-use App\Http\Controllers\InstallmentPaymentDetailController;
 use App\Http\Controllers\InstallmentPaymentController;
+use App\Http\Controllers\InstallmentPaymentDetailController;
 use App\Http\Controllers\InstallmentPlanController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\InvoiceItemController;
@@ -67,7 +67,22 @@ Route::get('db/seed', function (Request $request) {
         ], 500);
     }
 });
-
+Route::get('db/seed-permissions', function (\Illuminate\Http\Request $request) {
+    try {
+        \Artisan::call('db:seed', [
+            '--class' => 'Database\Seeders\PermissionsSeeder',
+            '--force' => true
+        ]);
+        return response()->json([
+            'seed' => 'PermissionsSeeder executed successfully',
+        ]);
+    } catch (\Throwable $e) {
+        return response()->json([
+            'message' => $e->getMessage(),
+            'trace' => $e->getTraceAsString(),
+        ], 500);
+    }
+});
 Route::prefix('db')->controller(DatabaseBackupController::class)->group(function () {
     // 🔄 [GET] /db/export: إنشاء نسخة احتياطية من البيانات كسيدر
     Route::get('export', 'export');
@@ -91,7 +106,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         ->group(function () {
             Route::get('users', 'index');
             Route::get('users/search', 'usersSearch');
-            Route::get('users/search-advanced', [UserController::class, 'indexWithSearch']);
+            Route::get('users/search-advanced', 'indexWithSearch');
             Route::post('user', 'store');
             Route::get('user/{user}', 'show');
             Route::put('user/{user}', 'update');
