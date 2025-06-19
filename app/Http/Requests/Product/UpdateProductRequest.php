@@ -41,6 +41,7 @@ class UpdateProductRequest extends FormRequest
             'variants.*.dimensions' => 'sometimes|nullable|string|max:255',
             'variants.*.tax' => 'sometimes|nullable|numeric|min:0|max:100',
             'variants.*.discount' => 'sometimes|nullable|numeric|min:0',
+            'variants.*.min_quantity' => 'sometimes|nullable|integer|min:0',
             'variants.*.status' => 'sometimes|nullable|string|in:active,inactive,discontinued',
             'variants.*.created_by' => 'sometimes|nullable|exists:users,id',
             'variants.*.company_id' => 'sometimes|nullable|exists:companies,id',

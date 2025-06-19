@@ -21,6 +21,7 @@ class ProductVariant extends Model
         'dimensions',
         'tax',
         'discount',
+        'min_quantity',
         'status',
         'product_id'
     ];

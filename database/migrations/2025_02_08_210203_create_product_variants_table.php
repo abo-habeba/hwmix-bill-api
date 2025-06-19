@@ -19,6 +19,7 @@ return new class extends Migration {
             $table->decimal('retail_price', 10, 2)->nullable();  // سعر البيع قطاعي
             $table->decimal('wholesale_price', 10, 2)->nullable();  // سعر البيع جملة
             $table->decimal('profit_margin', 5, 2)->nullable();  //  هامش الربح
+            $table->integer('min_quantity')->default(0);  //  الحد الأدنى للكمية
 
             $table->string('image')->nullable();  // صورة المتغير
             $table->decimal('weight', 8, 2)->nullable();  // الوزن

@@ -187,6 +187,7 @@ class ProductController extends Controller
                         'image' => $variantData['image'] ?? null,
                         'weight' => $variantData['weight'] ?? null,
                         'dimensions' => $variantData['dimensions'] ?? null,
+                        'min_quantity' => $variantData['min_quantity'] ?? null,
                         'tax' => $variantData['tax'] ?? null,
                         'discount' => $variantData['discount'] ?? null,
                         'status' => $variantData['status'] ?? 'active',  // قيمة افتراضية

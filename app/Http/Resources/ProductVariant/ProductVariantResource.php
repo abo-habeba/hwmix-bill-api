@@ -35,6 +35,7 @@ class ProductVariantResource extends JsonResource
             'tax' => $this->tax,
             'cost' => $this->stocks->where('status', 'available')->sortByDesc('created_at')->first()?->cost ?? 0,
             'quantity' => $this->stocks->where('status', 'available')->sum('quantity'),
+            'min_quantity' => $this->min_quantity,
             'stocks' => StockResource::collection($this->whenLoaded('stocks')),
             'discount' => $this->discount,
             'status' => $this->status,

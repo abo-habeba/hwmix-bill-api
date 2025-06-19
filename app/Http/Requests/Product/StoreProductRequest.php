@@ -39,6 +39,7 @@ class StoreProductRequest extends FormRequest
             'variants.*.status' => 'sometimes|nullable|string|in:active,inactive,discontinued',
             'variants.*.created_by' => 'sometimes|nullable|exists:users,id',
             'variants.*.company_id' => 'sometimes|nullable|exists:companies,id',
+            'variants.*.min_quantity' => 'sometimes|nullable|integer|min:0',
             'variants.*.attributes' => 'sometimes|nullable|array',
             'variants.*.attributes.*.attribute_id' => 'sometimes|nullable|exists:attributes,id',
             'variants.*.attributes.*.attribute_value_id' => 'sometimes|nullable|exists:attribute_values,id',
