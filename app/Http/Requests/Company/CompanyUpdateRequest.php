@@ -21,7 +21,6 @@ class CompanyUpdateRequest extends FormRequest
      */
     public function rules()
     {
-
         return [
             'name' => 'nullable|string|max:255',
             'description' => 'nullable|string',
@@ -32,7 +31,7 @@ class CompanyUpdateRequest extends FormRequest
             'email' => "nullable|email|unique:companies,email,{$this->company->id}",
             'created_by' => 'nullable|integer|exists:users,id',
             'company_id' => 'nullable|integer|exists:companies,id',
-            'logo' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
+            'logo' => 'sometimes|nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
         ];
     }
 }

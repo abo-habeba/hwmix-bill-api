@@ -2,14 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\Company\CompanyRequest;
+use App\Http\Requests\Company\CompanyUpdateRequest;
+use App\Http\Resources\Company\CompanyResource;
+use App\Models\Scopes\CompanyScope;
 use App\Models\Company;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use App\Models\Scopes\CompanyScope;
-use App\Http\Requests\Company\CompanyRequest;
-use App\Http\Resources\Company\CompanyResource;
-use App\Http\Resources\Company\CompaniesResource;
-use App\Http\Requests\Company\CompanyUpdateRequest;
 
 class CompanyController extends Controller
 {
@@ -60,22 +59,27 @@ class CompanyController extends Controller
             $querys = $query->paginate($perPage);
 
             return response()->json([
-                'data' => CompaniesResource::collection($querys->items()),
+                'data' => CompanyResource::collection($querys->items()),
                 'total' => $querys->total(),
                 'current_page' => $querys->currentPage(),
                 'last_page' => $querys->lastPage(),
             ]);
-
         } catch (\Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 500);
+            // هذا سيظهر لك رسالة الخطأ الفعلية وstack trace
+            // لا تستخدم هذا في بيئة الإنتاج إلا للديسج سريعًا ثم قم بإزالته لأسباب أمنية
+            return response()->json([
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()  // يُظهر المسار الكامل للخطأ
+            ], 500);
         }
     }
+
     /**
      * Store a newly created resource in storage.
-*  value: 'companys_create', name: 'إنشاء شركة'
+     *  value: 'companys_create', name: 'إنشاء شركة'
      */
-
-
     public function store(CompanyRequest $request)
     {
         $authUser = auth()->user();
@@ -94,7 +98,7 @@ class CompanyController extends Controller
                 $file = $request->file('logo');
             } else {
                 // تحديد لوجو بديل إذا لم يتم إرسال لوجو
-                $defaultLogoPath = public_path('images/default-logo.png'); // مسار اللوجو البديل
+                $defaultLogoPath = public_path('images/default-logo.png');  // مسار اللوجو البديل
                 $file = new \Illuminate\Http\UploadedFile($defaultLogoPath, 'default-logo.png');
             }
 
@@ -110,6 +114,7 @@ class CompanyController extends Controller
             throw $e;
         }
     }
+
     /**
      * Display the specified resource.
      */
@@ -139,7 +144,6 @@ class CompanyController extends Controller
     /**
      * Update the specified resource in storage.
      */
-
     public function update(CompanyUpdateRequest $request, Company $company)
     {
         $authUser = auth()->user();
@@ -180,13 +184,11 @@ class CompanyController extends Controller
             }
         }
         return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);
-
     }
 
     /**
      * Remove the specified resource from storage.
      */
-
     public function destroy(Request $request)
     {
         // 'companys_delete', // حذف أي شركة
@@ -215,7 +217,6 @@ class CompanyController extends Controller
             return response()->json(['error' => 'You do not have permission to delete company with ID: ' . $company->id], 403);
         }
         try {
-
             DB::beginTransaction();
 
             foreach ($companysToDelete as $company) {
@@ -225,7 +226,6 @@ class CompanyController extends Controller
                 }
                 $company->delete();
                 $company->logForceDeleted(' الشركة ' . $company->name);
-
             }
             DB::commit();
             return response()->json(['message' => 'company deleted successfully'], 200);
@@ -235,4 +235,3 @@ class CompanyController extends Controller
         }
     }
 }
-

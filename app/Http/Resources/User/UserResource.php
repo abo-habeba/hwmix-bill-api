@@ -3,9 +3,10 @@
 namespace App\Http\Resources\User;
 
 use App\Http\Resources\CashBox\CashBoxResource;
-use Illuminate\Http\Request;
 use App\Http\Resources\Company\CompanyResource;
+use App\Models\Company;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Http\Request;
 
 class UserResource extends JsonResource
 {
@@ -17,10 +18,10 @@ class UserResource extends JsonResource
      */
     public function toArray($request)
     {
-        // $this->load('companies');
-        $company = $this->companies?->firstWhere('id', $this->company_id);
-        $logo = $company?->logo;
-        $logoUrl = $logo && $logo->url ? asset('storage/' . $logo->url) : null;
+        $company = Company::with('logo')->find($this->company_id);
+
+        $logoUrl = $company?->logo?->url ? asset('storage/' . $company->logo->url) : null;
+
         return [
             'id' => $this->id,
             'nickname' => $this->nickname,
@@ -35,8 +36,8 @@ class UserResource extends JsonResource
             'email_verified_at' => $this->email_verified_at,
             'roles' => $this->getRolesWithPermissions(),
             'balance' => $this->balanceBox() ?? 0,
-            // 'companies' => CompanyResource::collection($this->companies),
-            'companies' => $this->companies,
+            // الشركات التي يمكن للمستخدم الوصول إليها
+            'companies' => CompanyResource::collection(Company::visibleToUser()->get()),
             'cashBoxes' => CashBoxResource::collection($this->cashBoxesByCompany()),
             'status' => $this->status,
             'permissions' => $this->getAllPermissions()->pluck('name'),

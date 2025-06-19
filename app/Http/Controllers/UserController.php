@@ -2,99 +2,111 @@
 
 namespace App\Http\Controllers;
 
-
-use App\Models\User;
-use PHPUnit\Exception;
+use App\Http\Controllers\Controller;
+use App\Http\Requests\User\UserRequest;
+use App\Http\Requests\User\UserUpdateRequest;
+use App\Http\Resources\User\UserResource;
+use App\Models\Scopes\CompanyScope;
 use App\Models\CashBox;
 use App\Models\CashBoxType;
 use App\Models\Transaction;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use App\Models\Scopes\CompanyScope;
-use App\Http\Controllers\Controller;
-use App\Http\Requests\User\UserRequest;
-use App\Http\Resources\User\UserResource;
-use App\Http\Requests\User\UserUpdateRequest;
+use PHPUnit\Exception;
 // use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 class UserController extends Controller
 {
     // use AuthorizesRequests;
+
     /**
      * Display a listing of users.
      */
+    private $relations;
 
-   public function index(Request $request)
-{
-    try {
-        $authUser = auth()->user();
-        $query = User::query();
-
-        if ($authUser->hasAnyPermission(['users_all', 'super_admin'])) {
-            // لا تضف أي scope → يرجع كل المستخدمين
-        } elseif ($authUser->hasPermissionTo('company_owner')) {
-            $query->company();
-        } elseif ($authUser->hasPermissionTo('users_show_own')) {
-            $query->own();
-        } elseif ($authUser->hasPermissionTo('users_show_self')) {
-            $query->self();
-        } else {
-            return response()->json(['message' => 'You are not authorized to access this resource.'], 403);
-        }
-
-        $query->where('id', '<>', $authUser->id);
-
-        // فلاتر محددة
-        if (!empty($request->get('nickname'))) {
-            $query->where('nickname', 'like', '%' . $request->get('nickname') . '%');
-        }
-
-        if (!empty($request->get('email'))) {
-            $query->where('email', 'like', '%' . $request->get('email') . '%');
-        }
-
-        if (!empty($request->get('status'))) {
-            $query->where('status', $request->get('status'));
-        }
-
-        if (!empty($request->get('created_at_from'))) {
-            $query->where('created_at', '>=', $request->get('created_at_from') . ' 00:00:00');
-        }
-
-        if (!empty($request->get('created_at_to'))) {
-            $query->where('created_at', '<=', $request->get('created_at_to') . ' 23:59:59');
-        }
-
-        // ✅ فلتر البحث العام
-        if (!empty($request->get('search'))) {
-            $search = $request->get('search');
-            $query->where(function ($q) use ($search) {
-                $q->where('full_name', 'like', "%{$search}%")
-                  ->orWhere('nickname', 'like', "%{$search}%")
-                  ->orWhere('phone', 'like', "%{$search}%");
-            });
-        }
-
-        // إعدادات الترتيب والصفحات
-        $perPage = max(1, $request->get('per_page', 10));
-        $sortField = $request->get('sort_by', 'id');
-        $sortOrder = $request->get('sort_order', 'asc');
-
-        $query->orderBy($sortField, $sortOrder);
-
-        $users = $query->with(['companies',])->paginate($perPage);
-
-        return response()->json([
-            'data' => UserResource::collection($users->items()),
-            'total' => $users->total(),
-            'current_page' => $users->currentPage(),
-            'last_page' => $users->lastPage(),
-        ]);
-    } catch (\Exception $e) {
-        return response()->json(['message' => $e->getMessage()], 500);
+    public function __construct()
+    {
+        $this->relations = [
+            // 'trans',  // MorphMany: لديه ترجمات متعددة.
+            'companies',  // BelongsToMany: مرتبط بالعديد من الشركات.
+            // 'companyUsersCash',  // BelongsToMany: مرتبط بصناديق النقد للشركات (مع pivot).
+            'cashBoxes',  // HasMany: لديه العديد من صناديق النقد.
+            'cashBoxeDefault',  // HasOne: لديه صندوق نقد افتراضي واحد.
+            // 'createdRoles',  // HasManyThrough: أنشأ العديد من الأدوار (عبر جدول وسيط).
+            // 'installments',  // HasMany: أقساط العميل.
+            // 'createdInstallments',  // HasMany: أقساط أنشأها.
+            // 'transactions',  // HasMany: معاملات مالية.
+            'creator',  // BelongsTo: تم إنشاؤه بواسطة.
+            // 'invoices',  // HasMany: فواتير.
+            // 'installmentPlans',  // HasMany: خطط أقساط.
+            // 'payments',  // HasMany: مدفوعات.
+        ];
     }
-}
 
+    public function index(Request $request)
+    {
+        try {
+            $authUser = auth()->user();
+            $query = User::with($this->relations)->query();
+
+            if ($authUser->hasAnyPermission(['users_all', 'super_admin'])) {
+                // لا تضف أي scope → يرجع كل المستخدمين
+            } elseif ($authUser->hasPermissionTo('company_owner')) {
+                $query->company();
+            } elseif ($authUser->hasPermissionTo('users_show_own')) {
+                $query->own();
+            } elseif ($authUser->hasPermissionTo('users_show_self')) {
+                $query->self();
+            } else {
+                return response()->json([
+                    'error' => 'Unauthorized',
+                    'message' => 'You are not authorized to access this resource.'
+                ], 403);
+            }
+
+            $query->where('id', '<>', $authUser->id);
+
+            if (!empty($request->get('nickname'))) {
+                $query->where('nickname', 'like', '%' . $request->get('nickname') . '%');
+            }
+
+            if (!empty($request->get('email'))) {
+                $query->where('email', 'like', '%' . $request->get('email') . '%');
+            }
+
+            if (!empty($request->get('status'))) {
+                $query->where('status', $request->get('status'));
+            }
+
+            if (!empty($request->get('created_at_from'))) {
+                $query->where('created_at', '>=', $request->get('created_at_from') . ' 00:00:00');
+            }
+
+            if (!empty($request->get('created_at_to'))) {
+                $query->where('created_at', '<=', $request->get('created_at_to') . ' 23:59:59');
+            }
+
+            // تحديد عدد العناصر في الصفحة والفرز
+            $perPage = max(1, $request->get('per_page', 10));
+            $sortField = $request->get('sort_by', 'id');
+            $sortOrder = $request->get('sort_order', 'asc');
+
+            $query->orderBy($sortField, $sortOrder);
+
+            // جلب البيانات مع التصفية والصفحات
+            $users = $query->with('companies')->paginate($perPage);
+
+            return response()->json([
+                'data' => UserResource::collection($users->items()),
+                'total' => $users->total(),
+                'current_page' => $users->currentPage(),
+                'last_page' => $users->lastPage(),
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
 
     /**
      * Store a newly created user in storage.
@@ -105,7 +117,7 @@ class UserController extends Controller
         $authUser = auth()->user();
 
         if (!$authUser->hasAnyPermission(['super_admin', 'users_create', 'company_owner'])) {
-            return response()->json(['message' => 'You are not authorized to access this resource.'], 403);
+            return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);
         }
 
         // Validate the request data
@@ -131,21 +143,11 @@ class UserController extends Controller
                     'created_by' => $user->id,
                     'company_id' => $user->company_id,
                 ]);
-
             } else {
-                throw new \Exception("نوع الخزنة الافتراضي غير موجود.");
+                throw new \Exception('نوع الخزنة الافتراضي غير موجود.');
             }
 
-            // تعديل ربط الشركات ليشمل created_by في جدول pivot
-
-            $pivotData = [];
-
-            $companyIds = $validatedData['company_ids'] ?? [ $authUser->id];
-
-            foreach ($companyIds as $companyId) {
-                $pivotData[$companyId] = ['created_by' => $authUser->id];
-            }
-            $user->companies()->sync($pivotData);
+            $user->companies()->sync($validatedData['company_ids']);
             $user->logCreated(' بانشاء  المستخدم ' . $user->nickname);
             DB::commit();
             return new UserResource($user);
@@ -153,9 +155,8 @@ class UserController extends Controller
             DB::rollback();
             throw $e;
         }
-
-
     }
+
     /**
      * Display the specified user.
      */
@@ -171,12 +172,11 @@ class UserController extends Controller
             ($authUser->hasPermissionTo('company_owner') && $authUser->company_id === $user->company_id) ||
             $authUser->id === $user->id
         ) {
-
             // return $user->load('companies');
             return new UserResource($user->load('companies'));
         }
 
-        return response()->json(['message' => 'You are not authorized to access this resource.'], 403);
+        return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);
     }
 
     /**
@@ -224,7 +224,7 @@ class UserController extends Controller
             }
         }
 
-        return response()->json(['message' => 'You are not authorized to access this resource.'], 403);
+        return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);
     }
 
     /**
@@ -237,7 +237,7 @@ class UserController extends Controller
         $userIds = $request->input('item_ids');
 
         if (!$userIds || !is_array($userIds)) {
-            return response()->json(['message' => 'Invalid user IDs provided'], 400);
+            return response()->json(['error' => 'Invalid user IDs provided'], 400);
         }
         $usersToDelete = User::whereIn('id', $userIds)->get();
 
@@ -251,7 +251,7 @@ class UserController extends Controller
                 continue;
             }
 
-            return response()->json(['message' => 'You do not have permission to delete user with ID: ' . $user->id], 403);
+            return response()->json(['error' => 'You do not have permission to delete user with ID: ' . $user->id], 403);
         }
         try {
             DB::beginTransaction();
@@ -270,7 +270,6 @@ class UserController extends Controller
 
     public function usersSearch(Request $request)
     {
-
         try {
             $authUser = auth()->user();
             $companyId = $authUser->company_id;
@@ -282,7 +281,8 @@ class UserController extends Controller
                     $query->where('id', $search);
                 } else {
                     $query->where(function ($subQuery) use ($search) {
-                        $subQuery->where('id', $search)
+                        $subQuery
+                            ->where('id', $search)
                             ->orWhere('phone', 'like', '%' . $search . '%');
                     });
                 }
@@ -305,9 +305,10 @@ class UserController extends Controller
                 'last_page' => $users->lastPage(),
             ]);
         } catch (\Exception $e) {
-            return response()->json(['message' => $e->getMessage()], 500);
+            return response()->json(['error' => $e->getMessage()], 500);
         }
     }
+
     public function setDefaultCashBox(User $user, $cashBoxId)
     {
         $cashBox = $user->cashBoxes()->where('id', $cashBoxId)->firstOrFail();
@@ -319,7 +320,7 @@ class UserController extends Controller
     public function changeCompany(Request $request, User $user)
     {
         $request->validate([
-            'company_id' => 'required|exists:companies,id', // Ensure the company exists
+            'company_id' => 'required|exists:companies,id',  // Ensure the company exists
         ]);
         $user->update([
             'company_id' => $request->company_id,
@@ -329,6 +330,4 @@ class UserController extends Controller
             'user' => $user,
         ], 200);
     }
-
-
 }
