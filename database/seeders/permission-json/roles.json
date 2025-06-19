@@ -1,0 +1,19 @@
+{
+    "name": "إدارة الأدوار",
+    "permissions": [
+        { "value": "roles", "name": " صفحة الأدوار" },
+        { "value": "roles_all", "name": " جميع الأدوار" },
+        { "value": "roles_all_self", "name": "عرض الأدوار الخاصة به " },
+        { "value": "roles_all_own", "name": "الأدوار التابعة له" },
+        { "value": "roles_show", "name": "عرض تفاصيل أي دور" },
+        { "value": "roles_show_own", "name": " تفاصيل الأدوار التابعة له" },
+        { "value": "roles_show_self", "name": " تفاصيل الأدوار الخاصه به " },
+        { "value": "roles_create", "name": "إنشاء دور" },
+        { "value": "roles_update", "name": "تعديل أي دور" },
+        { "value": "roles_update_self", "name": "تعديل الأدوار الخاصه به" },
+        { "value": "roles_update_own", "name": "تعديل الأدوار التابعة له" },
+        { "value": "roles_delete", "name": "حذف أي دور" },
+        { "value": "roles_delete_self", "name": "حذف الأدوار الخاصه به" },
+        { "value": "roles_delete_own", "name": "حذف الأدوار التابعة له" }
+    ]
+}

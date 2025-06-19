@@ -1,0 +1,10 @@
+{
+    "name": "إدارة التقسيط",
+    "permissions": [
+        { "value": "installments", "name": "صفحة التقسيط" },
+        { "value": "installments_all", "name": "عرض جميع خطط التقسيط" },
+        { "value": "installments_create", "name": "إنشاء خطة تقسيط" },
+        { "value": "installments_update", "name": "تعديل خطة تقسيط" },
+        { "value": "installments_delete", "name": "حذف خطة تقسيط" }
+    ]
+}

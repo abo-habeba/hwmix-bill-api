@@ -1,0 +1,10 @@
+{
+    "name": "إدارة التصنيفات",
+    "permissions": [
+        { "value": "categories", "name": "صفحة التصنيفات" },
+        { "value": "categories_all", "name": "عرض جميع التصنيفات" },
+        { "value": "categories_create", "name": "إنشاء تصنيف" },
+        { "value": "categories_update", "name": "تعديل تصنيف" },
+        { "value": "categories_delete", "name": "حذف تصنيف" }
+    ]
+}

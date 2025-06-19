@@ -1,0 +1,10 @@
+{
+    "name": "إدارة قيم السمات",
+    "permissions": [
+        { "value": "attribute_values", "name": "صفحة قيم السمات" },
+        { "value": "attribute_values_all", "name": "عرض جميع قيم السمات" },
+        { "value": "attribute_values_create", "name": "إنشاء قيمة سمة" },
+        { "value": "attribute_values_update", "name": "تعديل قيمة سمة" },
+        { "value": "attribute_values_delete", "name": "حذف قيمة سمة" }
+    ]
+}

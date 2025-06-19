@@ -48,7 +48,7 @@ class UserController extends Controller
     {
         try {
             $authUser = auth()->user();
-            $query = User::with($this->relations)->query();
+            $query = User::with($this->relations);
 
             if ($authUser->hasAnyPermission(['users_all', 'super_admin'])) {
                 // لا تضف أي scope → يرجع كل المستخدمين

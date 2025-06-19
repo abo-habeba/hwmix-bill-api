@@ -1,0 +1,10 @@
+{
+    "name": "إدارة العلامات التجارية",
+    "permissions": [
+        { "value": "brands", "name": "صفحة العلامات التجارية" },
+        { "value": "brands_all", "name": "عرض جميع العلامات التجارية" },
+        { "value": "brands_create", "name": "إنشاء علامة تجارية" },
+        { "value": "brands_update", "name": "تعديل علامة تجارية" },
+        { "value": "brands_delete", "name": "حذف علامة تجارية" }
+    ]
+}

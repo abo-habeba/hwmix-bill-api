@@ -94,6 +94,16 @@ Route::prefix('db')->controller(DatabaseBackupController::class)->group(function
     Route::get('refresh', 'restoreAndFresh');
 });
 
+// Route to get all JSON files data for permissions
+Route::get('permissions-json', function () {
+    $permissionsJsonArray = [];
+    $jsonDir = database_path('seeders/permission-json');
+    foreach (glob($jsonDir . '/*.json') as $file) {
+        $permissionsJsonArray[] = json_decode(file_get_contents($file), true);
+    }
+    return response()->json($permissionsJsonArray);
+});
+
 Route::post('register', [AuthController::class, 'register']);
 Route::post('login', [AuthController::class, 'login']);
 Route::middleware(['auth:sanctum'])->group(function () {

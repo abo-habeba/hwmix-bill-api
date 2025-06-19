@@ -1,0 +1,22 @@
+{
+    "name": "إدارة المستخدمين",
+    "permissions": [
+        { "value": "users", "name": "صفحة المستخدمين" },
+        { "value": "users_all", "name": "جميع المستخدمين" },
+        { "value": "users_all_own", "name": "المستخدمين التابعين له" },
+        { "value": "users_all_self", "name": "عرض المستخدم الخاص به" },
+        { "value": "users_show", "name": "عرض تفاصيل أي مستخدم" },
+        {
+            "value": "users_show_own",
+            "name": "عرض تفاصيل المستخدمين التابعين له"
+        },
+        { "value": "users_show_self", "name": "عرض تفاصيل حسابه الشخصي" },
+        { "value": "users_create", "name": "إنشاء مستخدم" },
+        { "value": "users_update", "name": "تعديل أي مستخدم" },
+        { "value": "users_update_own", "name": "تعديل المستخدمين التابعين له" },
+        { "value": "users_update_self", "name": "تعديل حسابه الشخصي" },
+        { "value": "users_delete", "name": "حذف أي مستخدم" },
+        { "value": "users_delete_own", "name": "حذف المستخدمين التابعين له" },
+        { "value": "users_delete_self", "name": "حذف حسابه الشخصي" }
+    ]
+}

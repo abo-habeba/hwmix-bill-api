@@ -1,0 +1,10 @@
+{
+    "name": "إدارة المستودعات",
+    "permissions": [
+        { "value": "warehouses", "name": "صفحة المستودعات" },
+        { "value": "warehouses_all", "name": "عرض جميع المستودعات" },
+        { "value": "warehouses_create", "name": "إنشاء مستودع" },
+        { "value": "warehouses_update", "name": "تعديل مستودع" },
+        { "value": "warehouses_delete", "name": "حذف مستودع" }
+    ]
+}

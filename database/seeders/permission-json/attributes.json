@@ -1,0 +1,10 @@
+{
+    "name": "إدارة السمات",
+    "permissions": [
+        { "value": "attributes", "name": "صفحة السمات" },
+        { "value": "attributes_all", "name": "عرض جميع السمات" },
+        { "value": "attributes_create", "name": "إنشاء سمة" },
+        { "value": "attributes_update", "name": "تعديل سمة" },
+        { "value": "attributes_delete", "name": "حذف سمة" }
+    ]
+}
