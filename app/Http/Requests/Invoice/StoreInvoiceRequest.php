@@ -48,6 +48,7 @@ class StoreInvoiceRequest extends FormRequest
             'installment_plan.total_amount' => 'nullable|numeric',
             'installment_plan.start_date' => 'nullable|date',
             'installment_plan.due_date' => 'nullable|date',
+            'installment_plan.round_step' => 'nullable|integer',
             'due_date' => 'nullable|date',
         ];
     }
