@@ -2,8 +2,8 @@
 
 namespace App\Services;
 
-use App\Models\Product;
 use App\Models\ActivityLog;
+use App\Models\Product;
 use App\Services\DocumentServiceInterface;
 
 class ReturnService implements DocumentServiceInterface

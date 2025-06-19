@@ -2,12 +2,12 @@
 
 namespace App\Http\Resources\Stock;
 
-use Illuminate\Http\Request;
-use App\Http\Resources\User\UserResource;
 use App\Http\Resources\Company\CompanyResource;
-use Illuminate\Http\Resources\Json\JsonResource;
-use App\Http\Resources\Warehouse\WarehouseResource;
 use App\Http\Resources\ProductVariant\ProductVariantResource;
+use App\Http\Resources\User\UserResource;
+use App\Http\Resources\Warehouse\WarehouseResource;
+use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Http\Request;
 
 class StockResource extends JsonResource
 {
@@ -20,9 +20,9 @@ class StockResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'qty' => $this->qty,
+            'quantity' => $this->quantity,
             'reserved' => $this->reserved,
-            'min_qty' => $this->min_qty,
+            'min_quantity' => $this->min_quantity,
             'cost' => $this->cost,
             'batch' => $this->batch,
             'expiry' => $this->expiry,

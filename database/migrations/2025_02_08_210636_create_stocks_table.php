@@ -13,9 +13,9 @@ return new class extends Migration {
         Schema::create('stocks', function (Blueprint $table) {
             $table->id();
 
-            $table->integer('qty')->default(0);  // الكمية الحالية
+            $table->integer('quantity')->default(0);  // الكمية الحالية
             $table->integer('reserved')->default(0);  // الكمية المحجوزة
-            $table->integer('min_qty')->default(0);  // الحد الأدنى قبل التنبيه (للتنبيه في حالة الانخفاض)
+            $table->integer('min_quantity')->default(0);  // الحد الأدنى قبل التنبيه (للتنبيه في حالة الانخفاض)
 
             $table->decimal('cost', 10, 2)->nullable();  // سعر الشراء للوحدة
 

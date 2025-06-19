@@ -2,8 +2,8 @@
 
 namespace App\Services;
 
-use App\Models\Stock;
 use App\Models\ActivityLog;
+use App\Models\Stock;
 use App\Services\DocumentServiceInterface;
 
 class InventoryService implements DocumentServiceInterface

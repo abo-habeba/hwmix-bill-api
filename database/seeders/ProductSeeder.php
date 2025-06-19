@@ -51,9 +51,9 @@ class ProductSeeder extends Seeder
                 'warehouse_id' => 1,
                 'company_id' => 1,
                 'created_by' => 1,
-                'qty' => 100,
+                'quantity' => 100,
                 'reserved' => 5,
-                'min_qty' => 10,
+                'min_quantity' => 10,
                 'cost' => 50,  // سعر الشراء للوحدة
                 'batch' => 'BATCH-' . strtoupper(uniqid()),
                 'expiry' => now()->addMonths(6),

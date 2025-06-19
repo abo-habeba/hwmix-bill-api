@@ -11,16 +11,16 @@ class Stock extends Model
     use HasFactory, Blameable;
 
     protected $fillable = [
-        'qty', 'reserved', 'min_qty', 'cost',
+        'quantity', 'reserved', 'min_quantity', 'cost',
         'batch', 'expiry', 'loc', 'status',
         'variant_id', 'warehouse_id', 'company_id',
         'created_by', 'updated_by'
     ];
 
     protected $casts = [
-        'qty' => 'integer',
+        'quantity' => 'integer',
         'reserved' => 'integer',
-        'min_qty' => 'integer',
+        'min_quantity' => 'integer',
         'cost' => 'decimal:2',
         'expiry' => 'datetime',
     ];

@@ -23,9 +23,9 @@ class InvoiceCreationService implements DocumentServiceInterface
                     'variant_id' => ['المتغير بمعرف ' . $item['variant_id'] . ' غير موجود.'],
                 ]);
             }
-            $totalAvailableQty = $variant->stocks()->where('status', 'available')->sum('qty');
+            $totalAvailablequantity = $variant->stocks()->where('status', 'available')->sum('quantity');
 
-            if ($totalAvailableQty < $item['quantity']) {
+            if ($totalAvailablequantity < $item['quantity']) {
                 throw ValidationException::withMessages([
                     'stock' => ['الكمية غير متوفرة في المخزون'],
                 ]);
@@ -75,11 +75,11 @@ class InvoiceCreationService implements DocumentServiceInterface
                     break;
                 }
 
-                $deductQty = min($remainingQuantityToDeduct, $stock->qty);
+                $deductquantity = min($remainingQuantityToDeduct, $stock->quantity);
 
-                if ($deductQty > 0) {
-                    $stock->decrement('qty', $deductQty);
-                    $remainingQuantityToDeduct -= $deductQty;
+                if ($deductquantity > 0) {
+                    $stock->decrement('quantity', $deductquantity);
+                    $remainingQuantityToDeduct -= $deductquantity;
                 }
             }
         }

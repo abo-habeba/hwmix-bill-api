@@ -22,9 +22,9 @@ class UpdateStockRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'qty' => 'sometimes|required|integer|min:0',
+            'quantity' => 'sometimes|required|integer|min:0',
             'reserved' => 'sometimes|nullable|integer|min:0',
-            'min_qty' => 'sometimes|nullable|integer|min:0',
+            'min_quantity' => 'sometimes|nullable|integer|min:0',
             'cost' => 'sometimes|nullable|numeric|min:0',
             'batch' => 'sometimes|nullable|string|max:255',
             'expiry' => 'sometimes|nullable|date',

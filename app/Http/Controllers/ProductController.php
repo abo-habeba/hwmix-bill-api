@@ -106,9 +106,9 @@ class ProductController extends Controller
                     if (!empty($variantData['stocks']) && is_array($variantData['stocks'])) {
                         foreach ($variantData['stocks'] as $stockData) {
                             $stockCreateData = [
-                                'qty' => $stockData['qty'] ?? 0,
+                                'quantity' => $stockData['quantity'] ?? 0,
                                 'reserved' => $stockData['reserved'] ?? 0,
-                                'min_qty' => $stockData['min_qty'] ?? 0,
+                                'min_quantity' => $stockData['min_quantity'] ?? 0,
                                 'cost' => $stockData['cost'] ?? null,
                                 'batch' => $stockData['batch'] ?? null,
                                 'expiry' => $stockData['expiry'] ?? null,
@@ -226,9 +226,9 @@ class ProductController extends Controller
                     if (!empty($variantData['stocks']) && is_array($variantData['stocks'])) {
                         foreach ($variantData['stocks'] as $stockData) {
                             $stockCreateUpdateData = [
-                                'qty' => $stockData['qty'] ?? 0,
+                                'quantity' => $stockData['quantity'] ?? 0,
                                 'reserved' => $stockData['reserved'] ?? 0,
-                                'min_qty' => $stockData['min_qty'] ?? 0,
+                                'min_quantity' => $stockData['min_quantity'] ?? 0,
                                 'cost' => $stockData['cost'] ?? null,
                                 'batch' => $stockData['batch'] ?? null,
                                 'expiry' => $stockData['expiry'] ?? null,

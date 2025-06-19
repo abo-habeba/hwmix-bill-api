@@ -50,7 +50,7 @@ class UpdateProductRequest extends FormRequest
             'variants.*.attributes.*.attribute_value_id' => 'sometimes|nullable|exists:attribute_values,id',  // ليست مطلوبة إذا كانت موجودة
             'variants.*.stocks' => 'required|array|min:1',
             'variants.*.stocks.*.id' => 'sometimes|nullable|exists:stocks,id',
-            'variants.*.stocks.*.qty' => 'sometimes|nullable|integer|min:0',
+            'variants.*.stocks.*.quantity' => 'sometimes|nullable|integer|min:0',
             'variants.*.stocks.*.reserved' => 'sometimes|nullable|integer|min:0',
             'variants.*.stocks.*.expiry' => 'sometimes|nullable|date',
             'variants.*.stocks.*.status' => 'sometimes|nullable|string|in:available,unavailable,expired',
