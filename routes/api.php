@@ -83,6 +83,22 @@ Route::get('db/seed-permissions', function (\Illuminate\Http\Request $request) {
         ], 500);
     }
 });
+Route::get('db/seed-RolesAndPermissionsSeeder', function (\Illuminate\Http\Request $request) {
+    try {
+        \Artisan::call('db:seed', [
+            '--class' => 'Database\Seeders\RolesAndPermissionsSeeder',
+            '--force' => true
+        ]);
+        return response()->json([
+            'seed' => 'PermissionsSeeder executed successfully',
+        ]);
+    } catch (\Throwable $e) {
+        return response()->json([
+            'message' => $e->getMessage(),
+            'trace' => $e->getTraceAsString(),
+        ], 500);
+    }
+});
 Route::prefix('db')->controller(DatabaseBackupController::class)->group(function () {
     // 🔄 [GET] /db/export: إنشاء نسخة احتياطية من البيانات كسيدر
     Route::get('export', 'export');
