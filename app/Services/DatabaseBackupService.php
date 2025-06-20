@@ -26,6 +26,13 @@ class DatabaseBackupService
         File::ensureDirectoryExists($this->seedersBackupPath);
     }
 
+    /**
+     * تصدير البيانات من قاعدة البيانات وتوليد سيدرز لجميع الجداول.
+     * يقوم بتصدير البيانات من قاعدة البيانات وتوليد Seeders لجميع الجداول.
+     * يمكن استثناء بعض الجداول من التصدير باستخدام المعامل $excludeTables.
+     * @param array $excludeTables قائمة بالجداول التي يجب استثناؤها من التصدير
+     * @return array تقرير عن الخطوات والأخطاء والـ Seeders التي تم توليدها
+     */
     public function exportDataAndGenerateSeeders(array $excludeTables = []): array
     {
         $report = ['steps' => [], 'errors' => [], 'seeders' => []];
@@ -37,7 +44,8 @@ class DatabaseBackupService
             $this->cleanOldBackupFiles($report);
 
             $databaseName = DB::getDatabaseName();
-            $allTablesInDb = $this->getAllTableNames($databaseName);  // جميع الجداول الموجودة فعلياً في قاعدة البيانات
+            // جميع الجداول الموجودة فعلياً في قاعدة البيانات
+            $allTablesInDb = $this->getAllTableNames($databaseName);
 
             $excludeTables = array_merge($excludeTables, ['migrations']);
             $this->pivotTables = $this->detectPivotTables($allTablesInDb);
@@ -85,6 +93,10 @@ class DatabaseBackupService
         }
     }
 
+    /**
+     * يقوم بتشغيل Seeder لجميع الجداول التي تم توليدها.
+     * يستخدم Artisan لتشغيل Seeder الرئيسي الذي يقوم بتشغيل جميع Seeders الفرعية.
+     */
     public function runBackupSeeders(): array
     {
         try {

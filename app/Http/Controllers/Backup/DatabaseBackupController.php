@@ -11,10 +11,12 @@ use Exception;
 
 class DatabaseBackupController extends Controller
 {
+    // 1. تصدير البيانات وتوليد السيدرز
     public function export(): JsonResponse
     {
         try {
             $service = new DatabaseBackupService();
+            // 1. تصدير البيانات وتوليد السيدرز
             $report = $service->exportDataAndGenerateSeeders();
 
             return response()->json([
@@ -32,6 +34,7 @@ class DatabaseBackupController extends Controller
         }
     }
 
+    //    // 2. تشغيل السيدرز التي تم توليدها
     public function runSeeders(): JsonResponse
     {
         try {
@@ -52,19 +55,19 @@ class DatabaseBackupController extends Controller
         }
     }
 
+    // 3. عمل ريفرش للـمبجريشن واستعادة البيانات من السيدرز
     public function restoreAndFresh(): JsonResponse
     {
         try {
-            $service = new DatabaseBackupService();
-
+            // $service = new DatabaseBackupService();
             // 1. تصدير البيانات وتوليد السيدرز
-            $report = $service->exportDataAndGenerateSeeders();
-            if (!$report || !empty($report['errors'])) {
-                return response()->json([
-                    'status' => '❌ Failed to export data and generate seeders',
-                    'details' => $report
-                ], 500);
-            }
+            // $report = $service->exportDataAndGenerateSeeders();
+            // if (!$report || !empty($report['errors'])) {
+            //     return response()->json([
+            //         'status' => '❌ Failed to export data and generate seeders',
+            //         'details' => $report
+            //     ], 500);
+            // }
 
             // 2. عمل fresh للـ migrations
             $migrateResult = Artisan::call('migrate:fresh', ['--force' => true]);

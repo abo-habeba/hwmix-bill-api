@@ -107,7 +107,7 @@ Route::prefix('db')->controller(DatabaseBackupController::class)->group(function
     Route::get('seed-export', 'runSeeders');
 
     // 🧨 [GET] /db/refresh:   عمل فريش للقاعدة واسترجاع النسخة الاحتياطية
-    Route::get('refresh', 'restoreAndFresh');
+    Route::get('restoreAndFresh', 'restoreAndFresh');
 });
 
 // Route to get all JSON files data for permissions
