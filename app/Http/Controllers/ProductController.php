@@ -11,6 +11,7 @@ use App\Models\Stock;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class ProductController extends Controller
 {
@@ -27,38 +28,48 @@ class ProductController extends Controller
 
     public function index(Request $request)
     {
-        $query = Product::with($this->relations);
+        try {
+            $query = Product::with($this->relations);
 
-        if ($request->filled('search')) {
-            $search = $request->input('search');
-            $query->where(function ($q) use ($search) {
-                $q
-                    ->where('name', 'like', "%$search%")
-                    ->orWhere('desc', 'like', "%$search%")
-                    ->orWhere('slug', 'like', "%$search%")
-                    ->orWhereHas('category', function ($q) use ($search) {
-                        $q
-                            ->where('name', 'like', "%$search%")
-                            ->orWhere('desc', 'like', "%$search%");
-                    })
-                    ->orWhereHas('brand', function ($q) use ($search) {
-                        $q
-                            ->where('name', 'like', "%$search%")
-                            ->orWhere('desc', 'like', "%$search%");
-                    });
-            });
+            if ($request->filled('search')) {
+                $search = $request->input('search');
+                $query->where(function ($q) use ($search) {
+                    $q
+                        ->where('name', 'like', "%$search%")
+                        ->orWhere('desc', 'like', "%$search%")
+                        ->orWhere('slug', 'like', "%$search%")
+                        ->orWhereHas('category', function ($q) use ($search) {
+                            $q
+                                ->where('name', 'like', "%$search%")
+                                ->orWhere('desc', 'like', "%$search%");
+                        })
+                        ->orWhereHas('brand', function ($q) use ($search) {
+                            $q
+                                ->where('name', 'like', "%$search%")
+                                ->orWhere('desc', 'like', "%$search%");
+                        });
+                });
+            }
+
+            $sortBy = $request->input('sort_by', 'id');
+            $sortOrder = $request->input('sort_order', 'desc');
+            $query->orderBy($sortBy, $sortOrder);
+
+            $perPage = $request->input('per_page', 10);
+            $products = $query->paginate($perPage);
+
+            return ProductResource::collection($products)->additional([
+                'total' => $products->total(),
+            ]);
+        } catch (Throwable $e) {
+            return response()->json([
+                'error' => true,
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ], 500);
         }
-
-        $sortBy = $request->input('sort_by', 'id');
-        $sortOrder = $request->input('sort_order', 'desc');
-        $query->orderBy($sortBy, $sortOrder);
-
-        $perPage = $request->input('per_page', 10);
-        $products = $query->paginate($perPage);
-
-        return ProductResource::collection($products)->additional([
-            'total' => $products->total(),
-        ]);
     }
 
     public function store(StoreProductRequest $request)

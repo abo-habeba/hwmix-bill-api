@@ -83,7 +83,7 @@ Route::get('db/seed-permissions', function (\Illuminate\Http\Request $request) {
         ], 500);
     }
 });
-Route::get('db/seed-RolesAndPermissionsSeeder', function (\Illuminate\Http\Request $request) {
+Route::get('db/RolesAndPermissionsSeeder', function (\Illuminate\Http\Request $request) {
     try {
         \Artisan::call('db:seed', [
             '--class' => 'Database\Seeders\RolesAndPermissionsSeeder',
