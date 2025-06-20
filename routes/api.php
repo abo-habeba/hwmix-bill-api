@@ -90,7 +90,7 @@ Route::get('db/seed-RolesAndPermissionsSeeder', function (\Illuminate\Http\Reque
             '--force' => true
         ]);
         return response()->json([
-            'seed' => 'PermissionsSeeder executed successfully',
+            'seed' => 'seed-RolesAndPermissionsSeeder executed successfully',
         ]);
     } catch (\Throwable $e) {
         return response()->json([
