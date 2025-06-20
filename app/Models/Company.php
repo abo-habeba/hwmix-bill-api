@@ -73,27 +73,24 @@ class Company extends Model
     }
 
     // نطاق رؤية الشركات للمستخدم
-    public function scopeVisibleToUser($query)
+    public function scopeVisibleFor($query, \App\Models\User $user)
     {
-        $user = auth()->user();
-
         if (!$user) {
             return $query->whereRaw('0 = 1');  // لا يرجّع أي بيانات
         }
 
         // الحالة 1: صلاحية مشاهدة جميع الشركات
-        if ($user->hasAnyPermission(['super_admin', 'companys_all'])) {
+        if ($user->hasAnyPermission(['super_admin'])) {
             return $query;
         }
-
         // الحالة 2: صلاحية مشاهدة الشركات التابعة له أو للمستخدمين اللي أنشأهم
-        if ($user->hasPermissionTo('companys_own')) {
+        if ($user->hasAnyPermission('companys_all_own', 'companys_all', 'company_owner')) {
             $subUsers = \App\Models\User::where('created_by', $user->id)->pluck('id');
             return $query->whereIn('created_by', $subUsers->push($user->id));
         }
 
         // الحالة 3: صلاحية مشاهدة الشركة المرتبط بها فقط
-        if ($user->hasPermissionTo('companys_self')) {
+        if ($user->hasAnyPermission('companys_all_self')) {
             return $query->where('id', $user->company_id);
         }
 

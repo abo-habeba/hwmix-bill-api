@@ -7,13 +7,13 @@
         { "value": "cashbox_all_self", "name": "عرض الخزنة الخاصة به" },
         { "value": "cashbox_show", "name": "عرض تفاصيل أي خزنة" },
         { "value": "cashbox_show_own", "name": "عرض تفاصيل الخزن التابعة له" },
-        { "value": "cashbox_show_self", "name": "عرض تفاصيل خزنة الخاصة به" },
+        { "value": "cashbox_show_self", "name": "عرض تفاصيل الخزنة الخاصة به" },
         { "value": "cashbox_create", "name": "إنشاء خزنة" },
         { "value": "cashbox_update", "name": "تعديل أي خزنة" },
         { "value": "cashbox_update_own", "name": "تعديل الخزن التابعة له" },
-        { "value": "cashbox_update_self", "name": "تعديل خزنة الخاصة به" },
+        { "value": "cashbox_update_self", "name": "تعديل الخزنة الخاصة به" },
         { "value": "cashbox_delete", "name": "حذف أي خزنة" },
         { "value": "cashbox_delete_own", "name": "حذف الخزن التابعة له" },
-        { "value": "cashbox_delete_self", "name": "حذف خزنة الخاصة به" }
+        { "value": "cashbox_delete_self", "name": "حذف الخزنة الخاصة به" }
     ]
 }

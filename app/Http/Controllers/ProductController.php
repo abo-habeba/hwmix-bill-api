@@ -11,7 +11,7 @@ use App\Models\Stock;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Throwable;
+use Throwable;  // استخدم Throwable للتعامل الشامل مع الأخطاء والاستثناءات
 
 class ProductController extends Controller
 {
@@ -26,11 +26,44 @@ class ProductController extends Controller
         'variants.stocks.warehouse',
     ];
 
+    /**
+     * Display a listing of the resource.
+     */
     public function index(Request $request)
     {
         try {
+            $authUser = auth()->user();
+
+            if (!$authUser) {
+                return response()->json([
+                    'error' => 'Unauthorized',
+                    'message' => 'Authentication required.'
+                ], 401);
+            }
+
             $query = Product::with($this->relations);
 
+            // تطبيق منطق الصلاحيات
+            if ($authUser->hasAnyPermission(['products_all', 'super_admin'])) {
+                // إذا كان لديه صلاحية 'products_all' أو 'super_admin'، لا حاجة لتطبيق أي scope خاص
+            } elseif ($authUser->hasPermissionTo('company_owner')) {
+                // إذا كان مالك شركة، طبق scopeCompany لجلب منتجات شركته فقط
+                $query->scopeCompany();
+            } elseif ($authUser->hasPermissionTo('products_all_own')) {
+                // إذا كان لديه صلاحية 'products_all_own'، طبق scopeOwn لجلب المنتجات التي أنشأها هو
+                $query->scopeOwn();
+            } elseif ($authUser->hasPermissionTo('products_all_self')) {
+                // إذا كان لديه صلاحية 'products_all_self'، طبق scopeSelf لجلب المنتجات الخاصة به
+                $query->scopeSelf();
+            } else {
+                // إذا لم يكن لديه أي صلاحية رؤية عامة، ارجع خطأ Unauthorized
+                return response()->json([
+                    'error' => 'Unauthorized',
+                    'message' => 'You are not authorized to view products.'
+                ], 403);
+            }
+
+            // تطبيق فلاتر البحث
             if ($request->filled('search')) {
                 $search = $request->input('search');
                 $query->where(function ($q) use ($search) {
@@ -51,6 +84,7 @@ class ProductController extends Controller
                 });
             }
 
+            // الفرز والتصفح
             $sortBy = $request->input('sort_by', 'id');
             $sortOrder = $request->input('sort_order', 'desc');
             $query->orderBy($sortBy, $sortOrder);
@@ -60,23 +94,45 @@ class ProductController extends Controller
 
             return ProductResource::collection($products)->additional([
                 'total' => $products->total(),
+                'current_page' => $products->currentPage(),
+                'last_page' => $products->lastPage(),
             ]);
         } catch (Throwable $e) {
-            return response()->json([
-                'error' => true,
-                'message' => $e->getMessage(),
+            // تسجيل الخطأ وتفاصيله
+            Log::error('Product index failed: ' . $e->getMessage(), [
+                'exception' => $e,
                 'trace' => $e->getTraceAsString(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
+                'user_id' => auth()->id(),  // إضافة ID المستخدم للمساعدة في تتبع المشاكل
+            ]);
+            return response()->json([
+                'error' => true,
+                'message' => 'حدث خطأ أثناء جلب المنتجات.',
+                // 'details' => $e->getMessage(), // يمكن إخفاء هذه التفاصيل في بيئة الإنتاج
+                // 'trace' => $e->getTraceAsString(), // يمكن إخفاء هذه التفاصيل في بيئة الإنتاج
+                // 'file' => $e->getFile(), // يمكن إخفاء هذه التفاصيل في بيئة الإنتاج
+                // 'line' => $e->getLine(), // يمكن إخفاء هذه التفاصيل في بيئة الإنتاج
             ], 500);
         }
     }
 
+    /**
+     * Store a newly created resource in storage.
+     */
     public function store(StoreProductRequest $request)
     {
+        $authUser = auth()->user();
+
+        if (!$authUser || !$authUser->hasAnyPermission(['products_create', 'company_owner', 'super_admin'])) {
+            return response()->json([
+                'error' => 'Unauthorized',
+                'message' => 'You are not authorized to create products.'
+            ], 403);
+        }
+
         DB::beginTransaction();
         try {
-            $authUser = auth()->user();
             $companyId = $authUser->company_id;
             $createdBy = $authUser->id;
 
@@ -84,7 +140,10 @@ class ProductController extends Controller
             $validatedData['active'] = (bool) ($validatedData['active'] ?? false);
             $validatedData['featured'] = (bool) ($validatedData['featured'] ?? false);
             $validatedData['returnable'] = (bool) ($validatedData['returnable'] ?? false);
-            $validatedData['company_id'] = $validatedData['company_id'] ?? $companyId;
+            // إذا كان المستخدم super_admin ويحدد company_id، يسمح بذلك. وإلا، استخدم company_id للمستخدم.
+            $validatedData['company_id'] = ($authUser->hasPermissionTo('super_admin') && isset($validatedData['company_id']))
+                ? $validatedData['company_id']
+                : $companyId;
             $validatedData['created_by'] = $validatedData['created_by'] ?? $createdBy;
             $validatedData['slug'] = Product::generateSlug($validatedData['name']);
 
@@ -93,7 +152,7 @@ class ProductController extends Controller
             if ($request->has('variants') && is_array($request->input('variants'))) {
                 foreach ($request->input('variants') as $variantData) {
                     $variantCreateData = collect($variantData)->except(['attributes', 'stocks'])->toArray();
-                    $variantCreateData['company_id'] = $validatedData['company_id'];
+                    $variantCreateData['company_id'] = $validatedData['company_id'];  // تأكد من ربطها بنفس شركة المنتج
                     $variantCreateData['created_by'] = $validatedData['created_by'];
 
                     $variant = $product->variants()->create($variantCreateData);
@@ -103,17 +162,15 @@ class ProductController extends Controller
                             if (empty($attributeData['attribute_id']) || empty($attributeData['attribute_value_id'])) {
                                 continue;
                             }
-
                             $variant->attributes()->create([
                                 'attribute_id' => $attributeData['attribute_id'],
                                 'attribute_value_id' => $attributeData['attribute_value_id'],
-                                'company_id' => $companyId,
-                                'created_by' => $createdBy,
+                                'company_id' => $validatedData['company_id'],  // تأكد من ربطها بنفس شركة المنتج
+                                'created_by' => $validatedData['created_by'],
                             ]);
                         }
                     }
 
-                    // التعامل مع مصفوفة المخزون (stocks)
                     if (!empty($variantData['stocks']) && is_array($variantData['stocks'])) {
                         foreach ($variantData['stocks'] as $stockData) {
                             $stockCreateData = [
@@ -126,10 +183,10 @@ class ProductController extends Controller
                                 'loc' => $stockData['loc'] ?? null,
                                 'status' => $stockData['status'] ?? 'available',
                                 'warehouse_id' => $stockData['warehouse_id'] ?? null,
-                                'company_id' => $companyId,
-                                'created_by' => $createdBy,
+                                'company_id' => $validatedData['company_id'],  // تأكد من ربطها بنفس شركة المنتج
+                                'created_by' => $validatedData['created_by'],
                             ];
-                            $variant->stocks()->create($stockCreateData);  // استخدم stocks() هنا
+                            $variant->stocks()->create($stockCreateData);
                         }
                     }
                 }
@@ -138,54 +195,150 @@ class ProductController extends Controller
             DB::commit();
 
             return ProductResource::make($product->load($this->relations));
-        } catch (\Exception $e) {
+        } catch (Throwable $e) {
             DB::rollBack();
-            Log::error('Product store failed: ' . $e->getMessage(), ['exception' => $e, 'trace' => $e->getTraceAsString()]);
-
+            Log::error('Product store failed: ' . $e->getMessage(), [
+                'exception' => $e,
+                'trace' => $e->getTraceAsString(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'user_id' => $authUser ? $authUser->id : null,
+            ]);
             return response()->json([
                 'message' => 'حدث خطأ أثناء حفظ المنتج.',
-                'details' => $e->getMessage(),
+                // 'details' => $e->getMessage(),
             ], 500);
         }
     }
 
+    /**
+     * Display the specified resource.
+     */
     public function show(Product $product)
     {
-        return ProductResource::make($product->load($this->relations));
+        $authUser = auth()->user();
+
+        if (!$authUser) {
+            return response()->json([
+                'error' => 'Unauthorized',
+                'message' => 'Authentication required.'
+            ], 401);
+        }
+
+        // تطبيق منطق الصلاحيات على المنتج المحدد
+        // سنستخدم query جديدة هنا لتطبيق الـ scopes والتحقق من وجود المنتج
+        $query = Product::where('id', $product->id)->with($this->relations);
+
+        if ($authUser->hasAnyPermission(['products_show', 'products_all', 'super_admin'])) {
+            // إذا كان لديه صلاحية 'products_show' أو 'products_all' أو 'super_admin'، لا حاجة لـ scope خاص
+            // فقط نتأكد أن المنتج موجود
+        } elseif ($authUser->hasPermissionTo('company_owner')) {
+            $query->scopeCompany();
+        } elseif ($authUser->hasPermissionTo('products_show_own')) {
+            $query->scopeOwn();
+        } elseif ($authUser->hasPermissionTo('products_show_self')) {
+            $query->scopeSelf();
+        } else {
+            // إذا لم يكن لديه صلاحية رؤية هذا المنتج
+            return response()->json([
+                'error' => 'Unauthorized',
+                'message' => 'You are not authorized to view this product.'
+            ], 403);
+        }
+
+        $authorizedProduct = $query->first();
+
+        if (!$authorizedProduct) {
+            // إذا لم يتم العثور على المنتج بعد تطبيق الـ scopes، يعني المستخدم غير مصرح له برؤيته
+            return response()->json([
+                'error' => 'Not Found',
+                'message' => 'Product not found or you do not have permission to view it.'
+            ], 404);
+        }
+
+        return ProductResource::make($authorizedProduct);
     }
 
+    /**
+     * Update the specified resource in storage.
+     */
     public function update(UpdateProductRequest $request, Product $product)
     {
-        DB::beginTransaction();
+        $authUser = auth()->user();
 
+        if (!$authUser) {
+            return response()->json([
+                'error' => 'Unauthorized',
+                'message' => 'Authentication required.'
+            ], 401);
+        }
+
+        // تطبيق منطق الصلاحيات على المنتج المحدد قبل التحديث
+        $query = Product::where('id', $product->id);
+
+        if ($authUser->hasAnyPermission(['products_update', 'products_all', 'super_admin'])) {
+            // إذا كان لديه صلاحية 'products_update' أو 'products_all' أو 'super_admin'، لا حاجة لـ scope خاص
+            // فقط نتأكد أن المنتج موجود
+        } elseif ($authUser->hasPermissionTo('company_owner')) {
+            $query->scopeCompany();
+        } elseif ($authUser->hasPermissionTo('products_update_own')) {
+            $query->scopeOwn();
+        } elseif ($authUser->hasPermissionTo('products_update_self')) {
+            $query->scopeSelf();
+        } else {
+            // إذا لم يكن لديه صلاحية لتعديل هذا المنتج
+            return response()->json([
+                'error' => 'Unauthorized',
+                'message' => 'You are not authorized to update this product.'
+            ], 403);
+        }
+
+        $authorizedProduct = $query->first();
+
+        if (!$authorizedProduct) {
+            return response()->json([
+                'error' => 'Not Found',
+                'message' => 'Product not found or you do not have permission to update it.'
+            ], 404);
+        }
+
+        // تأكد من أن الـ $product التي سنقوم بتحديثها هي نفسها التي تم التحقق من صلاحيتها
+        $product = $authorizedProduct;
+
+        DB::beginTransaction();
         try {
-            $authUser = auth()->user();
             $companyId = $authUser->company_id;
-            $updatedBy = $authUser->id;  // استخدم updatedBy لتحديث السجلات
+            $updatedBy = $authUser->id;
 
             $validatedData = $request->validated();
-            $validatedData['active'] = (bool) ($validatedData['active'] ?? false);
-            $validatedData['featured'] = (bool) ($validatedData['featured'] ?? false);
-            $validatedData['returnable'] = (bool) ($validatedData['returnable'] ?? false);
+            $validatedData['active'] = (bool) ($validatedData['active'] ?? $product->active);  // احتفظ بالقيمة الحالية إذا لم ترسل
+            $validatedData['featured'] = (bool) ($validatedData['featured'] ?? $product->featured);
+            $validatedData['returnable'] = (bool) ($validatedData['returnable'] ?? $product->returnable);
+            // إذا كان المستخدم سوبر ادمن ويحدد معرف الشركه، يسمح بذلك. وإلا، استخدم معرف الشركه للمنتج.
+            $validatedData['company_id'] = ($authUser->hasPermissionTo('super_admin') && isset($validatedData['company_id']))
+                ? $validatedData['company_id']
+                : $product->company_id;
+            $validatedData['slug'] = $validatedData['slug'] ?? Product::generateSlug($validatedData['name']);
+
             $productData = [
                 'name' => $validatedData['name'],
-                'slug' => $validatedData['slug'] ?? Product::generateSlug($validatedData['name']),
+                'slug' => $validatedData['slug'],
                 'desc' => $validatedData['desc'] ?? null,
                 'desc_long' => $validatedData['desc_long'] ?? null,
                 'published_at' => $validatedData['published_at'] ?? null,
                 'category_id' => $validatedData['category_id'],
                 'brand_id' => $validatedData['brand_id'] ?? null,
-                'company_id' => $validatedData['company_id'] ?? $companyId,
-                'active' => $validatedData['active'] ?? true,  // تأكد من وجود هذه الحقول في الـ request
-                'featured' => $validatedData['featured'] ?? false,
-                'returnable' => $validatedData['returnable'] ?? true,
+                'company_id' => $validatedData['company_id'],
+                'active' => $validatedData['active'],
+                'featured' => $validatedData['featured'],
+                'returnable' => $validatedData['returnable'],
             ];
 
             $product->update($productData);
 
             // معالجة المتغيرات (Variants)
             $requestedVariantIds = collect($validatedData['variants'] ?? [])->pluck('id')->filter()->all();
-            $product->variants()->whereNotIn('id', $requestedVariantIds)->delete();  // حذف المتغيرات غير الموجودة في الطلب
+            $product->variants()->whereNotIn('id', $requestedVariantIds)->delete();
 
             if (!empty($validatedData['variants']) && is_array($validatedData['variants'])) {
                 foreach ($validatedData['variants'] as $variantData) {
@@ -194,17 +347,15 @@ class ProductController extends Controller
                         'sku' => $variantData['sku'] ?? null,
                         'retail_price' => $variantData['retail_price'] ?? null,
                         'wholesale_price' => $variantData['wholesale_price'] ?? null,
-                        // 'profit_margin' => $variantData['profit_margin'] ?? null, // يتم حسابه عادة
                         'image' => $variantData['image'] ?? null,
                         'weight' => $variantData['weight'] ?? null,
                         'dimensions' => $variantData['dimensions'] ?? null,
                         'min_quantity' => $variantData['min_quantity'] ?? null,
                         'tax' => $variantData['tax'] ?? null,
                         'discount' => $variantData['discount'] ?? null,
-                        'status' => $variantData['status'] ?? 'active',  // قيمة افتراضية
-                        'company_id' => $variantData['company_id'] ?? $companyId,
+                        'status' => $variantData['status'] ?? 'active',
+                        'company_id' => $validatedData['company_id'],  // استخدام company_id للمنتج
                         'created_by' => $variantData['created_by'] ?? $authUser->id,
-                        'product_id' => $product->id,
                     ];
 
                     $variant = ProductVariant::updateOrCreate(
@@ -218,14 +369,11 @@ class ProductController extends Controller
                         ->map(fn($attr) => [
                             'attribute_id' => $attr['attribute_id'],
                             'attribute_value_id' => $attr['attribute_value_id'],
-                            'company_id' => $companyId,
+                            'company_id' => $validatedData['company_id'],  // استخدام company_id للمنتج
                             'created_by' => $authUser->id,
                         ])
                         ->all();
 
-                    // حذف الخصائص القديمة للمتغير ثم إنشاء الجديدة.
-                    // هذه الطريقة أبسط وتضمن مزامنة كاملة، ولكنها تحذف وتنشئ كل مرة.
-                    // إذا كان الأداء حساساً جداً، يمكن استخدام syncWithPivotValues أو مقارنة يدوية.
                     $variant->attributes()->delete();
                     if (!empty($requestedAttributeIds)) {
                         $variant->attributes()->createMany($requestedAttributeIds);
@@ -233,7 +381,7 @@ class ProductController extends Controller
 
                     // معالجة سجلات المخزون (Stocks)
                     $requestedStockIds = collect($variantData['stocks'] ?? [])->pluck('id')->filter()->all();
-                    $variant->stocks()->whereNotIn('id', $requestedStockIds)->delete();  // حذف سجلات المخزون غير الموجودة في الطلب
+                    $variant->stocks()->whereNotIn('id', $requestedStockIds)->delete();
 
                     if (!empty($variantData['stocks']) && is_array($variantData['stocks'])) {
                         foreach ($variantData['stocks'] as $stockData) {
@@ -247,7 +395,7 @@ class ProductController extends Controller
                                 'loc' => $stockData['loc'] ?? null,
                                 'status' => $stockData['status'] ?? 'available',
                                 'warehouse_id' => $stockData['warehouse_id'] ?? null,
-                                'company_id' => $stockData['company_id'] ?? $companyId,
+                                'company_id' => $validatedData['company_id'],  // استخدام company_id للمنتج
                                 'created_by' => $stockData['created_by'] ?? $authUser->id,
                                 'updated_by' => $updatedBy,
                                 'variant_id' => $variant->id,
@@ -259,46 +407,97 @@ class ProductController extends Controller
                             );
                         }
                     } else {
-                        // إذا لم يتم إرسال أي سجلات مخزون للمتغير، فقم بحذف جميع سجلات المخزون الحالية لهذا المتغير
                         $variant->stocks()->delete();
                     }
                 }
             } else {
-                // إذا لم يتم إرسال أي متغيرات، فقم بحذف جميع متغيرات المنتج (والتي ستحذف مخازنها وخصائصها تلقائيًا)
                 $product->variants()->delete();
             }
 
             DB::commit();
 
             return ProductResource::make($product->load($this->relations));
-        } catch (\Exception $e) {
+        } catch (Throwable $e) {
             DB::rollBack();
-            Log::error('Product update failed: ' . $e->getMessage(), ['exception' => $e, 'trace' => $e->getTraceAsString()]);
-
+            Log::error('Product update failed: ' . $e->getMessage(), [
+                'exception' => $e,
+                'trace' => $e->getTraceAsString(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'user_id' => $authUser ? $authUser->id : null,
+            ]);
             return response()->json([
                 'message' => 'حدث خطأ أثناء تحديث المنتج.',
-                'details' => $e->getMessage(),
+                // 'details' => $e->getMessage(),
             ], 500);
         }
     }
 
+    /**
+     * Remove the specified resource from storage.
+     */
     public function destroy(Product $product)
     {
+        $authUser = auth()->user();
+
+        if (!$authUser) {
+            return response()->json([
+                'error' => 'Unauthorized',
+                'message' => 'Authentication required.'
+            ], 401);
+        }
+
+        // تطبيق منطق الصلاحيات على المنتج المحدد قبل الحذف
+        $query = Product::where('id', $product->id);
+
+        if ($authUser->hasAnyPermission(['products_delete', 'products_all', 'super_admin'])) {
+            // إذا كان لديه صلاحية 'products_delete' أو 'products_all' أو 'super_admin'، لا حاجة لـ scope خاص
+            // فقط نتأكد أن المنتج موجود
+        } elseif ($authUser->hasPermissionTo('company_owner')) {
+            $query->scopeCompany();
+        } elseif ($authUser->hasPermissionTo('products_delete_own')) {
+            $query->scopeOwn();
+        } elseif ($authUser->hasPermissionTo('products_delete_self')) {
+            $query->scopeSelf();
+        } else {
+            // إذا لم يكن لديه صلاحية لحذف هذا المنتج
+            return response()->json([
+                'error' => 'Unauthorized',
+                'message' => 'You are not authorized to delete this product.'
+            ], 403);
+        }
+
+        $authorizedProduct = $query->first();
+
+        if (!$authorizedProduct) {
+            return response()->json([
+                'error' => 'Not Found',
+                'message' => 'Product not found or you do not have permission to delete it.'
+            ], 404);
+        }
+
+        // تأكد من أن الـ $product التي سنقوم بحذفها هي نفسها التي تم التحقق من صلاحيتها
+        $product = $authorizedProduct;
+
         DB::beginTransaction();
         try {
-            // حذف المتغيرات المتعلقة، والتي بدورها ستحذف سجلات المخزون والخصائص
-            $product->variants()->delete();
+            $product->variants()->delete();  // حذف المتغيرات المتعلقة، والتي بدورها ستحذف سجلات المخزون والخصائص
             $product->delete();
 
             DB::commit();
             return response()->json(null, 204);
-        } catch (\Exception $e) {
+        } catch (Throwable $e) {
             DB::rollBack();
-            Log::error('Product deletion failed: ' . $e->getMessage(), ['exception' => $e, 'trace' => $e->getTraceAsString()]);
-
+            Log::error('Product deletion failed: ' . $e->getMessage(), [
+                'exception' => $e,
+                'trace' => $e->getTraceAsString(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'user_id' => $authUser ? $authUser->id : null,
+            ]);
             return response()->json([
                 'message' => 'حدث خطأ أثناء حذف المنتج.',
-                'details' => $e->getMessage(),
+                // 'details' => $e->getMessage(),
             ], 500);
         }
     }

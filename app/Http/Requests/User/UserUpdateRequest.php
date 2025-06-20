@@ -24,9 +24,9 @@ class UserUpdateRequest extends FormRequest
         // $userId = $this->route('user');
 
         return [
-            'email' => "nullable|email|unique:users,email," . optional($this->user)->id,
+            'email' => 'nullable|email|unique:users,email,' . optional($this->user)->id,
             'full_name' => 'nullable|string|max:255',
-            'username' => "nullable|string|max:255|unique:users,username," . optional($this->user)->id,
+            'username' => 'nullable|string|max:255|unique:users,username,' . optional($this->user)->id,
             'nickname' => 'nullable|string|max:255',
             'phone' => 'nullable|string|max:15',
             'password' => 'nullable|string|min:8',

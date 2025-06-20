@@ -1,36 +1,36 @@
 {
     "name": "إدارة أنواع الصناديق",
     "permissions": [
-        { "value": "CashBoxType", "name": "صفحة أنواع الصناديق" },
-        { "value": "CashBoxType_all", "name": "جميع أنواع الصناديق" },
-        { "value": "CashBoxType_all_own", "name": "أنواع الصناديق التابعة له" },
-        { "value": "CashBoxType_all_self", "name": "عرض نوع الصندوق الخاص به" },
-        { "value": "CashBoxType_show", "name": "عرض تفاصيل أي نوع صندوق" },
+        { "value": "cashBoxType", "name": "صفحة أنواع الصناديق" },
+        { "value": "cashBoxType_all", "name": "جميع أنواع الصناديق" },
+        { "value": "cashBoxType_all_own", "name": "أنواع الصناديق التابعة له" },
+        { "value": "cashBoxType_all_self", "name": "عرض نوع الصندوق الخاص به" },
+        { "value": "cashBoxType_show", "name": "عرض تفاصيل أي نوع صندوق" },
         {
-            "value": "CashBoxType_show_own",
+            "value": "cashBoxType_show_own",
             "name": "عرض تفاصيل أنواع الصناديق التابعة له"
         },
         {
-            "value": "CashBoxType_show_self",
+            "value": "cashBoxType_show_self",
             "name": "عرض تفاصيل نوع الصندوق الخاص به"
         },
-        { "value": "CashBoxType_create", "name": "إنشاء نوع صندوق" },
-        { "value": "CashBoxType_update", "name": "تعديل أي نوع صندوق" },
+        { "value": "cashBoxType_create", "name": "إنشاء نوع صندوق" },
+        { "value": "cashBoxType_update", "name": "تعديل أي نوع صندوق" },
         {
-            "value": "CashBoxType_update_own",
+            "value": "cashBoxType_update_own",
             "name": "تعديل أنواع الصناديق التابعة له"
         },
         {
-            "value": "CashBoxType_update_self",
+            "value": "cashBoxType_update_self",
             "name": "تعديل نوع الصندوق الخاص به"
         },
-        { "value": "CashBoxType_delete", "name": "حذف أي نوع صندوق" },
+        { "value": "cashBoxType_delete", "name": "حذف أي نوع صندوق" },
         {
-            "value": "CashBoxType_delete_own",
+            "value": "cashBoxType_delete_own",
             "name": "حذف أنواع الصناديق التابعة له"
         },
         {
-            "value": "CashBoxType_delete_self",
+            "value": "cashBoxType_delete_self",
             "name": "حذف نوع الصندوق الخاص به"
         }
     ]

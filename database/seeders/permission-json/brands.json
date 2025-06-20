@@ -2,9 +2,39 @@
     "name": "إدارة العلامات التجارية",
     "permissions": [
         { "value": "brands", "name": "صفحة العلامات التجارية" },
-        { "value": "brands_all", "name": "عرض جميع العلامات التجارية" },
+        { "value": "brands_all", "name": "جميع العلامات التجارية" },
+        { "value": "brands_all_own", "name": "العلامات التجارية التابعة له" },
+        {
+            "value": "brands_all_self",
+            "name": "عرض العلامة التجارية الخاصة به"
+        },
+        { "value": "brands_show", "name": "عرض تفاصيل أي علامة تجارية" },
+        {
+            "value": "brands_show_own",
+            "name": "عرض تفاصيل العلامات التجارية التابعة له"
+        },
+        {
+            "value": "brands_show_self",
+            "name": "عرض تفاصيل العلامة التجارية الخاصة به"
+        },
         { "value": "brands_create", "name": "إنشاء علامة تجارية" },
-        { "value": "brands_update", "name": "تعديل علامة تجارية" },
-        { "value": "brands_delete", "name": "حذف علامة تجارية" }
+        { "value": "brands_update", "name": "تعديل أي علامة تجارية" },
+        {
+            "value": "brands_update_own",
+            "name": "تعديل العلامات التجارية التابعة له"
+        },
+        {
+            "value": "brands_update_self",
+            "name": "تعديل العلامة التجارية الخاصة به"
+        },
+        { "value": "brands_delete", "name": "حذف أي علامة تجارية" },
+        {
+            "value": "brands_delete_own",
+            "name": "حذف العلامات التجارية التابعة له"
+        },
+        {
+            "value": "brands_delete_self",
+            "name": "حذف العلامة التجارية الخاصة به"
+        }
     ]
 }

@@ -77,17 +77,20 @@ class User extends Authenticatable
         return $this->morphMany(Translation::class, 'model');
     }
 
-    // Define the many-to-many relationship
     public function companies()
     {
-        return $this->belongsToMany(Company::class, 'company_user', 'user_id', 'company_id');
+        return $this
+            ->belongsToMany(Company::class, 'company_user', 'user_id', 'company_id')
+            ->withTimestamps()
+            ->withPivot('created_by');
     }
 
     public function companyUsersCash()
-{
-    return $this->belongsToMany(Company::class, 'user_company_cash', 'user_id', 'company_id')
-                ->withPivot('cash_box_id', 'created_by'); // أضف الحقول الإضافية التي تريد الوصول إليها
-}
+    {
+        return $this
+            ->belongsToMany(Company::class, 'user_company_cash', 'user_id', 'company_id')
+            ->withPivot('cash_box_id', 'created_by');  // أضف الحقول الإضافية التي تريد الوصول إليها
+    }
 
     public function balanceBox($id = null)
     {

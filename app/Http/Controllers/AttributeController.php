@@ -2,13 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Attribute;
-use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
-use App\Http\Resources\Attribute\AttributeResource;
 use App\Http\Requests\Attribute\StoreAttributeRequest;
 use App\Http\Requests\Attribute\UpdateAttributeRequest;
-
+use App\Http\Resources\Attribute\AttributeResource;
+use App\Models\Attribute;
+use Illuminate\Support\Facades\DB;
 
 class AttributeController extends Controller
 {
@@ -20,6 +19,7 @@ class AttributeController extends Controller
         $attributes = Attribute::with('values')->get();
         return AttributeResource::collection($attributes);
     }
+
     /**
      * Store a newly created resource in storage.
      */
@@ -41,7 +41,6 @@ class AttributeController extends Controller
                         'created_by' => $validatedData['created_by'],
                     ]
                 );
-
             }
 
             if (!empty($validatedData['name_value'])) {
@@ -64,6 +63,7 @@ class AttributeController extends Controller
             ], 500);
         }
     }
+
     /**
      * Display the specified resource.
      */

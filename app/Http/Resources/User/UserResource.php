@@ -37,7 +37,8 @@ class UserResource extends JsonResource
             'roles' => $this->getRolesWithPermissions(),
             'balance' => $this->balanceBox() ?? 0,
             // الشركات التي يمكن للمستخدم الوصول إليها
-            'companies' => CompanyResource::collection(Company::visibleToUser()->get()),
+            'companies' => CompanyResource::collection(Company::visibleFor($this->resource)->get()),
+            // 'companies' => CompanyResource::collection($this->companies),
             'cashBoxes' => CashBoxResource::collection($this->cashBoxesByCompany()),
             'status' => $this->status,
             'permissions' => $this->getAllPermissions()->pluck('name'),

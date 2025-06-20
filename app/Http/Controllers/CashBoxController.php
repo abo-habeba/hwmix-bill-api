@@ -2,15 +2,14 @@
 
 namespace App\Http\Controllers;
 
-
-use App\Models\User;
-use App\Models\CashBox;
-use App\Models\Transaction;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use App\Http\Resources\CashBox\CashBoxResource;
 use App\Http\Requests\CashBox\StoreCashBoxRequest;
 use App\Http\Requests\CashBox\UpdateCashBoxRequest;
+use App\Http\Resources\CashBox\CashBoxResource;
+use App\Models\CashBox;
+use App\Models\Transaction;
+use App\Models\User;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class CashBoxController extends Controller
 {
@@ -36,7 +35,6 @@ class CashBoxController extends Controller
                     return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);
                 }
             }
-
 
             // التصفية باستخدام الحقول المقدمة
             // if (!empty($request->get('name'))) {
@@ -74,7 +72,6 @@ class CashBoxController extends Controller
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
-
 
     public function store(Request $request)
     {
@@ -117,7 +114,6 @@ class CashBoxController extends Controller
         } else {
             return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);
         }
-
     }
 
     public function update(Request $request, CashBox $cashBox)
@@ -242,7 +238,6 @@ class CashBoxController extends Controller
             DB::commit();
 
             return response()->json(['message' => 'Funds transferred successfully!'], 200);
-
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json([
@@ -252,7 +247,4 @@ class CashBoxController extends Controller
             ], 500);
         }
     }
-
-
 }
-
