@@ -674,4 +674,25 @@ class UserController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * تغيير الشركة النشطة للمستخدم.
+     *
+     * @param \Illuminate\Http\Request $request
+     * @param \App\Models\User $user
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function changeCompany(Request $request, User $user)
+    {
+        $authUser = Auth::user();
+        if (!$authUser->hasAnyPermission([perm_key('admin.super'), perm_key('admin.company'), perm_key('companies.change_active_company')])) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+        $request->validate([
+            'company_id' => ['required', 'exists:companies,id'],
+        ]);
+        $user->company_id = $request->input('company_id');
+        $user->save();
+        return response()->json(['message' => 'تم تغيير الشركة بنجاح', 'user' => $user]);
+    }
 }

@@ -87,6 +87,7 @@ return [
     // =====================================================================
     'companies' => [
         'name' => ['key' => 'companies', 'label' => 'صلاحيات إدارة الشركات'],
+        'change_active_company' => ['key' => 'companies.change_active_company', 'label' => 'تغيير الشركة النشطة'],
         'page' => ['key' => 'companies.page', 'label' => 'صفحة الشركات'],
         'view_all' => ['key' => 'companies.view_all', 'label' => 'عرض كل الشركات'],
         'view_children' => ['key' => 'companies.view_children', 'label' => 'عرض الشركات التابعة'],

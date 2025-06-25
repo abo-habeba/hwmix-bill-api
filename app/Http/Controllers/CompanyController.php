@@ -86,7 +86,7 @@ class CompanyController extends Controller
                 : new \Illuminate\Http\UploadedFile(public_path('images/default-logo.png'), 'default-logo.png');
 
             $company = Company::create($validatedData);
-            $company->users()->attach($authUser);
+            $company->users()->attach($authUser->id, ['created_by' => $authUser->id]);
             $company->saveImage('logo', $file);
 
             $company->logCreated("بإنشاء شركة باسم {$company->name}");
