@@ -11,23 +11,21 @@ class ArtisanController extends Controller
      * Run composer dump-autoload.
      * @return \Illuminate\Http\JsonResponse
      */
-    public function dumpAutoload()
-    {
-        try {
-            $output = shell_exec('composer dump-autoload');
-            return response()->json([
-                'status' => '✅ dump-autoload تم بنجاح',
-                'output' => $output
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => '❌ حصل خطأ',
-                'message' => $e->getMessage()
-            ]);
-        }
+public function dumpAutoload()
+{
+    try {
+        Artisan::call('dump-autoload');
+        return response()->json([
+            'status' => '✅ dump-autoload تم بنجاح',
+            'output' => Artisan::output()
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'status' => '❌ حصل خطأ',
+            'message' => $e->getMessage()
+        ]);
     }
-
-    /**
+}
      * Run migrate:fresh and db:seed (for development only).
      * @return \Illuminate\Http\JsonResponse
      */

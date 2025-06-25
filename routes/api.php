@@ -33,7 +33,24 @@ use App\Http\Controllers\WarehouseController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
+Route::get('/dump', function () {
+    try {
+        // شغل أمر composer dump-autoload من خلال shell_exec
+        $output = shell_exec('composer dump-autoload');
 
+        return response()->json([
+            'status' => '✅ dump-autoload تم بنجاح',
+            'output' => $output
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'status' => '❌ حصل خطأ',
+            'message' => $e->getMessage()
+        ]);
+    }
+});
+
+    
 Route::prefix('db')->controller(DatabaseBackupController::class)->group(function () {
     // 🔄 [GET] /db/export: إنشاء نسخة احتياطية من البيانات كسيدر
     Route::get('export', 'export');
