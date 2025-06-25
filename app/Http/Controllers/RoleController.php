@@ -40,35 +40,31 @@ class RoleController extends Controller
             // فلترة الأدوار حسب الصلاحيات
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
                 // المسؤول العام يرى جميع الأدوار بدون أي قيود
-            } elseif ($authUser->hasAnyPermission([perm_key('roles.view_all'), perm_key('company.owner')])) {
-                // كل الأدوار الخاصة بالشركة الحالية فقط
+            } elseif ($authUser->hasAnyPermission([perm_key('roles.view_all'), perm_key('admin.company')])) {
                 $companyId = $authUser->company_id;
                 $query->whereHas('companies', function ($q) use ($companyId) {
                     $q->where('companies.id', $companyId);
                 });
             } elseif ($authUser->hasPermissionTo(perm_key('roles.view_children'))) {
-                // أدوار الشركة الحالية فقط، والتي أنشأها المستخدم أو أحد التابعين له
                 $companyId = $authUser->company_id;
                 $descendantUserIds = $authUser->getDescendantUserIds();
                 $descendantUserIds[] = $authUser->id;
                 $query->whereHas('companies', function ($q) use ($companyId, $descendantUserIds) {
                     $q
                         ->where('companies.id', $companyId)
-                        ->wherePivotIn('created_by', $descendantUserIds);
+                        ->whereIn('role_company.created_by', $descendantUserIds);
                 });
             } elseif ($authUser->hasPermissionTo(perm_key('roles.view_self'))) {
-                // الأدوار التي أنشأها المستخدم الحالي فقط، ومرتبطة بالشركة الحالية
                 $companyId = $authUser->company_id;
                 $query->whereHas('companies', function ($q) use ($companyId, $authUser) {
                     $q
                         ->where('companies.id', $companyId)
-                        ->wherePivot('created_by', $authUser->id);
+                        ->where('role_company.created_by', $authUser->id);
                 });
             } else {
                 return response()->json(['error' => 'Unauthorized'], 403);
             }
 
-            // ...existing code...
             if ($request->filled('company_id')) {
                 $query->whereHas('companies', function ($q) use ($request) {
                     $q->where('companies.id', $request->input('company_id'));
@@ -120,16 +116,18 @@ class RoleController extends Controller
     {
         $authUser = Auth::user();
         $companyId = $authUser->company_id;
-        // تحقق من الصلاحية
-        if ($authUser->hasPermissionTo(perm_key('admin.super')) || $authUser->hasPermissionTo(perm_key('roles.create')) || $authUser->hasPermissionTo(perm_key('company.owner'))) {
-            // مسموح له الإنشاء
-        } else {
+
+        if (!$authUser->hasAnyPermission([
+            perm_key('admin.super'),
+            perm_key('admin.company'),
+            perm_key('roles.create'),
+        ])) {
             return response()->json(['error' => 'Unauthorized to create roles.'], 403);
         }
 
         $validator = Validator::make($request->all(), [
             'name' => ['required', 'string', 'max:255', 'unique:roles,name'],
-            'company_ids' => ['required', 'array'],
+            'company_ids' => ['nullable', 'array'],
             'company_ids.*' => ['exists:companies,id'],
             'permissions' => ['sometimes', 'array'],
             'permissions.*' => ['exists:permissions,name'],
@@ -140,6 +138,9 @@ class RoleController extends Controller
         }
 
         $validatedData = $validator->validated();
+        $validatedData['company_ids'] = $validatedData['company_ids'] ?? [$authUser->company_id];
+
+        // تحقق إن الشركة من الشركات المصرح بيها
         $companyIds = array_filter($validatedData['company_ids'], fn($id) => $id == $companyId);
         if (empty($companyIds)) {
             return response()->json(['error' => 'You can only create roles for your active company.'], 403);
@@ -149,23 +150,30 @@ class RoleController extends Controller
         try {
             $roleName = $validatedData['name'];
             $assignedCreatedBy = $authUser->id;
+
             $role = Role::firstOrCreate(
                 ['name' => $roleName],
                 [
                     'guard_name' => 'web',
                     'created_by' => $assignedCreatedBy,
+                    'company_id' => $companyId,
                 ]
             );
+
             $pivotData = [];
             foreach ($companyIds as $companyId) {
                 $pivotData[$companyId] = ['created_by' => $assignedCreatedBy];
             }
+
             $role->companies()->syncWithoutDetaching($pivotData);
+
             if (!empty($validatedData['permissions'])) {
                 $role->syncPermissions($validatedData['permissions']);
             }
+
             Log::info('Role created: ' . $role->name, ['role_id' => $role->id, 'user_id' => $authUser->id]);
             DB::commit();
+
             return new RoleResource($role->load('permissions', 'companies', 'creator'));
         } catch (Throwable $e) {
             DB::rollBack();

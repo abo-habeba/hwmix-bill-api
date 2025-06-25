@@ -23,8 +23,7 @@ class Role extends SpatieRole implements RoleContract
         'name',
         'guard_name',
         'created_by',
-        // 'company_id' يجب ألا تكون هنا، لأن الدور نفسه ليس مرتبطًا بشركة واحدة مباشرة.
-        // الارتباط بالشركات يتم عبر الجدول الوسيط 'role_company'.
+        'company_id'
     ];
 
     /**
