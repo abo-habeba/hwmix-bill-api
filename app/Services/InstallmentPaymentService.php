@@ -21,7 +21,7 @@ class InstallmentPaymentService
         try {
             $remainingAmount = $amount;
             $paymentMethodId = $options['payment_method_id'] ?? PaymentMethod::where('code', 'cash')->value('id');
-            $cashBoxId = $options['cash_box_id'] ?? auth()->user()->cashBoxeDefault?->id;
+            $cashBoxId = $options['cash_box_id'] ?? Auth::user()->cashBoxeDefault?->id;
 
             if (!$cashBoxId) {
                 throw new Exception('Default cash box not found for the user.');
@@ -86,7 +86,7 @@ class InstallmentPaymentService
                 'user_id' => auth()->id(),
                 'created_by' => auth()->id(),
                 'wallet_id' => $options['wallet_id'] ?? null,
-                'company_id' => $options['company_id'] ?? auth()->user()->company_id,
+                'company_id' => $options['company_id'] ?? Auth::user()->company_id,
                 'payment_method' => $options['payment_method'] ?? 'default',
             ]);
 
@@ -99,7 +99,7 @@ class InstallmentPaymentService
                 'type' => $options['type'] ?? 'InstallmentPayment',
             ]);
 
-            $user = auth()->user();
+            $user = Auth::user();
             $user->deposit($amount, $cashBoxId);
 
             $user->logUpdated('زيادة الرصيد بقيمة ' . $amount . ' نتيجة دفع الأقساط.');

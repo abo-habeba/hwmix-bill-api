@@ -5,6 +5,9 @@ use App\Traits\Blameable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
+/**
+ * @mixin IdeHelperPayment
+ */
 class Payment extends Model
 {
     use HasFactory,Blameable;

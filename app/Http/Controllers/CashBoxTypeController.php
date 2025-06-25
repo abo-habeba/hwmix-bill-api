@@ -5,17 +5,29 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Models\CashBoxType;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * Class CashBoxTypeController
+ *
+ * تحكم في أنواع الخزن (عرض، إضافة، تعديل، حذف)
+ *
+ * @package App\Http\Controllers
+ */
 class CashBoxTypeController extends Controller
 {
     /**
-     * Display a listing of CashBoxTypes.
+     * عرض جميع أنواع الخزن مع الفلاتر والصلاحيات.
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
      */
     public function index(Request $request)
     {
         try {
-            $authUser = auth()->user();
+            /** @var \App\Models\User $authUser */
+            $authUser = Auth::user();
 
             // التحقق من صلاحيات المستخدم
             if ($authUser->hasAnyPermission(['CashBoxType_all', 'super_admin'])) {
@@ -65,7 +77,8 @@ class CashBoxTypeController extends Controller
      */
     public function store(Request $request)
     {
-        $authUser = auth()->user();
+        /** @var \App\Models\User $authUser */
+        $authUser = Auth::user();
 
         // التحقق من صلاحيات المستخدم
         if (!$authUser->hasAnyPermission(['super_admin', 'CashBoxType_create'])) {
@@ -101,7 +114,8 @@ class CashBoxTypeController extends Controller
      */
     public function show(CashBoxType $cashBoxType)
     {
-        $authUser = auth()->user();
+        /** @var \App\Models\User $authUser */
+        $authUser = Auth::user();
 
         // التحقق من صلاحيات المستخدم
         if ($authUser->hasAnyPermission(['super_admin', 'CashBoxType_show'])) {
@@ -120,7 +134,8 @@ class CashBoxTypeController extends Controller
      */
     public function update(Request $request, CashBoxType $cashBoxType)
     {
-        $authUser = auth()->user();
+        /** @var \App\Models\User $authUser */
+        $authUser = Auth::user();
 
         // التحقق من صلاحيات المستخدم
         if (!$authUser->hasAnyPermission(['super_admin', 'CashBoxType_update'])) {
@@ -151,7 +166,8 @@ class CashBoxTypeController extends Controller
      */
     public function destroy(Request $request)
     {
-        $authUser = auth()->user();
+        /** @var \App\Models\User $authUser */
+        $authUser = Auth::user();
 
         $cashBoxTypeIds = $request->input('item_ids');
 

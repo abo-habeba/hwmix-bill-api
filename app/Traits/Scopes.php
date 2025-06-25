@@ -2,56 +2,89 @@
 
 namespace App\Traits;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Auth;
 
 trait Scopes
 {
-    // التابعين لنفس الشركة
-    public function scopeCompany(Builder $query)
+    /**
+     * نطاق لجلب السجلات المرتبطة بشركة المستخدم الحالي (المالك/المدير) فقط.
+     * يفترض أن المستخدم الذي يستخدم هذا النطاق هو "مالك" أو "مدير" للشركة.
+     * لا يتضمن السجلات التي company_id لها null.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder $query
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
+    public function scopeWhereCompanyIsCurrent(Builder $query): Builder
     {
-        $user = auth()->user();
-        if (!$user)
-            return $query;
+        $user = Auth::user();
 
-        // إذا كان حقل معرف الشركه في الجدول فارغ  يتم تطبيق منطق النطاق
-        $query->where(function ($q) use ($user) {
-            $q
-                ->where(function ($subQ) {
-                    $subQ->whereNull('company_id')->orWhere('company_id', '');
-                })
-                ->orWhere(function ($subQ) use ($user) {
-                    $subQ->where('company_id', $user->company_id);
-                });
-        });
+        if (!$user || !$user->company_id) {
+            return $query->whereRaw('0 = 1');  // إرجاع استعلام لا يعيد أي نتائج
+        }
 
-        // إذا كان السجل معرف الشركه فارغ  نطبق منطق له
-        $query->orWhere(function ($q) use ($user) {
-            $q->whereNull('company_id')->orWhere('company_id', '');
-            $subUsers = \App\Models\User::where('created_by', $user->id)->pluck('id');
-            $q->whereIn('created_by', $subUsers->push($user->id));
-        });
-
-        return $query;
+        return $query->where('company_id', $user->company_id);
     }
 
-    // التابعين للمستخدمين التابعين لنفس المستخدم
-    public function scopeOwn(Builder $query)
+    /**
+     * نطاق لجلب السجلات التي أنشأها المستخدم الحالي أو المستخدمون التابعون له.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder $query
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
+    public function scopeWhereCreatedByUserOrChildren(Builder $query): Builder
     {
-        $user = auth()->user();
+        $user = Auth::user();
 
         if ($user) {
-            $subUsers = \App\Models\User::where('created_by', $user->id)->pluck('id');
-            $query->whereIn('created_by', $subUsers->push($user->id));
+            $subUsers = User::where('created_by', $user->id)->pluck('id')->toArray();
+            $subUsers[] = $user->id;  // أضف المستخدم نفسه إلى قائمة المستخدمين التابعين
+            return $query->whereIn('created_by', $subUsers);
         }
+
+        return $query->whereRaw('0 = 1');  // لا ترجع شيئًا إذا لم يكن هناك مستخدم
     }
 
-    // التابعين لنفس المستخدم فقط
-    public function scopeSelf(Builder $query)
+    /**
+     * نطاق لجلب السجلات التي أنشأها المستخدم الحالي فقط.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder $query
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
+    public function scopeWhereCreatedByUser(Builder $query): Builder
     {
-        $user = auth()->user();
+        $user = Auth::user();
 
         if ($user) {
-            $query->where('created_by', $user->id);
+            return $query->where('created_by', $user->id);
         }
+
+        return $query->whereRaw('0 = 1');  // لا ترجع شيئًا إذا لم يكن هناك مستخدم
+    }
+
+    public function belongsToCurrentCompany(): bool
+    {
+        $user = Auth::user();
+        return $user && $this->company_id && $this->company_id === $user->company_id;
+    }
+
+    public function createdByCurrentUser(): bool
+    {
+        $user = Auth::user();
+        return $user && $this->created_by === $user->id;
+    }
+
+    public function createdByUserOrChildren(): bool
+    {
+        $user = Auth::user();
+        if (!$user || !$this->created_by)
+            return false;
+
+        if ($this->created_by === $user->id) {
+            return true;
+        }
+
+        return User::where('created_by', $user->id)->where('id', $this->created_by)->exists();
     }
 }

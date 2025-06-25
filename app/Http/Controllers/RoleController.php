@@ -1,205 +1,311 @@
 <?php
+
 namespace App\Http\Controllers;
 
-use App\Models\RoleCompany;
-use Jenssegers\Agent\Agent;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Spatie\Permission\Models\Role;
+use App\Http\Controllers\Controller;
 use App\Http\Resources\Roles\RoleResource;
-use App\Http\Resources\User\UserResource;
-use App\Http\Resources\Roles\RolesResource;
+use App\Models\Company;  // تأكد من استيراد نموذج الشركة
+use App\Models\Role;
+use App\Models\RoleCompany;  // لا يزال مفيدًا للتفاعل المباشر مع جدول Pivot إذا لزم الأمر
+use App\Models\User;  // تأكد من استيراد نموذج المستخدم
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
+use Throwable;
+
+// // دالة مساعدة لضمان الاتساق في مفاتيح الأذونات
+// if (!function_exists('perm_key')) {
+//     function perm_key(string $permission): string
+//     {
+//         return $permission;
+//     }
+// }
 
 class RoleController extends Controller
 {
-    private $agent;
-
-    public function __construct()
-    {
-        $this->agent = new Agent();
-    }
-    //   { value: 'roles_all', name: ' جميع الأدوار' },
-    //   { value: 'roles_all_own', name: 'الأدوار التابعة له' },
-    //   { value: 'roles_all_self', name: 'عرض الأدوار الخاصة به ' },
-
-    //   { value: 'roles_show', name: 'عرض تفاصيل أي دور' },
-    //   { value: 'roles_show_own', name: ' تفاصيل الأدوار التابعة له' },
-    //   { value: 'roles_show_self', name: ' تفاصيل الأدوار الخاصه به ' },
-
-    //   { value: 'roles_create', name: 'إنشاء دور' },
-
-    //   { value: 'roles_update', name: 'تعديل أي دور' },
-    //   { value: 'roles_update_own', name: 'تعديل الأدوار التابعة له' },
-    //   { value: 'roles_update_self', name: 'تعديل الأدوار الخاصه به' },
-
-    //   { value: 'roles_delete', name: 'حذف أي دور' },
-    //   { value: 'roles_delete_own', name: 'حذف الأدوار التابعة له' },
-    //   { value: 'roles_delete_self', name: 'حذف الأدوار الخاصه به' },
-
-    public function index()
-    {
-        $authUser = auth()->user();
-        // $rolesQuery = Role::query();
-        $rolesQuery = RoleCompany::query();
-        if ($authUser->hasAnyPermission(['roles_all', 'company_owner', 'super_admin'])) {
-            $rolesQuery->company();
-        } elseif ($authUser->hasPermissionTo('roles_all_own')) {
-            $rolesQuery->own()->company();
-        } elseif ($authUser->hasPermissionTo('roles_all_self')) {
-            $rolesQuery->self()->company();
-        } else {
-            return response()->json(['message' => 'You are not authorized to access this resource.'], 403);
-        }
-
-        $roles = $rolesQuery->with(['role.permissions', 'company', 'createdBy'])->get();
-        return RolesResource::collection($roles);
-    }
-    public function store(Request $request)
-    {
-
-        $authUser = auth()->user();
-        if ($authUser->hasAnyPermission(['super_admin', 'roles_create', 'company_owner'])) {
-            $validated = $request->validate([
-                'name' => 'required',
-                'guard_name' => 'nullable',
-                'created_by' => 'nullable',
-                'permissions' => 'nullable',
-            ]);
-
-            $validated['guard_name'] = $validated['guard_name'] ?? 'web';
-            $validated['created_by'] = $validated['created_by'] ?? $authUser->id;
-            $validated['company_id'] = $validated['company_id'] ?? $authUser->company_id;
-
-            try {
-                DB::beginTransaction();
-                $role = Role::create($validated);
-
-                // $role->companies()->attach($validated['company_id'], [
-                //     'created_by' => $validated['created_by'],
-                // ]);
-
-                RoleCompany::create([
-                    'role_id' => $role->id,
-                    'company_id' => $validated['company_id'],
-                    'created_by' => $validated['created_by'],
-                ]);
-
-                if (!empty($validated['permissions'])) {
-                    $role->syncPermissions($validated['permissions']);
-                }
-                DB::commit();
-
-                return response()->json(new RoleResource($role), 201);
-            } catch (\Exception $e) {
-                DB::rollback();
-                throw $e;
-            }
-        }
-
-        return response()->json(['message' => 'You are not authorized to access this resource.'], 403);
-    }
-    public function show(Role $role)
-    {
-        $authUser = auth()->user();
-
-        if ($authUser->hasPermissionTo('company_owner')) {
-            if ($role->isCompany()) {
-                return response()->json(['message' => 'You are not authorized to view this role.'], 403);
-            }
-        } elseif ($authUser->hasPermissionTo('roles_show_own')) {
-            if ($role->isOwn()) {
-                return response()->json(['message' => 'You are not authorized to view this role.'], 403);
-            }
-        } elseif ($authUser->hasPermissionTo('roles_show_self')) {
-            if ($role->isٍٍٍSelf()) {
-                return response()->json(['message' => 'You are not authorized to view this role.'], 403);
-            }
-        } else {
-            return response()->json(['message' => 'You are not authorized to access this resource.'], 403);
-        }
-        $role->load('permissions');
-
-        return response()->json($role);
-    }
-
-    public function update(Request $request, Role $role)
-    {
-        $authUser = auth()->user();
-
-        $validated = $request->validate([
-            'name' => "required|unique:roles,name,{$role->id}",
-            'guard_name' => 'nullable',
-            'created_by' => 'nullable',
-            'permissions' => 'nullable',
-        ]);
-        $validated['guard_name'] = $validated['guard_name'] ?? 'web';
-        $validated['created_by'] = $validated['created_by'] ?? $authUser->id;
-        if (
-            $authUser->hasAnyPermission(['super_admin', 'roles_update']) ||
-            ($authUser->hasPermissionTo('company_owner') && $role->isCompany()) ||
-            ($authUser->hasPermissionTo('roles_update_own') && $role->isOwn()) ||
-            ($authUser->hasPermissionTo('roles_update_self') && $role->isٍٍٍSelf())
-        ) {
-            try {
-                DB::beginTransaction();
-                $role->update($validated);
-                if (!empty($validated['permissions'])) {
-                    $role->syncPermissions($validated['permissions']);
-                }
-                DB::commit();
-                return response()->json($role, 201);
-            } catch (\Exception $e) {
-                DB::rollback();
-                throw $e;
-            }
-        }
-        return response()->json(['message' => 'You are not authorized to access this resource.'], 403);
-    }
-    public function destroy(Role $role)
-    {
-        $authUser = auth()->user();
-
-        // تحقق من الأذونات بناءً على المعايير المحددة
-        if (
-            $authUser->hasAnyPermission(['super_admin', 'roles_delete']) ||
-            $authUser->hasPermissionTo('company_owner') ||
-            $authUser->hasPermissionTo('roles_delete_own') ||
-            $authUser->hasPermissionTo('roles_delete_self')
-        ) {
-            try {
-                DB::beginTransaction();
-
-                $role->delete();
-                // $role->logForceDeleted(' الدور ' . $role->name);
-                DB::commit();
-                return response()->json(['message' => 'Role deleted successfully'], 200);
-            } catch (\Exception $e) {
-                DB::rollback();
-                throw $e;
-            }
-        }
-        return response()->json(['message' => 'You are not authorized to access this resource.'], 403);
-    }
-    public function assignRole(Request $request)
+    /**
+     * عرض قائمة بالأدوار.
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function index(Request $request)
     {
         try {
-            DB::beginTransaction();
-            $validated = $request->validate([
-                'user_id' => 'required|exists:users,id',
-                'roles' => 'nullable|array',
-                'roles_*' => 'nullable|exists:roles,name',
+            $authUser = Auth::user();
+            $query = Role::query();
+
+            // فلترة الأدوار حسب الصلاحيات
+            if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
+                // المسؤول العام يرى جميع الأدوار بدون أي قيود
+            } elseif ($authUser->hasAnyPermission([perm_key('roles.view_all'), perm_key('company.owner')])) {
+                // كل الأدوار الخاصة بالشركة الحالية فقط
+                $companyId = $authUser->company_id;
+                $query->whereHas('companies', function ($q) use ($companyId) {
+                    $q->where('companies.id', $companyId);
+                });
+            } elseif ($authUser->hasPermissionTo(perm_key('roles.view_children'))) {
+                // أدوار الشركة الحالية فقط، والتي أنشأها المستخدم أو أحد التابعين له
+                $companyId = $authUser->company_id;
+                $descendantUserIds = $authUser->getDescendantUserIds();
+                $descendantUserIds[] = $authUser->id;
+                $query->whereHas('companies', function ($q) use ($companyId, $descendantUserIds) {
+                    $q
+                        ->where('companies.id', $companyId)
+                        ->wherePivotIn('created_by', $descendantUserIds);
+                });
+            } elseif ($authUser->hasPermissionTo(perm_key('roles.view_self'))) {
+                // الأدوار التي أنشأها المستخدم الحالي فقط، ومرتبطة بالشركة الحالية
+                $companyId = $authUser->company_id;
+                $query->whereHas('companies', function ($q) use ($companyId, $authUser) {
+                    $q
+                        ->where('companies.id', $companyId)
+                        ->wherePivot('created_by', $authUser->id);
+                });
+            } else {
+                return response()->json(['error' => 'Unauthorized'], 403);
+            }
+
+            // ...existing code...
+            if ($request->filled('company_id')) {
+                $query->whereHas('companies', function ($q) use ($request) {
+                    $q->where('companies.id', $request->input('company_id'));
+                });
+            }
+            if ($request->filled('role_id')) {
+                $query->where('id', $request->input('role_id'));
+            }
+            if ($request->filled('name')) {
+                $query->where('name', 'like', '%' . $request->input('name') . '%');
+            }
+
+            $perPage = max(1, $request->input('per_page', 10));
+            $sortField = $request->input('sort_by', 'id');
+            $sortOrder = $request->input('sort_order', 'asc');
+
+            $roles = $query
+                ->with([
+                    'permissions',
+                    'companies',
+                    'creator'
+                ])
+                ->orderBy($sortField, $sortOrder)
+                ->paginate($perPage);
+
+            return RoleResource::collection($roles)->additional([
+                'total' => $roles->total(),
+                'current_page' => $roles->currentPage(),
+                'last_page' => $roles->lastPage(),
             ]);
-            $user = \App\Models\User::findOrFail($validated['user_id']);
-            $user->syncRoles($validated['roles']);
-            $user->logCreated(' اسناد الادوار [' . implode(' - ', $validated['roles']) . "]   الي المستخدم {$user->nickname}");
-            DB::commit();
-            return response()->json(new UserResource($user));
-        } catch (\Throwable $th) {
+        } catch (Throwable $e) {
+            Log::error('Role index failed: ' . $e->getMessage(), ['exception' => $e, 'trace' => $e->getTraceAsString()]);
             return response()->json([
-                'message' => 'An unexpected error occurred',
-                'error' => $th->getMessage(),
+                'error' => 'Error retrieving roles.',
+                'details' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
             ], 500);
         }
+    }
 
+    /**
+     * تخزين دور جديد في قاعدة البيانات.
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse|\App\Http\Resources\Roles\RoleResource
+     */
+    public function store(Request $request)
+    {
+        $authUser = Auth::user();
+        $companyId = $authUser->company_id;
+        // تحقق من الصلاحية
+        if ($authUser->hasPermissionTo(perm_key('admin.super')) || $authUser->hasPermissionTo(perm_key('roles.create')) || $authUser->hasPermissionTo(perm_key('company.owner'))) {
+            // مسموح له الإنشاء
+        } else {
+            return response()->json(['error' => 'Unauthorized to create roles.'], 403);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'name' => ['required', 'string', 'max:255', 'unique:roles,name'],
+            'company_ids' => ['required', 'array'],
+            'company_ids.*' => ['exists:companies,id'],
+            'permissions' => ['sometimes', 'array'],
+            'permissions.*' => ['exists:permissions,name'],
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $validatedData = $validator->validated();
+        $companyIds = array_filter($validatedData['company_ids'], fn($id) => $id == $companyId);
+        if (empty($companyIds)) {
+            return response()->json(['error' => 'You can only create roles for your active company.'], 403);
+        }
+
+        DB::beginTransaction();
+        try {
+            $roleName = $validatedData['name'];
+            $assignedCreatedBy = $authUser->id;
+            $role = Role::firstOrCreate(
+                ['name' => $roleName],
+                [
+                    'guard_name' => 'web',
+                    'created_by' => $assignedCreatedBy,
+                ]
+            );
+            $pivotData = [];
+            foreach ($companyIds as $companyId) {
+                $pivotData[$companyId] = ['created_by' => $assignedCreatedBy];
+            }
+            $role->companies()->syncWithoutDetaching($pivotData);
+            if (!empty($validatedData['permissions'])) {
+                $role->syncPermissions($validatedData['permissions']);
+            }
+            Log::info('Role created: ' . $role->name, ['role_id' => $role->id, 'user_id' => $authUser->id]);
+            DB::commit();
+            return new RoleResource($role->load('permissions', 'companies', 'creator'));
+        } catch (Throwable $e) {
+            DB::rollBack();
+            Log::error('Role store failed: ' . $e->getMessage(), ['exception' => $e]);
+            return response()->json(['error' => 'Error creating role.', 'details' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * تحديث الدور المحدد في قاعدة البيانات.
+     *
+     * @param Request $request
+     * @param Role $role
+     * @return \Illuminate\Http\JsonResponse|\App\Http\Resources\Roles\RoleResource
+     */
+    public function update(Request $request, Role $role)
+    {
+        $authUser = Auth::user();
+        $companyId = $authUser->company_id;
+        $canUpdate = false;
+        if ($authUser->hasPermissionTo(perm_key('admin.super')) || $authUser->hasPermissionTo(perm_key('roles.update_any'))) {
+            $canUpdate = true;
+        } elseif ($authUser->hasPermissionTo(perm_key('roles.update_children'))) {
+            $descendantUserIds = $authUser->getDescendantUserIds();
+            $descendantUserIds[] = $authUser->id;
+            $canUpdate = $role->companies()->where('companies.id', $companyId)->wherePivotIn('created_by', $descendantUserIds)->exists();
+        } elseif ($authUser->hasPermissionTo(perm_key('roles.update_self'))) {
+            $canUpdate = $role->companies()->where('companies.id', $companyId)->wherePivot('created_by', $authUser->id)->exists();
+        }
+        if (!$canUpdate) {
+            return response()->json(['error' => 'Unauthorized to update this role.'], 403);
+        }
+        $validator = Validator::make($request->all(), [
+            'name' => ['sometimes', 'string', 'max:255', 'unique:roles,name,' . $role->id],
+            'company_ids' => ['sometimes', 'array'],
+            'company_ids.*' => ['exists:companies,id'],
+            'permissions' => ['sometimes', 'array'],
+            'permissions.*' => ['exists:permissions,name'],
+        ]);
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+        $validatedData = $validator->validated();
+        DB::beginTransaction();
+        try {
+            if (isset($validatedData['name']) && $validatedData['name'] !== $role->name) {
+                $role->update(['name' => $validatedData['name']]);
+            }
+            if (isset($validatedData['company_ids'])) {
+                $newCompanyIds = array_filter((array) $validatedData['company_ids'], fn($id) => $id == $companyId);
+                $pivotData = [];
+                foreach ($newCompanyIds as $companyId) {
+                    $pivotData[$companyId] = ['created_by' => $authUser->id];
+                }
+                $role->companies()->sync($pivotData);
+            }
+            if (isset($validatedData['permissions']) && is_array($validatedData['permissions'])) {
+                $role->syncPermissions($validatedData['permissions']);
+            }
+            Log::info('Role updated: ' . $role->name, ['role_id' => $role->id, 'user_id' => $authUser->id]);
+            DB::commit();
+            return new RoleResource($role->load('permissions', 'companies', 'creator'));
+        } catch (Throwable $e) {
+            DB::rollBack();
+            return response()->json(['error' => 'Error updating role.', 'details' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * عرض الدور المحدد.
+     *
+     * @param Role $role
+     * @return \Illuminate\Http\JsonResponse|\App\Http\Resources\Roles\RoleResource
+     */
+    public function show(Role $role)
+    {
+        $authUser = Auth::user();
+        $companyId = $authUser->company_id;
+        $canView = false;
+        if ($authUser->hasPermissionTo(perm_key('admin.super')) || $authUser->hasPermissionTo(perm_key('roles.view_all'))) {
+            $canView = $role->companies()->where('companies.id', $companyId)->exists();
+        } elseif ($authUser->hasPermissionTo(perm_key('roles.view_children'))) {
+            $descendantUserIds = $authUser->getDescendantUserIds();
+            $descendantUserIds[] = $authUser->id;
+            $canView = $role->companies()->where('companies.id', $companyId)->wherePivotIn('created_by', $descendantUserIds)->exists();
+        } elseif ($authUser->hasPermissionTo(perm_key('roles.view_self'))) {
+            $canView = $role->companies()->where('companies.id', $companyId)->wherePivot('created_by', $authUser->id)->exists();
+        }
+        if ($canView) {
+            return new RoleResource($role->load('permissions', 'companies', 'creator'));
+        }
+        return response()->json(['error' => 'Unauthorized'], 403);
+    }
+
+    /**
+     * حذف الأدوار المحددة من قاعدة البيانات.
+     * سيؤدي هذا الإجراء إلى حذف سجل الدور الأساسي ويتسلسل لحذف جميع سجلات Pivot المرتبطة به في 'role_company'.
+     * لذلك، هناك حاجة إلى تفويض دقيق.
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function destroy(Request $request)
+    {
+        $authUser = Auth::user();
+        $companyId = $authUser->company_id;
+        $roleIds = $request->input('item_ids');
+        if (!is_array($roleIds) || empty($roleIds)) {
+            return response()->json(['error' => 'Invalid role IDs provided.'], 400);
+        }
+        DB::beginTransaction();
+        try {
+            $rolesToDelete = Role::whereIn('id', $roleIds)->get();
+            $deletedRoleNames = [];
+            foreach ($rolesToDelete as $role) {
+                $canDelete = false;
+                if ($authUser->hasPermissionTo(perm_key('admin.super')) || $authUser->hasPermissionTo(perm_key('roles.delete_any'))) {
+                    $canDelete = $role->companies()->where('companies.id', $companyId)->exists();
+                } elseif ($authUser->hasPermissionTo(perm_key('roles.delete_children'))) {
+                    $descendantUserIds = $authUser->getDescendantUserIds();
+                    $descendantUserIds[] = $authUser->id;
+                    $canDelete = $role->companies()->where('companies.id', $companyId)->wherePivotIn('created_by', $descendantUserIds)->exists();
+                } elseif ($authUser->hasPermissionTo(perm_key('roles.delete_self'))) {
+                    $canDelete = $role->companies()->where('companies.id', $companyId)->wherePivot('created_by', $authUser->id)->exists();
+                }
+                if (!$canDelete) {
+                    DB::rollBack();
+                    return response()->json(['error' => 'Unauthorized to delete role: ' . $role->name . ' (ID: ' . $role->id . ').'], 403);
+                }
+                $role->companies()->detach();
+                $role->delete();
+                $deletedRoleNames[] = $role->name;
+                Log::info('Role deleted: ' . $role->name, ['role_id' => $role->id, 'user_id' => $authUser->id]);
+            }
+            DB::commit();
+            return response()->json(['message' => 'Roles deleted successfully: ' . implode(', ', $deletedRoleNames)], 200);
+        } catch (Throwable $e) {
+            DB::rollback();
+            Log::error('Role deletion failed: ' . $e->getMessage(), ['exception' => $e, 'user_id' => $authUser?->id]);
+            return response()->json(['error' => 'Error deleting roles.', 'details' => $e->getMessage()], 500);
+        }
     }
 }

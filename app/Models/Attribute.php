@@ -6,6 +6,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use App\Traits\Blameable;
 
+/**
+ * @mixin IdeHelperAttribute
+ */
 class Attribute extends Model
 {
     use HasFactory, Blameable;

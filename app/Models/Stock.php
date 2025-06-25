@@ -6,6 +6,9 @@ use App\Traits\Blameable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
+/**
+ * @mixin IdeHelperStock
+ */
 class Stock extends Model
 {
     use HasFactory, Blameable;

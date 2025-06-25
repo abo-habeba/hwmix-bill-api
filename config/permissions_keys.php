@@ -4,29 +4,106 @@
  * -----------------------------------------------------------------------------
  * Permission Keys Registry — Arabic Labels
  * -----------------------------------------------------------------------------
- * هذا الملف هو المصدر الوحيد لمفاتيح الصلاحيات (key) والتسميات (label).
- * الصيغة القياسية: entity.action  ⇠ تُحفظ فى جدول permissions
+ * هذا الملف هو المصدر الوحيد الرسمي لتعريف مفاتيح الصلاحيات (permission keys)
+ * المستخدمة في الباك إند والفرونت إند، ويُرجى الرجوع إليه فقط للحصول على أسماء
+ * الصلاحيات سواء في الكود أو عند إنشاء بيانات seeder أو التعامل معها من الواجهة.
+ *
+ * ✅ يُستخدم هذا الملف في:
+ * - توليد seeders الخاصة بالصلاحيات.
+ * - إنشاء واجهات المستخدم للوحة التحكم.
+ * - التحقق من الصلاحيات في Controllers, Policies, Gates إلخ.
+ * - الترجمة والتمثيل البصري لأسماء الصلاحيات.
+ *
+ * ✅ دالة المساعد `perm_key('entity.action')` تُستخدم للوصول إلى المفتاح الرسمي.
+ * ➤ مثال: perm_key('users.update_any') → "users.update_any"
+ *
+ * ✅ يجب أن تحتوي كل صلاحية على:
+ * - key   → الاسم الموحد المحفوظ في قاعدة البيانات (بالإنجليزية)
+ * - label → التسمية الظاهرة في الواجهة (بالعربية)
+ *
  * -----------------------------------------------------------------------------
- * actions الأساسية لكل كيان:
- * page | view_any | view_children | view_self | create | update_any | update_children | update_self | delete_any | delete_children | delete_self
+ * شرح مفصل لأنواع الصلاحيات (actions) ونطاقها:
+ * -----------------------------------------------------------------------------
+ * - name: يشير إلى اسم المجموعة الكلية للصلاحيات ويعبر عن وظيفتها أو يصفها.
+ * - page:
+ * السماح بالوصول إلى الصفحة الرئيسية أو قائمة إدارة كيان معين (مثل 'صفحة المستخدمين'
+ * أو 'صفحة الشركات'). لا تمنح صلاحيات عرض السجلات، بل فقط الوصول لواجهة الإدارة.
+ *
+ * - view_all:
+ * عرض جميع السجلات من الكيان المعني **ضمن نطاق الشركة النشطة** للمستخدم.
+ * لا يمنح صلاحيات تعديل أو حذف، ويرى السجلات بغض النظر عن مُنشئها.
+ *
+ * - view_children:
+ * عرض السجلات التي قام المستخدم الحالي بإنشائها، أو التي أنشأها المستخدمون
+ * الذين يتبعون له في الهيكل التنظيمي (التابعين له أو "الأبناء"). يُستخدم هذا
+ * في الأنظمة الهرمية لتقييد الرؤية ضمن فروع معينة.
+ *
+ * - view_self:
+ * عرض السجل الذي يخص المستخدم نفسه فقط، مثل حسابه الشخصي أو تفاصيل شركته
+ * الخاصة به. يُستخدم هذا لتعديل البيانات الشخصية دون رؤية بيانات الآخرين.
+ *
+ * - create:
+ * إنشاء سجل جديد في هذا الكيان **ضمن نطاق الشركة النشطة**، مثل إضافة مستخدم
+ * جديد أو إنشاء شركة جديدة.
+ *
+ * - update_any:
+ * تعديل أي سجل داخل الكيان **ضمن نطاق الشركة النشطة** للمستخدم، دون قيود على
+ * من أنشأ السجل أو ملكيته.
+ *
+ * - update_children:
+ * تعديل السجلات التي قام المستخدم الحالي بإنشائها، أو التي أنشأها المستخدمون
+ * التابعون له في الهيكل التنظيمي (الأبناء).
+ *
+ * - update_self:
+ * تعديل السجل المرتبط بالمستخدم مباشرة فقط (مثل تعديل ملفه الشخصي أو بيانات شركته
+ * الخاصة به).
+ *
+ * - delete_any:
+ * حذف أي سجل من الكيان **ضمن نطاق الشركة النشطة** للمستخدم، بغض النظر عن الملكية.
+ *
+ * - delete_children:
+ * حذف السجلات التي قام المستخدم الحالي بإنشائها، أو التي أنشأها المستخدمون
+ * التابعون له في الهيكل التنظيمي (الأبناء).
+ *
+ * - delete_self:
+ * حذف السجل الخاص بالمستخدم نفسه فقط (على سبيل المثال، تعطيل حسابه الشخصي).
+ *
+ * ◾ الكيانات (entities): مثل users, companies, warehouses … إلخ.
+ * ◾ كل كيان يحتوي على مجموعة من الصلاحيات حسب نوع التعامل معه.
  * -----------------------------------------------------------------------------
  */
 return [
     // =====================================================================
+    // ADMIN
+    // =====================================================================
+    'admin' => [
+        'name' => ['key' => 'admin', 'label' => 'صلاحيات المديرين'],
+        'page' => ['key' => 'admin.page', 'label' => 'الصفحة الرئيسية'],
+        'super' => ['key' => 'admin.super', 'label' => ' صلاحية المدير العام'],
+        'company' => ['key' => 'company.owner', 'label' => 'صلاحية ادارة الشركة'],
+    ],
+    // =====================================================================
     // COMPANIES
     // =====================================================================
     'companies' => [
+        'name' => ['key' => 'companies', 'label' => 'صلاحيات إدارة الشركات'],
         'page' => ['key' => 'companies.page', 'label' => 'صفحة الشركات'],
-        'view_any' => ['key' => 'companies.view_any', 'label' => 'عرض كل الشركات'],
-        'view' => ['key' => 'companies.view', 'label' => 'عرض تفاصيل الشركة'],
-        'create' => ['key' => 'companies.create', 'label' => 'إنشاء شركة جديدة'],
+        'view_all' => ['key' => 'companies.view_all', 'label' => 'عرض كل الشركات'],
+        'view_children' => ['key' => 'companies.view_children', 'label' => 'عرض الشركات التابعة'],
+        'view_self' => ['key' => 'companies.view_self', 'label' => 'عرض الشركة الحالية'],
+        'create' => ['key' => 'companies.create', 'label' => 'إنشاء شركة'],
         'update_any' => ['key' => 'companies.update_any', 'label' => 'تعديل أى شركة'],
+        'update_children' => ['key' => 'companies.update_children', 'label' => 'تعديل الشركات التابعة'],
+        'update_self' => ['key' => 'companies.update_self', 'label' => 'تعديل الشركة الحالية'],
         'delete_any' => ['key' => 'companies.delete_any', 'label' => 'حذف أى شركة'],
+        'delete_children' => ['key' => 'companies.delete_children', 'label' => 'حذف الشركات التابعة'],
+        'delete_self' => ['key' => 'companies.delete_self', 'label' => 'حذف الشركة الحالية'],
     ],
     // =====================================================================
-    // USERS (مثال مقدم في سؤالك)
+    // USERS
     // =====================================================================
     'users' => [
+        'name' => ['key' => 'users', 'label' => 'صلاحيات إدارة المستخدمين'],
         'page' => ['key' => 'users.page', 'label' => 'صفحة المستخدمين'],
         'view_all' => ['key' => 'users.view_all', 'label' => 'عرض كل المستخدمين'],
         'view_children' => ['key' => 'users.view_children', 'label' => 'عرض المستخدمين التابعين'],
@@ -43,6 +120,7 @@ return [
     // PERSONAL ACCESS TOKENS
     // =====================================================================
     'personal_access_tokens' => [
+        'name' => ['key' => 'personal_access_tokens', 'label' => 'صلاحيات إدارة رموز الوصول الشخصية'],
         'page' => ['key' => 'personal_access_tokens.page', 'label' => 'صفحة رموز الوصول الشخصية'],
         'view_any' => ['key' => 'personal_access_tokens.view_any', 'label' => 'عرض كل رموز الوصول'],
         'view' => ['key' => 'personal_access_tokens.view', 'label' => 'عرض تفاصيل رمز الوصول'],
@@ -53,6 +131,7 @@ return [
     // TRANSLATIONS
     // =====================================================================
     'translations' => [
+        'name' => ['key' => 'translations', 'label' => 'صلاحيات إدارة الترجمات'],
         'page' => ['key' => 'translations.page', 'label' => 'صفحة الترجمات'],
         'view_any' => ['key' => 'translations.view_any', 'label' => 'عرض كل الترجمات'],
         'update_any' => ['key' => 'translations.update_any', 'label' => 'تعديل أى ترجمة'],
@@ -61,6 +140,7 @@ return [
     // TRANSACTIONS
     // =====================================================================
     'transactions' => [
+        'name' => ['key' => 'transactions', 'label' => 'صلاحيات إدارة المعاملات'],
         'page' => ['key' => 'transactions.page', 'label' => 'صفحة المعاملات'],
         'view_any' => ['key' => 'transactions.view_any', 'label' => 'عرض كل المعاملات'],
         'view' => ['key' => 'transactions.view', 'label' => 'عرض تفاصيل المعاملة'],
@@ -72,6 +152,7 @@ return [
     // ACTIVITY LOGS
     // =====================================================================
     'activity_logs' => [
+        'name' => ['key' => 'activity_logs', 'label' => 'صلاحيات سجلات النشاط'],
         'page' => ['key' => 'activity_logs.page', 'label' => 'صفحة سجلات النشاط'],
         'view_any' => ['key' => 'activity_logs.view_any', 'label' => 'عرض كل سجلات النشاط'],
         'view' => ['key' => 'activity_logs.view', 'label' => 'عرض تفاصيل سجل النشاط'],
@@ -80,6 +161,7 @@ return [
     // CASH BOX TYPES
     // =====================================================================
     'cash_box_types' => [
+        'name' => ['key' => 'cash_box_types', 'label' => 'صلاحيات إدارة أنواع الصناديق النقدية'],
         'page' => ['key' => 'cash_box_types.page', 'label' => 'صفحة أنواع الصناديق النقدية'],
         'view_any' => ['key' => 'cash_box_types.view_any', 'label' => 'عرض كل أنواع الصناديق'],
         'view' => ['key' => 'cash_box_types.view', 'label' => 'عرض تفاصيل نوع الصندوق'],
@@ -91,6 +173,7 @@ return [
     // CASH BOXES
     // =====================================================================
     'cash_boxes' => [
+        'name' => ['key' => 'cash_boxes', 'label' => 'صلاحيات إدارة الصناديق النقدية'],
         'page' => ['key' => 'cash_boxes.page', 'label' => 'صفحة الصناديق النقدية'],
         'view_any' => ['key' => 'cash_boxes.view_any', 'label' => 'عرض كل الصناديق النقدية'],
         'view' => ['key' => 'cash_boxes.view', 'label' => 'عرض تفاصيل الصندوق النقدي'],
@@ -102,6 +185,7 @@ return [
     // IMAGES
     // =====================================================================
     'images' => [
+        'name' => ['key' => 'images', 'label' => 'صلاحيات إدارة الصور'],
         'page' => ['key' => 'images.page', 'label' => 'صفحة الصور'],
         'view_any' => ['key' => 'images.view_any', 'label' => 'عرض كل الصور'],
         'view' => ['key' => 'images.view', 'label' => 'عرض تفاصيل الصورة'],
@@ -112,6 +196,7 @@ return [
     // WAREHOUSES
     // =====================================================================
     'warehouses' => [
+        'name' => ['key' => 'warehouses', 'label' => 'صلاحيات إدارة المستودعات'],
         'page' => ['key' => 'warehouses.page', 'label' => 'صفحة المستودعات'],
         'view_any' => ['key' => 'warehouses.view_any', 'label' => 'عرض كل المستودعات'],
         'view' => ['key' => 'warehouses.view', 'label' => 'عرض تفاصيل المستودع'],
@@ -123,6 +208,7 @@ return [
     // CATEGORIES
     // =====================================================================
     'categories' => [
+        'name' => ['key' => 'categories', 'label' => 'صلاحيات إدارة الفئات'],
         'page' => ['key' => 'categories.page', 'label' => 'صفحة الفئات'],
         'view_any' => ['key' => 'categories.view_any', 'label' => 'عرض كل الفئات'],
         'view' => ['key' => 'categories.view', 'label' => 'عرض تفاصيل الفئة'],
@@ -134,6 +220,7 @@ return [
     // BRANDS
     // =====================================================================
     'brands' => [
+        'name' => ['key' => 'brands', 'label' => 'صلاحيات إدارة الماركات'],
         'page' => ['key' => 'brands.page', 'label' => 'صفحة الماركات'],
         'view_any' => ['key' => 'brands.view_any', 'label' => 'عرض كل الماركات'],
         'view' => ['key' => 'brands.view', 'label' => 'عرض تفاصيل الماركة'],
@@ -145,6 +232,7 @@ return [
     // ATTRIBUTES
     // =====================================================================
     'attributes' => [
+        'name' => ['key' => 'attributes', 'label' => 'صلاحيات إدارة السمات'],
         'page' => ['key' => 'attributes.page', 'label' => 'صفحة السمات'],
         'view_any' => ['key' => 'attributes.view_any', 'label' => 'عرض كل السمات'],
         'view' => ['key' => 'attributes.view', 'label' => 'عرض تفاصيل السمة'],
@@ -156,6 +244,7 @@ return [
     // ATTRIBUTE VALUES
     // =====================================================================
     'attribute_values' => [
+        'name' => ['key' => 'attribute_values', 'label' => 'صلاحيات إدارة قيم السمات'],
         'page' => ['key' => 'attribute_values.page', 'label' => 'صفحة قيم السمات'],
         'view_any' => ['key' => 'attribute_values.view_any', 'label' => 'عرض كل قيم السمات'],
         'view' => ['key' => 'attribute_values.view', 'label' => 'عرض تفاصيل قيمة السمة'],
@@ -167,6 +256,7 @@ return [
     // PRODUCTS
     // =====================================================================
     'products' => [
+        'name' => ['key' => 'products', 'label' => 'صلاحيات إدارة المنتجات'],
         'page' => ['key' => 'products.page', 'label' => 'صفحة المنتجات'],
         'view_any' => ['key' => 'products.view_any', 'label' => 'عرض كل المنتجات'],
         'view' => ['key' => 'products.view', 'label' => 'عرض تفاصيل المنتج'],
@@ -178,6 +268,7 @@ return [
     // PRODUCT VARIANTS
     // =====================================================================
     'product_variants' => [
+        'name' => ['key' => 'product_variants', 'label' => 'صلاحيات إدارة متغيرات المنتجات'],
         'page' => ['key' => 'product_variants.page', 'label' => 'صفحة متغيرات المنتجات'],
         'view_any' => ['key' => 'product_variants.view_any', 'label' => 'عرض كل متغيرات المنتجات'],
         'view' => ['key' => 'product_variants.view', 'label' => 'عرض تفاصيل متغير المنتج'],
@@ -189,6 +280,7 @@ return [
     // PRODUCT VARIANT ATTRIBUTES
     // =====================================================================
     'product_variant_attributes' => [
+        'name' => ['key' => 'product_variant_attributes', 'label' => 'صلاحيات إدارة سمات متغيرات المنتجات'],
         'page' => ['key' => 'product_variant_attributes.page', 'label' => 'صفحة سمات متغيرات المنتجات'],
         'view_any' => ['key' => 'product_variant_attributes.view_any', 'label' => 'عرض كل سمات متغيرات المنتجات'],
         'view' => ['key' => 'product_variant_attributes.view', 'label' => 'عرض تفاصيل سمة متغير المنتج'],
@@ -200,6 +292,7 @@ return [
     // STOCKS
     // =====================================================================
     'stocks' => [
+        'name' => ['key' => 'stocks', 'label' => 'صلاحيات إدارة المخزون'],
         'page' => ['key' => 'stocks.page', 'label' => 'صفحة المخزون'],
         'view_any' => ['key' => 'stocks.view_any', 'label' => 'عرض كل المخزون'],
         'view' => ['key' => 'stocks.view', 'label' => 'عرض تفاصيل المخزون'],
@@ -211,6 +304,7 @@ return [
     // INVOICE TYPES
     // =====================================================================
     'invoice_types' => [
+        'name' => ['key' => 'invoice_types', 'label' => 'صلاحيات إدارة أنواع الفواتير'],
         'page' => ['key' => 'invoice_types.page', 'label' => 'صفحة أنواع الفواتير'],
         'view_any' => ['key' => 'invoice_types.view_any', 'label' => 'عرض كل أنواع الفواتير'],
         'view' => ['key' => 'invoice_types.view', 'label' => 'عرض تفاصيل نوع الفاتورة'],
@@ -222,6 +316,7 @@ return [
     // INVOICES
     // =====================================================================
     'invoices' => [
+        'name' => ['key' => 'invoices', 'label' => 'صلاحيات إدارة الفواتير'],
         'page' => ['key' => 'invoices.page', 'label' => 'صفحة الفواتير'],
         'view_any' => ['key' => 'invoices.view_any', 'label' => 'عرض كل الفواتير'],
         'view' => ['key' => 'invoices.view', 'label' => 'عرض تفاصيل الفاتورة'],
@@ -233,6 +328,7 @@ return [
     // INSTALLMENT PLANS
     // =====================================================================
     'installment_plans' => [
+        'name' => ['key' => 'installment_plans', 'label' => 'صلاحيات إدارة خطط التقسيط'],
         'page' => ['key' => 'installment_plans.page', 'label' => 'صفحة خطط التقسيط'],
         'view_any' => ['key' => 'installment_plans.view_any', 'label' => 'عرض كل خطط التقسيط'],
         'view' => ['key' => 'installment_plans.view', 'label' => 'عرض تفاصيل خطة التقسيط'],
@@ -244,6 +340,7 @@ return [
     // INSTALLMENTS
     // =====================================================================
     'installments' => [
+        'name' => ['key' => 'installments', 'label' => 'صلاحيات إدارة الأقساط'],
         'page' => ['key' => 'installments.page', 'label' => 'صفحة الأقساط'],
         'view_any' => ['key' => 'installments.view_any', 'label' => 'عرض كل الأقساط'],
         'view' => ['key' => 'installments.view', 'label' => 'عرض تفاصيل القسط'],
@@ -255,6 +352,7 @@ return [
     // INSTALLMENT PAYMENTS
     // =====================================================================
     'installment_payments' => [
+        'name' => ['key' => 'installment_payments', 'label' => 'صلاحيات إدارة مدفوعات الأقساط'],
         'page' => ['key' => 'installment_payments.page', 'label' => 'صفحة مدفوعات الأقساط'],
         'view_any' => ['key' => 'installment_payments.view_any', 'label' => 'عرض كل مدفوعات الأقساط'],
         'view' => ['key' => 'installment_payments.view', 'label' => 'عرض تفاصيل دفع القسط'],
@@ -266,6 +364,7 @@ return [
     // INVOICE ITEMS
     // =====================================================================
     'invoice_items' => [
+        'name' => ['key' => 'invoice_items', 'label' => 'صلاحيات إدارة عناصر الفواتير'],
         'page' => ['key' => 'invoice_items.page', 'label' => 'صفحة عناصر الفواتير'],
         'view_any' => ['key' => 'invoice_items.view_any', 'label' => 'عرض كل عناصر الفواتير'],
         'view' => ['key' => 'invoice_items.view', 'label' => 'عرض تفاصيل عنصر الفاتورة'],
@@ -277,6 +376,7 @@ return [
     // PAYMENTS
     // =====================================================================
     'payments' => [
+        'name' => ['key' => 'payments', 'label' => 'صلاحيات إدارة المدفوعات'],
         'page' => ['key' => 'payments.page', 'label' => 'صفحة المدفوعات'],
         'view_any' => ['key' => 'payments.view_any', 'label' => 'عرض كل المدفوعات'],
         'view' => ['key' => 'payments.view', 'label' => 'عرض تفاصيل الدفعة'],
@@ -288,6 +388,7 @@ return [
     // PAYMENT METHODS
     // =====================================================================
     'payment_methods' => [
+        'name' => ['key' => 'payment_methods', 'label' => 'صلاحيات إدارة طرق الدفع'],
         'page' => ['key' => 'payment_methods.page', 'label' => 'صفحة طرق الدفع'],
         'view_any' => ['key' => 'payment_methods.view_any', 'label' => 'عرض كل طرق الدفع'],
         'view' => ['key' => 'payment_methods.view', 'label' => 'عرض تفاصيل طريقة الدفع'],
@@ -299,6 +400,7 @@ return [
     // REVENUES
     // =====================================================================
     'revenues' => [
+        'name' => ['key' => 'revenues', 'label' => 'صلاحيات إدارة الإيرادات'],
         'page' => ['key' => 'revenues.page', 'label' => 'صفحة الإيرادات'],
         'view_any' => ['key' => 'revenues.view_any', 'label' => 'عرض كل الإيرادات'],
         'view' => ['key' => 'revenues.view', 'label' => 'عرض تفاصيل الإيراد'],
@@ -310,6 +412,7 @@ return [
     // PROFITS
     // =====================================================================
     'profits' => [
+        'name' => ['key' => 'profits', 'label' => 'صلاحيات الأرباح'],
         'page' => ['key' => 'profits.page', 'label' => 'صفحة الأرباح'],
         'view_any' => ['key' => 'profits.view_any', 'label' => 'عرض كل الأرباح'],
         'view' => ['key' => 'profits.view', 'label' => 'عرض تفاصيل الربح'],
@@ -318,6 +421,7 @@ return [
     // SERVICES
     // =====================================================================
     'services' => [
+        'name' => ['key' => 'services', 'label' => 'صلاحيات إدارة الخدمات'],
         'page' => ['key' => 'services.page', 'label' => 'صفحة الخدمات'],
         'view_any' => ['key' => 'services.view_any', 'label' => 'عرض كل الخدمات'],
         'view' => ['key' => 'services.view', 'label' => 'عرض تفاصيل الخدمة'],
@@ -329,11 +433,29 @@ return [
     // SUBSCRIPTIONS
     // =====================================================================
     'subscriptions' => [
+        'name' => ['key' => 'subscriptions', 'label' => 'صلاحيات إدارة الاشتراكات'],
         'page' => ['key' => 'subscriptions.page', 'label' => 'صفحة الاشتراكات'],
         'view_any' => ['key' => 'subscriptions.view_any', 'label' => 'عرض كل الاشتراكات'],
         'view' => ['key' => 'subscriptions.view', 'label' => 'عرض تفاصيل الاشتراك'],
         'create' => ['key' => 'subscriptions.create', 'label' => 'إنشاء اشتراك'],
         'update_any' => ['key' => 'subscriptions.update_any', 'label' => 'تعديل أى اشتراك'],
         'delete_any' => ['key' => 'subscriptions.delete_any', 'label' => 'حذف أى اشتراك'],
+    ],
+    // =====================================================================
+    // ROLES
+    // =====================================================================
+    'roles' => [
+        'name' => ['key' => 'roles', 'label' => 'صلاحيات إدارة الأدوار'],
+        'page' => ['key' => 'roles.page', 'label' => 'صفحة الأدوار'],
+        'view_all' => ['key' => 'roles.view_all', 'label' => 'عرض كل الأدوار'],
+        'view_children' => ['key' => 'roles.view_children', 'label' => 'عرض الأدوار التابعة'],
+        'view_self' => ['key' => 'roles.view_self', 'label' => 'عرض الأدوار الخاصة به'],
+        'create' => ['key' => 'roles.create', 'label' => 'إنشاء دور'],
+        'update_any' => ['key' => 'roles.update_any', 'label' => 'تعديل أى دور'],
+        'update_children' => ['key' => 'roles.update_children', 'label' => 'تعديل الأدوار التابعة'],
+        'update_self' => ['key' => 'roles.update_self', 'label' => 'تعديل دوره الخاص'],
+        'delete_any' => ['key' => 'roles.delete_any', 'label' => 'حذف أى دور'],
+        'delete_children' => ['key' => 'roles.delete_children', 'label' => 'حذف الأدوار التابعة'],
+        'delete_self' => ['key' => 'roles.delete_self', 'label' => 'حذف دوره الخاص'],
     ],
 ];

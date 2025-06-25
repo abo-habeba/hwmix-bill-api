@@ -21,6 +21,10 @@ use Spatie\Permission\Models\Role;
 use Spatie\Permission\Traits\HasPermissions;
 use Spatie\Permission\Traits\HasRoles;
 
+/**
+ * @method void deposit(float|int $amount)
+ * @mixin IdeHelperUser
+ */
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
@@ -292,5 +296,37 @@ class User extends Authenticatable
     public function payments()
     {
         return $this->hasMany(Payment::class);
+    }
+
+    /**
+     * إرجاع جميع معرفات المستخدمين التابعين (hierarchy) للمستخدم الحالي داخل الشركة النشطة فقط.
+     * يشمل جميع المستخدمين الذين أنشأهم هذا المستخدم بشكل متداخل (recursive).
+     *
+     * @return array
+     */
+    public function getDescendantUserIds(): array
+    {
+        $companyId = $this->company_id;
+        $descendants = [];
+        $stack = [$this->id];
+        while (!empty($stack)) {
+            $parentId = array_pop($stack);
+            // جلب المستخدمين الذين أنشأهم هذا المستخدم داخل نفس الشركة فقط
+            $children = self::where('created_by', $parentId)
+                ->where('company_id', $companyId)
+                ->pluck('id')
+                ->toArray();
+            foreach ($children as $childId) {
+                if (!in_array($childId, $descendants)) {
+                    $descendants[] = $childId;
+                    $stack[] = $childId;
+                }
+            }
+        }
+        // حذف معرف المستخدم الحالي من القائمة (لأنك غالباً تضيفه يدوياً في الاستعلام)
+        if (($key = array_search($this->id, $descendants)) !== false) {
+            unset($descendants[$key]);
+        }
+        return array_values($descendants);
     }
 }

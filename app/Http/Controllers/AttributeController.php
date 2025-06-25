@@ -7,6 +7,7 @@ use App\Http\Requests\Attribute\StoreAttributeRequest;
 use App\Http\Requests\Attribute\UpdateAttributeRequest;
 use App\Http\Resources\Attribute\AttributeResource;
 use App\Models\Attribute;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 class AttributeController extends Controller
@@ -28,7 +29,7 @@ class AttributeController extends Controller
         DB::beginTransaction();
         $attribute = Attribute::find($request->attribute_id);
         try {
-            $authUser = auth()->user();
+            $authUser = Auth::user();
             $validatedData = $request->validated();
             $validatedData['company_id'] = $validatedData['company_id'] ?? $authUser->company_id;
             $validatedData['created_by'] = $validatedData['created_by'] ?? $authUser->id;

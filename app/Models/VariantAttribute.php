@@ -4,6 +4,9 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
+/**
+ * @mixin IdeHelperVariantAttribute
+ */
 class VariantAttribute extends Model
 {
     protected $fillable = ['variant_id', 'attribute_id', 'attribute_value_id'];

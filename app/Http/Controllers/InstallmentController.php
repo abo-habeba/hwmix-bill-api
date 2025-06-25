@@ -8,6 +8,7 @@ use App\Http\Requests\Installment\UpdateInstallmentRequest;
 use App\Http\Resources\Installment\InstallmentResource;
 use App\Models\Installment;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;  // لإضافة تسجيل الأخطاء
 use Throwable;  // للتعامل الشامل مع الاستثناءات
@@ -32,7 +33,7 @@ class InstallmentController extends Controller
     public function index(Request $request)
     {
         try {
-            $authUser = auth()->user();
+            $authUser = Auth::user();
 
             if (!$authUser) {
                 return response()->json([
@@ -91,7 +92,7 @@ class InstallmentController extends Controller
         } catch (Throwable $e) {
             Log::error('Installment index failed: ' . $e->getMessage(), [
                 'exception' => $e,
-                'user_id' => auth()->id(),
+                'user_id' => $authUser->id,
             ]);
             return response()->json([
                 'error' => true,
@@ -105,7 +106,7 @@ class InstallmentController extends Controller
      */
     public function store(StoreInstallmentRequest $request)
     {
-        $authUser = auth()->user();
+        $authUser = Auth::user();
 
         if (!$authUser) {
             return response()->json([
@@ -156,7 +157,7 @@ class InstallmentController extends Controller
      */
     public function show($id)
     {
-        $authUser = auth()->user();
+        $authUser = Auth::user();
 
         if (!$authUser) {
             return response()->json([
@@ -200,7 +201,7 @@ class InstallmentController extends Controller
      */
     public function update(UpdateInstallmentRequest $request, $id)
     {
-        $authUser = auth()->user();
+        $authUser = Auth::user();
 
         if (!$authUser) {
             return response()->json([
@@ -259,7 +260,7 @@ class InstallmentController extends Controller
      */
     public function destroy($id)
     {
-        $authUser = auth()->user();
+        $authUser = Auth::user();
 
         if (!$authUser) {
             return response()->json([

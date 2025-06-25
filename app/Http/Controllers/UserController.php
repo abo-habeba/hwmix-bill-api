@@ -6,15 +6,22 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\User\UserRequest;
 use App\Http\Requests\User\UserUpdateRequest;
 use App\Http\Resources\User\UserResource;
-// use App\Models\Scopes\CompanyScope; // قد لا تحتاج لاستيراد الـ scopes إذا كانت معرفة كـ methods في الـ User model
 use App\Models\CashBox;
 use App\Models\CashBoxType;
-use App\Models\Transaction;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;  // استخدام Log لتسجيل الأخطاء
-use Throwable;  // استخدم Throwable للتعامل الشامل مع الأخطاء والاستثناءات
+use Illuminate\Support\Facades\Log;
+use Throwable;
+
+if (!function_exists('perm_key')) {
+    function perm_key(string $permission)
+    {
+        return $permission;
+    }
+}
 
 class UserController extends Controller
 {
@@ -27,26 +34,15 @@ class UserController extends Controller
             'cashBoxes',
             'cashBoxeDefault',
             'creator',
-            // 'trans',
-            // 'companyUsersCash',
-            // 'createdRoles',
-            // 'installments',
-            // 'createdInstallments',
-            // 'transactions',
-            // 'invoices',
-            // 'installmentPlans',
-            // 'payments',
         ];
     }
 
-    /**
-     * Display a listing of users.
-     */
     public function index(Request $request)
     {
-        try {
-            $authUser = auth()->user();
+        /** @var \App\Models\User|null $authUser */
+        $authUser = Auth::user();
 
+        try {
             if (!$authUser) {
                 return response()->json([
                     'error' => 'Unauthorized',
@@ -56,50 +52,46 @@ class UserController extends Controller
 
             $query = User::with($this->relations);
 
-            // تطبيق منطق الصلاحيات
-            if ($authUser->hasAnyPermission(['users_all', 'super_admin'])) {
-                // إذا كان لديه صلاحية 'users_all' أو 'super_admin'، لا حاجة لتطبيق أي scope خاص
-            } elseif ($authUser->hasPermissionTo('company_owner')) {
-                // إذا كان مالك شركة، طبق scopeCompany لجلب مستخدمي شركته فقط
-                $query->scopeCompany();
-            } elseif ($authUser->hasPermissionTo('users_show_own')) {
-                // إذا كان لديه صلاحية 'users_show_own'، طبق scopeOwn لجلب المستخدمين الذين أنشأهم هو
-                $query->scopeOwn();
-            } elseif ($authUser->hasPermissionTo('users_show_self')) {
-                // إذا كان لديه صلاحية 'users_show_self'، طبق scopeSelf لجلب المستخدم الحالي فقط
-                $query->scopeSelf();
+            // تطبيق منطق الصلاحيات بترتيب هرمي
+            if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
+                // المدير العام يرى كل المستخدمين، لا تصفية
+            } elseif ($authUser->hasPermissionTo(perm_key('admin.company')) || $authUser->hasPermissionTo(perm_key('users.view_all'))) {  // صلاحية ادارة الشركة
+                $activeCompanyId = $authUser->company_id;
+                if (!$activeCompanyId) {
+                    $query->whereRaw('0 = 1');  // لا يوجد شركة نشطة، لا يرى شيئًا
+                } else {
+                    $query->where(function (Builder $q) use ($activeCompanyId) {
+                        $q
+                            ->where('users.company_id', $activeCompanyId)
+                            ->orWhereHas('companies', function (Builder $q2) use ($activeCompanyId) {
+                                $q2->where('companies.id', $activeCompanyId);
+                            });
+                    });
+                }
+            } elseif ($authUser->hasPermissionTo(perm_key('users.view_children'))) {
+                $query->whereCreatedByUserOrChildren();
+            } elseif ($authUser->hasPermissionTo(perm_key('users.view_self'))) {
+                $query->whereCreatedByUser();
             } else {
-                // إذا لم يكن لديه أي صلاحية رؤية عامة، ارجع خطأ Unauthorized
                 return response()->json([
                     'error' => 'Unauthorized',
                     'message' => 'You are not authorized to view users.'
                 ], 403);
             }
 
-            // استبعاد المستخدم الحالي من القائمة إذا لم يكن super_admin
-            // هذا يعتمد على سياق 'users_all_except_self' لو كانت موجودة
-            // للتأكد من عدم عرض المستخدم لنفسه ضمن قائمة عامة (يمكن للمستخدم عرض ملفه الشخصي عبر show)
-            if (!$authUser->hasAnyPermission(['super_admin', 'users_all'])) {
-                $query->where('id', '<>', $authUser->id);
-            }
-
             // تطبيق فلاتر البحث
             if ($request->filled('nickname')) {
                 $query->where('nickname', 'like', '%' . $request->input('nickname') . '%');
             }
-
             if ($request->filled('email')) {
                 $query->where('email', 'like', '%' . $request->input('email') . '%');
             }
-
             if ($request->filled('status')) {
                 $query->where('status', $request->input('status'));
             }
-
             if ($request->filled('created_at_from')) {
                 $query->where('created_at', '>=', $request->input('created_at_from') . ' 00:00:00');
             }
-
             if ($request->filled('created_at_to')) {
                 $query->where('created_at', '<=', $request->input('created_at_to') . ' 23:59:59');
             }
@@ -109,9 +101,7 @@ class UserController extends Controller
             $sortField = $request->input('sort_by', 'id');
             $sortOrder = $request->input('sort_order', 'asc');
 
-            $query->orderBy($sortField, $sortOrder);
-
-            $users = $query->paginate($perPage);
+            $users = $query->orderBy($sortField, $sortOrder)->paginate($perPage);
 
             return UserResource::collection($users)->additional([
                 'total' => $users->total(),
@@ -119,9 +109,7 @@ class UserController extends Controller
                 'last_page' => $users->lastPage(),
             ]);
         } catch (Throwable $e) {
-            DB::rollback();
-
-            Log::error('User store failed: ' . $e->getMessage(), [
+            Log::error('User index failed: ' . $e->getMessage(), [
                 'exception' => $e,
                 'trace' => $e->getTraceAsString(),
                 'file' => $e->getFile(),
@@ -135,20 +123,22 @@ class UserController extends Controller
                 'error' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
-                'trace' => app()->isLocal() ? $e->getTrace() : null,  // لو انت بتطور محليًا فقط
+                'trace' => app()->isLocal() ? $e->getTrace() : null,
                 'user_id' => $authUser?->id,
             ], 500);
         }
     }
 
-    /**
-     * Store a newly created user in storage.
-     */
     public function store(UserRequest $request)
     {
-        $authUser = auth()->user();
+        /** @var \App\Models\User|null $authUser */
+        $authUser = Auth::user();
 
-        if (!$authUser || !$authUser->hasAnyPermission(['super_admin', 'users_create', 'company_owner'])) {
+        if (!$authUser || (
+            !$authUser->hasPermissionTo(perm_key('admin.super')) &&
+            !$authUser->hasPermissionTo(perm_key('users.create')) &&
+            !$authUser->hasPermissionTo(perm_key('admin.company'))
+        )) {
             return response()->json([
                 'error' => 'Unauthorized',
                 'message' => 'You are not authorized to create users.'
@@ -159,13 +149,52 @@ class UserController extends Controller
         try {
             $validatedData = $request->validated();
 
-            // إذا كان super_admin يسمح بتحديد company_id أو created_by
-            // وإلا، يتم تعيينها من المستخدم الحالي
-            $validatedData['company_id'] = isset($validatedData['company_ids']) && is_array($validatedData['company_ids'])
-                ? $validatedData['company_ids'][0]
-                : ($validatedData['company_id'] ?? $authUser->company_id);
+            // منطق تعيين company_id و created_by بناءً على الصلاحيات
+            if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
+                // السوبر أدمن يمكنه تحديد company_id و created_by
+                // إذا لم يتم تحديد company_id صراحةً، يمكن أن يكون null أو يتم تعيينه لاحقًا
+                $validatedData['company_id'] = isset($validatedData['company_ids']) && is_array($validatedData['company_ids'])
+                    ? $validatedData['company_ids'][0]  // استخدام أول شركة في القائمة كـ company_id الأساسي
+                    : ($validatedData['company_id'] ?? null);
+                $validatedData['created_by'] = $validatedData['created_by'] ?? $authUser->id;
+            } elseif ($authUser->hasPermissionTo(perm_key('admin.company'))) {
+                // مدير الشركة ينشئ مستخدمين لشركته النشطة أو الشركات التي يديرها
+                $validatedData['created_by'] = $authUser->id;
 
-            $validatedData['created_by'] = $validatedData['created_by'] ?? $authUser->id;
+                // إذا تم تحديد company_ids، يجب التأكد أنها ضمن الشركات التي يديرها مدير الشركة
+                if (isset($validatedData['company_ids']) && is_array($validatedData['company_ids'])) {
+                    $authCompanyIds = $authUser->companies->pluck('id')->toArray();
+                    foreach ($validatedData['company_ids'] as $companyId) {
+                        if (!in_array($companyId, $authCompanyIds)) {
+                            DB::rollBack();
+                            return response()->json(['error' => 'Forbidden', 'message' => 'You can only create users for companies you manage.'], 403);
+                        }
+                    }
+                    // تعيين company_id الرئيسي للمستخدم الجديد ليكون الشركة النشطة للمدير أو أول شركة في الـ company_ids المدخلة
+                    $validatedData['company_id'] = $authUser->company_id ?? $validatedData['company_ids'][0];
+                } else {
+                    // إذا لم يتم تحديد company_ids، يتم تعيين المستخدم للشركة النشطة للمدير
+                    if (!$authUser->company_id) {
+                        DB::rollBack();
+                        return response()->json(['error' => 'Forbidden', 'message' => 'Your active company is not set to create users.'], 403);
+                    }
+                    $validatedData['company_id'] = $authUser->company_id;
+                    $validatedData['company_ids'] = $validatedData['company_ids'] ?? [$authUser->company_id];  // للتزامن لاحقًا
+                }
+            } else {  // users.create فقط
+                // المستخدم العادي ينشئ مستخدمين لشركته النشطة فقط
+                if (!$authUser->company_id) {
+                    DB::rollBack();
+                    return response()->json(['error' => 'Forbidden', 'message' => 'Your active company is not set to create users.'], 403);
+                }
+                $validatedData['company_id'] = $authUser->company_id;
+                $validatedData['created_by'] = $authUser->id;
+
+                // يجب أن تكون الشركة النشطة للمستخدم في company_ids
+                if (isset($validatedData['company_ids']) && is_array($validatedData['company_ids'])) {
+                    $validatedData['company_ids'] = [$authUser->company_id];  // تعيين تلقائي إذا لم يتم تحديدها
+                }
+            }
 
             $user = User::create($validatedData);
             $cashBoxType = CashBoxType::where('description', 'النوع الافتراضي للسيستم')->first();
@@ -178,23 +207,29 @@ class UserController extends Controller
                     'is_default' => true,
                     'account_number' => $user->id,
                     'user_id' => $user->id,
-                    'created_by' => $user->id,
-                    'company_id' => $user->company_id,
+                    'created_by' => $user->id,  // الخزنة تُنشأ بواسطة المستخدم نفسه
+                    'company_id' => $user->company_id,  // ربط الخزنة بالشركة الأساسية للمستخدم
                 ]);
             } else {
                 throw new \Exception('نوع الخزنة الافتراضي غير موجود.');
             }
 
             if (!empty($validatedData['company_ids'])) {
-                $user->companies()->sync($validatedData['company_ids']);
+                $pivotData = [];
+                foreach ($validatedData['company_ids'] as $companyId) {
+                    $pivotData[$companyId] = [
+                        'created_by' => $authUser->id,
+                        'updated_at' => now(),
+                    ];
+                }
+                $user->companies()->sync($pivotData);
             }
 
-            $user->logCreated(' بانشاء المستخدم ' . $user->nickname);
+            $user->logCreated('بانشاء المستخدم ' . $user->nickname);
             DB::commit();
-            return new UserResource($user->load($this->relations));  // حمل العلاقات بعد الإنشاء
+            return new UserResource($user->load($this->relations));
         } catch (Throwable $e) {
             DB::rollback();
-
             Log::error('User store failed: ' . $e->getMessage(), [
                 'exception' => $e,
                 'trace' => $e->getTraceAsString(),
@@ -209,18 +244,16 @@ class UserController extends Controller
                 'error' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
-                'trace' => app()->isLocal() ? $e->getTrace() : null,  // لو انت بتطور محليًا فقط
+                'trace' => app()->isLocal() ? $e->getTrace() : null,
                 'user_id' => $authUser?->id,
             ], 500);
         }
     }
 
-    /**
-     * Display the specified user.
-     */
     public function show(User $user)
     {
-        $authUser = auth()->user();
+        /** @var \App\Models\User|null $authUser */
+        $authUser = Auth::user();
 
         if (!$authUser) {
             return response()->json([
@@ -231,26 +264,41 @@ class UserController extends Controller
 
         $query = User::where('id', $user->id)->with($this->relations);
 
-        // تطبيق منطق الصلاحيات
-        if ($authUser->hasAnyPermission(['users_show', 'users_all', 'super_admin'])) {
-            // لا حاجة لـ scope خاص، يكفي أن المنتج موجود
-        } elseif ($authUser->hasPermissionTo('company_owner')) {
-            $query->scopeCompany();
-        } elseif ($authUser->hasPermissionTo('users_show_own')) {
-            $query->scopeOwn();
-        } elseif ($authUser->hasPermissionTo('users_show_self')) {
-            $query->scopeSelf();
+        // تطبيق منطق الصلاحيات بترتيب هرمي
+        if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
+            // المدير العام يرى أي مستخدم، لا تصفية إضافية
+        } elseif ($authUser->id === $user->id) {
+        } elseif ($authUser->hasPermissionTo(perm_key('admin.company')) || $authUser->hasPermissionTo(perm_key('users.view_all'))) {
+            $activeCompanyId = $authUser->company_id;
+            if (!$activeCompanyId) {
+                // إذا لم تكن هناك شركة نشطة، لا يمكن للمستخدم رؤية أي شيء ضمن هذا النطاق
+                return response()->json(['error' => 'Forbidden', 'message' => 'No active company set for your role.'], 403);
+            }
+            // يجب أن يكون المستخدم المعروض مرتبطًا بالشركة النشطة للمدير أو لديه صلاحية view_all
+            $query->where(function (Builder $q) use ($activeCompanyId) {
+                $q
+                    ->where('users.company_id', $activeCompanyId)
+                    ->orWhereHas('companies', function (Builder $q2) use ($activeCompanyId) {
+                        $q2->where('companies.id', $activeCompanyId);
+                    });
+            });
+        } elseif ($authUser->hasPermissionTo(perm_key('users.view_children'))) {
+            $query->whereCreatedByUserOrChildren();
+        } elseif ($authUser->hasPermissionTo(perm_key('users.view_self'))) {
+            $query->whereCreatedByUser();
         } else {
+            // إذا لم يطابق أي من الصلاحيات المذكورة أعلاه، فليس لديه إذن
             return response()->json([
                 'error' => 'Unauthorized',
                 'message' => 'You are not authorized to view this user.'
             ], 403);
         }
 
+        // تنفيذ الاستعلام للحصول على المستخدم بعد تطبيق شروط الصلاحيات
         $authorizedUser = $query->first();
 
-        if (!$authorizedUser) {
-            // إذا لم يتم العثور على المستخدم بعد تطبيق الـ scopes، يعني المستخدم غير مصرح له برؤيته
+        // التحقق النهائي: إذا لم يتم العثور على المستخدم أو كان المستخدم الذي تم العثور عليه ليس هو المستخدم المستهدف
+        if (!$authorizedUser || $authorizedUser->id !== $user->id) {
             return response()->json([
                 'error' => 'Not Found',
                 'message' => 'User not found or you do not have permission to view it.'
@@ -260,12 +308,10 @@ class UserController extends Controller
         return new UserResource($authorizedUser);
     }
 
-    /**
-     * Update the specified user in storage.
-     */
     public function update(UserUpdateRequest $request, User $user)
     {
-        $authUser = auth()->user();
+        /** @var \App\Models\User|null $authUser */
+        $authUser = Auth::user();
 
         if (!$authUser) {
             return response()->json([
@@ -274,98 +320,53 @@ class UserController extends Controller
             ], 401);
         }
 
-        $query = User::where('id', $user->id);
+        $canUpdate = $authUser->hasPermissionTo(perm_key('admin.super')) ||
+            $authUser->hasPermissionTo(perm_key('admin.company')) ||
+            ($authUser->hasPermissionTo(perm_key('users.update_any')) && $authUser->belongsToCurrentCompany()) ||
+            ($authUser->hasPermissionTo(perm_key('users.update_children')) && $authUser->createdByUserOrChildren($user)) ||
+            ($authUser->hasPermissionTo(perm_key('users.update_self')) && $authUser->createdByCurrentUser($user));
 
-        // تطبيق منطق الصلاحيات قبل التحديث
-        if ($authUser->hasAnyPermission(['users_update', 'super_admin'])) {
-            // لا حاجة لـ scope خاص
-        } elseif ($authUser->hasPermissionTo('company_owner')) {
-            $query->scopeCompany();
-        } elseif ($authUser->hasPermissionTo('users_update_own')) {
-            $query->scopeOwn();
-        } elseif ($authUser->hasPermissionTo('users_update_self')) {
-            $query->scopeSelf();
-        } else {
+        if (!$canUpdate) {
             return response()->json([
                 'error' => 'Unauthorized',
                 'message' => 'You are not authorized to update this user.'
             ], 403);
         }
 
-        $authorizedUser = $query->first();
-
-        if (!$authorizedUser) {
-            return response()->json([
-                'error' => 'Not Found',
-                'message' => 'User not found or you do not have permission to update it.'
-            ], 404);
-        }
-
-        // تأكد أن المستخدم الذي يتم تحديثه هو نفسه الذي تم التحقق من صلاحيته
-        $user = $authorizedUser;
-
         DB::beginTransaction();
         try {
             $validated = $request->validated();
-            // return $validated;
 
-            $validated['company_id'] = isset($validated['company_ids']) && is_array($validated['company_ids'])
-                ? $validated['company_ids'][0]
-                : ($validated['company_id'] ?? $authUser->company_id);
-
-            $validated['created_by'] = $validated['created_by'] ?? $authUser->id;
-
-            // منع المستخدم العادي من تغيير حالته أو رصيده
-            if (!$authUser->hasAnyPermission(['super_admin', 'company_owner'])) {  // افترض أن super_admin و company_owner يمكنهما التغيير
-                unset($validated['status'], $validated['balance']);
-            }
-            // إذا كان المستخدم يُحدّث نفسه، يمكنه تغيير هذه الحقول (مثل كلمة المرور)
-            if ($authUser->id === $user->id) {
-                // قد ترغب في السماح بتغيير حقول معينة هنا حتى لو لم يكن لديه صلاحيات عامة
-                // مثلاً، يمكنه تحديث بروفايله الخاص ولكن ليس حالته أو رصيده.
-                // حالياً المنطق يمنعها إذا لم يكن له صلاحيات عامة
-            }
-
-            // تحديث كلمة المرور فقط إذا تم إرسالها
             if (!empty($validated['password'])) {
                 $user->password = $validated['password'];
             }
 
+            // ثوابت للحفاظ على القيم القديمة إن لم تُمرر
+            $validated['company_id'] = $validated['company_id'] ?? $user->company_id;
+            $validated['created_by'] = $validated['created_by'] ?? $user->created_by;
+
             $user->update($validated);
 
-            if ($authUser->hasAnyPermission(['super_admin', 'company_owner'])) {  // فقط من لديه الصلاحيات الكافية يمكنه تعديل الصلاحيات والشركات
-                if (isset($validated['permissions'])) {  // استخدام isset بدلاً من !empty للسماح بتعيين مصفوفة فارغة
-                    $user->syncPermissions($validated['permissions']);
+            if (isset($validated['company_ids']) && is_array($validated['company_ids'])) {
+                $pivotData = [];
+                foreach ($validated['company_ids'] as $companyId) {
+                    $pivotData[$companyId] = [
+                        'created_by' => $authUser->id,
+                        'updated_at' => now(),
+                    ];
                 }
-                if (isset($validated['company_ids'])) {
-                    $user->companies()->detach();  // إزالة كل العلاقات القديمة
-
-                    $user->companies()->syncWithPivotValues(
-                        $validated['company_ids'],
-                        [
-                            'created_by' => $authUser->id,
-                            'updated_at' => now(),
-                        ]
-                    );
-
-                    logger()->info('بعد المزامنة:', $user->companies()->pluck('companies.id')->toArray());
-                }
+                $user->companies()->sync($pivotData);
             }
 
-            $user->logUpdated(' المستخدم ' . $user->nickname);
-            DB::commit();
+            if (isset($validated['permissions']) && is_array($validated['permissions'])) {
+                $user->syncPermissions($validated['permissions']);
+            }
 
-            return new UserResource($user->load($this->relations));  // حمل العلاقات بعد التحديث
+            $user->logUpdated('المستخدم ' . $user->nickname);
+            DB::commit();
+            return new UserResource($user->load($this->relations));
         } catch (Throwable $e) {
             DB::rollback();
-
-            Log::error('User store failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'trace' => $e->getTraceAsString(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'user_id' => $authUser ? $authUser->id : null,
-            ]);
 
             return response()->json([
                 'status' => false,
@@ -373,18 +374,16 @@ class UserController extends Controller
                 'error' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
-                'trace' => app()->isLocal() ? $e->getTrace() : null,  // لو انت بتطور محليًا فقط
+                'trace' => app()->isLocal() ? $e->getTrace() : null,
                 'user_id' => $authUser?->id,
             ], 500);
         }
     }
 
-    /**
-     * Remove the specified user from storage.
-     */
     public function destroy(Request $request)
     {
-        $authUser = auth()->user();
+        /** @var \App\Models\User|null $authUser */
+        $authUser = Auth::user();
 
         if (!$authUser) {
             return response()->json([
@@ -403,15 +402,45 @@ class UserController extends Controller
         try {
             $usersToDelete = User::whereIn('id', $userIds);
 
-            // تطبيق منطق الصلاحيات على المستخدمين الذين سيتم حذفهم
-            if ($authUser->hasAnyPermission(['users_delete', 'users_all', 'super_admin'])) {
-                // لا حاجة لـ scope خاص
-            } elseif ($authUser->hasPermissionTo('company_owner')) {
-                $usersToDelete->scopeCompany();
-            } elseif ($authUser->hasPermissionTo('users_delete_own')) {
-                $usersToDelete->scopeOwn();
-            } elseif ($authUser->hasPermissionTo('users_delete_self')) {
-                $usersToDelete->scopeSelf();  // هذا سيسمح فقط بحذف نفسه
+            if ($authUser->hasPermissionTo(perm_key('admin.super')) || $authUser->hasPermissionTo(perm_key('users.delete_any'))) {
+                // المدير العام أو من لديه صلاحية الحذف الشامل يمكنه حذف أي مستخدم
+                // إذا كان users.delete_any فيجب أن يكون ضمن نطاق الشركة النشطة للمستخدم
+                if ($authUser->hasPermissionTo(perm_key('users.delete_any'))) {
+                    if (!$authUser->company_id) {
+                        DB::rollBack();
+                        return response()->json(['error' => 'Forbidden', 'message' => 'Your active company is not set to delete users.'], 403);
+                    }
+                    $usersToDelete->where(function (Builder $q) use ($authUser) {
+                        $q
+                            ->where('users.company_id', $authUser->company_id)
+                            ->orWhereHas('companies', function (Builder $q2) use ($authUser) {
+                                $q2->where('companies.id', $authUser->company_id);
+                            });
+                    });
+                }
+            } elseif ($authUser->hasPermissionTo(perm_key('admin.company'))) {
+                $activeCompanyId = $authUser->company_id;
+                if (!$activeCompanyId) {
+                    return response()->json(['error' => 'Forbidden', 'message' => 'No active company set for owner deletion.'], 403);
+                }
+                // مدير الشركة يمكنه حذف المستخدمين المرتبطين بشركته النشطة
+                $usersToDelete->where(function (Builder $q) use ($activeCompanyId) {
+                    $q
+                        ->where('users.company_id', $activeCompanyId)
+                        ->orWhereHas('companies', function (Builder $q2) use ($activeCompanyId) {
+                            $q2->where('companies.id', $activeCompanyId);
+                        });
+                });
+            } elseif ($authUser->hasPermissionTo(perm_key('users.delete_children'))) {
+                // يمكنه حذف المستخدمين الذين أنشأهم هو أو تابعوه
+                $usersToDelete
+                    ->where('created_by', $authUser->id)
+                    ->orWhereIn('created_by', $authUser->children->pluck('id')->toArray());  // افتراض وجود علاقة children
+            } elseif ($authUser->hasPermissionTo(perm_key('users.delete_self'))) {
+                if (count($userIds) !== 1 || $userIds[0] !== $authUser->id) {
+                    return response()->json(['error' => 'You can only delete your own account with this permission.'], 403);
+                }
+                $usersToDelete->where('id', $authUser->id);
             } else {
                 return response()->json([
                     'error' => 'Unauthorized',
@@ -419,26 +448,15 @@ class UserController extends Controller
                 ], 403);
             }
 
-            // منع المستخدم من حذف نفسه إذا كان لديه فقط صلاحية users_delete_self
-            if ($authUser->hasPermissionTo('users_delete_self') && !$authUser->hasAnyPermission(['users_delete', 'users_all', 'super_admin', 'company_owner'])) {
-                if (count($userIds) > 1 || (count($userIds) == 1 && $userIds[0] != $authUser->id)) {
-                    return response()->json(['error' => 'You can only delete your own account with this permission.'], 403);
-                }
-            }
-
-            // جلب المستخدمين المصرح لهم بالحذف
             $authorizedUsers = $usersToDelete->get();
 
             if ($authorizedUsers->isEmpty()) {
-                // هذا يعني أن لا يوجد مستخدم من الـ IDs المرسلة مصرح للمستخدم الحالي بحذفه
                 return response()->json([
                     'error' => 'Forbidden',
                     'message' => 'No users found or you do not have permission to delete any of the specified users.'
                 ], 403);
             }
 
-            // تأكد أن جميع الـ IDs المرسلة موجودة ومرخص لها بالحذف
-            // لمنع حذف مستخدم غير مصرح به في قائمة جزئية
             $foundUserIds = $authorizedUsers->pluck('id')->toArray();
             $diff = array_diff($userIds, $foundUserIds);
 
@@ -451,11 +469,15 @@ class UserController extends Controller
             }
 
             foreach ($authorizedUsers as $user) {
-                // حذف الخزائن المتعلقة بالمستخدم
-                $user->cashBoxes()->delete();
-                // يمكن إضافة عمليات حذف أخرى متعلقة بالمستخدم هنا (مثل المعاملات، الفواتير، إلخ)
-                $user->delete();
-                $user->logForceDeleted(' المستخدم ' . $user->nickname);
+                // التأكد من أن المستخدم لا يحاول حذف نفسه إذا كان الوحيد الذي يتم حذفه
+                if ($user->id === $authUser->id && count($userIds) === 1) {
+                    DB::rollBack();
+                    return response()->json(['error' => 'Forbidden', 'message' => 'You cannot delete your own active account.'], 403);
+                }
+                $user->cashBoxes()->delete();  // حذف الصناديق النقدية المرتبطة
+                $user->companies()->detach();  // فصل العلاقات مع الشركات
+                $user->delete();  // حذف المستخدم
+                $user->logForceDeleted('المستخدم ' . $user->nickname);
             }
 
             DB::commit();
@@ -471,16 +493,21 @@ class UserController extends Controller
             ]);
             return response()->json([
                 'message' => 'حدث خطأ أثناء حذف المستخدمين.',
-                // 'details' => $e->getMessage(),
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => app()->isLocal() ? $e->getTrace() : null,
+                'user_id' => $authUser?->id,
             ], 500);
         }
     }
 
     public function usersSearch(Request $request)
     {
-        try {
-            $authUser = auth()->user();
+        /** @var \App\Models\User|null $authUser */
+        $authUser = Auth::user();
 
+        try {
             if (!$authUser) {
                 return response()->json([
                     'error' => 'Unauthorized',
@@ -491,14 +518,38 @@ class UserController extends Controller
             $query = User::query();
 
             // تطبيق منطق الصلاحيات على دالة البحث
-            if ($authUser->hasAnyPermission(['users_all', 'super_admin'])) {
-                // لا حاجة لـ scope خاص
-            } elseif ($authUser->hasPermissionTo('company_owner')) {
-                $query->scopeCompany();
-            } elseif ($authUser->hasPermissionTo('users_show_own')) {  // افترض أن البحث يندرج تحت صلاحية الرؤية
-                $query->scopeOwn();
-            } elseif ($authUser->hasPermissionTo('users_show_self')) {
-                $query->scopeSelf();  // هذا سيسمح بالبحث عن المستخدم نفسه فقط
+            if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
+                // المدير العام يمكنه البحث عن أي مستخدم
+            } elseif ($authUser->hasPermissionTo(perm_key('admin.company'))) {
+                $activeCompanyId = $authUser->company_id;
+                if (!$activeCompanyId) {
+                    $query->whereRaw('0 = 1');
+                } else {
+                    $query->where(function (Builder $q) use ($activeCompanyId) {
+                        $q
+                            ->where('users.company_id', $activeCompanyId)
+                            ->orWhereHas('companies', function (Builder $q2) use ($activeCompanyId) {
+                                $q2->where('companies.id', $activeCompanyId);
+                            });
+                    });
+                }
+            } elseif ($authUser->hasPermissionTo(perm_key('users.view_all'))) {
+                $activeCompanyId = $authUser->company_id;
+                if (!$activeCompanyId) {
+                    $query->whereRaw('0 = 1');
+                } else {
+                    $query->where(function (Builder $q) use ($activeCompanyId) {
+                        $q
+                            ->where('users.company_id', $activeCompanyId)
+                            ->orWhereHas('companies', function (Builder $q2) use ($activeCompanyId) {
+                                $q2->where('companies.id', $activeCompanyId);
+                            });
+                    });
+                }
+            } elseif ($authUser->hasPermissionTo(perm_key('users.view_children'))) {
+                $query->whereCreatedByUserOrChildren();
+            } elseif ($authUser->hasPermissionTo(perm_key('users.view_self'))) {
+                $query->whereCreatedByUser();
             } else {
                 return response()->json([
                     'error' => 'Unauthorized',
@@ -506,22 +557,21 @@ class UserController extends Controller
                 ], 403);
             }
 
-            // استبعاد المستخدم الحالي من نتائج البحث إذا لم يكن super_admin
-            if (!$authUser->hasAnyPermission(['super_admin', 'users_all', 'users_show'])) {  // استثني صلاحية 'users_show' هنا لو كانت تسمح برؤية أي مستخدم
+            // استبعاد المستخدم الحالي من نتائج البحث إذا لم يكن admin.super
+            if (!$authUser->hasPermissionTo(perm_key('admin.super'))) {
                 $query->where('id', '<>', $authUser->id);
             }
 
             if ($request->filled('search')) {
                 $search = $request->input('search');
-                // إذا كان البحث أقل من 4 أحرف، ابحث بالـ ID فقط
                 if (strlen($search) < 4) {
                     $query->where('id', $search);
                 } else {
                     $query->where(function ($subQuery) use ($search) {
                         $subQuery
                             ->where('id', $search)
-                            ->orWhere('nickname', 'like', '%' . $search . '%')  // أضفت البحث بالـ nickname
-                            ->orWhere('email', 'like', '%' . $search . '%')  // أضفت البحث بالـ email
+                            ->orWhere('nickname', 'like', '%' . $search . '%')
+                            ->orWhere('email', 'like', '%' . $search . '%')
                             ->orWhere('phone', 'like', '%' . $search . '%');
                     });
                 }
@@ -531,9 +581,7 @@ class UserController extends Controller
             $sortField = $request->input('sort_by', 'id');
             $sortOrder = $request->input('sort_order', 'asc');
 
-            $query->orderBy($sortField, $sortOrder);
-
-            $users = $query->with('companies')->paginate($perPage);
+            $users = $query->with('companies')->orderBy($sortField, $sortOrder)->paginate($perPage);
 
             return UserResource::collection($users)->additional([
                 'total' => $users->total(),
@@ -546,7 +594,7 @@ class UserController extends Controller
                 'trace' => $e->getTraceAsString(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
-                'user_id' => auth()->id(),
+                'user_id' => $authUser->id,
             ]);
             return response()->json([
                 'error' => true,
@@ -557,7 +605,8 @@ class UserController extends Controller
 
     public function setDefaultCashBox(User $user, $cashBoxId)
     {
-        $authUser = auth()->user();
+        /** @var \App\Models\User|null $authUser */
+        $authUser = Auth::user();
 
         if (!$authUser) {
             return response()->json([
@@ -567,31 +616,44 @@ class UserController extends Controller
         }
 
         // التحقق من الصلاحيات لتغيير الخزنة الافتراضية
-        // يمكن للمشرف العام أو مالك الشركة أو المستخدم نفسه تغيير خزنته الافتراضية
-        $canUpdate = $authUser->hasAnyPermission(['super_admin', 'company_owner']) || ($authUser->id === $user->id);
-
-        if (!$canUpdate) {
+        if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
+            // المدير العام يمكنه تغيير الخزنة الافتراضية لأي مستخدم
+        } elseif ($authUser->hasPermissionTo(perm_key('admin.company'))) {
+            // مدير الشركة يمكنه تغيير الخزنة الافتراضية للمستخدمين في شركته
+            if (!$authUser->company_id || ($user->company_id !== $authUser->company_id && !$user->companies->contains($authUser->company_id))) {
+                return response()->json(['error' => 'Forbidden', 'message' => 'You do not have permission to change the cash box for this user.'], 403);
+            }
+        } elseif ($authUser->id === $user->id) {
+            // المستخدم يمكنه تغيير الخزنة الافتراضية الخاصة به فقط
+        } else {
             return response()->json([
                 'error' => 'Unauthorized',
-                'message' => 'You are not authorized to change the default cash box for this user.'
+                'message' => 'You are not authorized to set the default cash box for this user.'
             ], 403);
         }
 
-        // التأكد من أن المستخدم ينتمي لشركة المستخدم الحالي إذا كان شركة_مالك
-        if ($authUser->hasPermissionTo('company_owner') && $authUser->company_id !== $user->company_id) {
-            return response()->json([
-                'error' => 'Unauthorized',
-                'message' => 'You can only manage users within your company.'
-            ], 403);
-        }
-
+        DB::beginTransaction();
         try {
-            $cashBox = $user->cashBoxes()->where('id', $cashBoxId)->firstOrFail();
-            DB::beginTransaction();
-            $user->cashBoxes()->update(['is_default' => 0]);
-            $cashBox->update(['is_default' => 1]);
+            // التأكد من أن الخزنة المراد تعيينها تابعة للمستخدم المستهدف
+            $cashBox = CashBox::where('user_id', $user->id)
+                ->where('id', $cashBoxId)
+                ->first();
+
+            if (!$cashBox) {
+                DB::rollBack();
+                return response()->json(['error' => 'Not Found', 'message' => 'Cash box not found or does not belong to this user.'], 404);
+            }
+
+            // إعادة تعيين جميع الصناديق النقدية لهذا المستخدم إلى is_default = false
+            $user->cashBoxes()->update(['is_default' => false]);
+
+            // تعيين الخزنة المحددة كخزنة افتراضية
+            $cashBox->update(['is_default' => true]);
+
+            $user->logUpdated('بتعيين الخزنة الافتراضية ' . $cashBox->name . ' للمستخدم ' . $user->nickname);
             DB::commit();
-            return response()->json(['message' => 'Default cash box updated successfully']);
+
+            return response()->json(['message' => 'Default cash box set successfully'], 200);
         } catch (Throwable $e) {
             DB::rollback();
             Log::error('Set default cash box failed: ' . $e->getMessage(), [
@@ -602,62 +664,13 @@ class UserController extends Controller
                 'user_id' => $authUser ? $authUser->id : null,
             ]);
             return response()->json([
-                'message' => 'حدث خطأ أثناء تحديث الخزنة الافتراضية.',
-                // 'details' => $e->getMessage(),
-            ], 500);
-        }
-    }
-
-    public function changeCompany(Request $request, User $user)
-    {
-        $authUser = auth()->user();
-
-        if (!$authUser) {
-            return response()->json([
-                'error' => 'Unauthorized',
-                'message' => 'Authentication required.'
-            ], 401);
-        }
-
-        // التحقق من الصلاحيات لتغيير شركة المستخدم
-        // فقط super_admin يمكنه تغيير شركة أي مستخدم
-        // company_owner يمكنه تغيير شركة مستخدمين شركته فقط (افتراضاً هذا ليس منطقي لأنهم ينتمون لشركته بالفعل)
-        // ولكن ربما هو لتغيير الشركة الرئيسية لمستخدم داخل شركته؟
-        // سأفترض هنا أن super_admin فقط من لديه هذه الصلاحية.
-        if (!$authUser->hasPermissionTo('super_admin')) {
-            return response()->json([
-                'error' => 'Unauthorized',
-                'message' => 'You are not authorized to change the company of this user.'
-            ], 403);
-        }
-
-        $request->validate([
-            'company_id' => 'required|exists:companies,id',
-        ]);
-
-        try {
-            DB::beginTransaction();
-            $user->update([
-                'company_id' => $request->company_id,
-            ]);
-            $user->logUpdated(' تم تغيير الشركة الرئيسية للمستخدم ' . $user->nickname);
-            DB::commit();
-            return response()->json([
-                'message' => 'Company updated successfully.',
-                'user' => new UserResource($user->load($this->relations)),
-            ], 200);
-        } catch (Throwable $e) {
-            DB::rollback();
-            Log::error('Change user company failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'trace' => $e->getTraceAsString(),
+                'status' => false,
+                'message' => 'حدث خطأ أثناء تعيين الخزنة الافتراضية.',
+                'error' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
-                'user_id' => $authUser ? $authUser->id : null,
-            ]);
-            return response()->json([
-                'message' => 'حدث خطأ أثناء تغيير شركة المستخدم.',
-                // 'details' => $e->getMessage(),
+                'trace' => app()->isLocal() ? $e->getTrace() : null,
+                'user_id' => $authUser?->id,
             ], 500);
         }
     }

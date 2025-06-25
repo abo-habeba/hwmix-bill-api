@@ -6,6 +6,9 @@ use App\Models\VariantAttribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
+/**
+ * @mixin IdeHelperVariant
+ */
 class Variant extends Model
 {
     use HasFactory;

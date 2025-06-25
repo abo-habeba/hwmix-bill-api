@@ -3,34 +3,49 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\Artisan;
-use Spatie\Permission\Models\Permission;
-use Spatie\Permission\Models\Role;
+use Spatie\Permission\Models\Permission;  // تأكد من استخدام موديل الصلاحيات الصحيح
 
 class PermissionsSeeder extends Seeder
 {
+    /**
+     * Run the database seeds.
+     *
+     * @return void
+     */
     public function run()
     {
-        Role::query()->delete();
+        // مسح الصلاحيات الموجودة مسبقًا لتجنب التكرار في كل مرة يتم تشغيل Seeder
         Permission::query()->delete();
-        Artisan::call('permission:cache-reset');
 
-        // استخراج جميع قيم value من جميع ملفات json في مصفوفة واحدة
-        $permissionsArray = [];
-        $jsonDir = database_path('seeders/permission-json');
-        foreach (glob($jsonDir . '/*.json') as $file) {
-            $data = json_decode(file_get_contents($file), true);
-            foreach ($data['permissions'] as $permission) {
-                $permissionsArray[] = $permission['value'];
+        // جلب جميع تعريفات الصلاحيات من ملف config/permissions_keys.php
+        $permissionsConfig = config('permissions_keys');
+        app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
+
+        // مصفوفة لتخزين جميع مفاتيح الصلاحيات التي سيتم إضافتها
+        $permissionsToSeed = [];
+
+        // المرور على كل كيان (entity) وكل فعل (action) داخل ملف الصلاحيات
+        foreach ($permissionsConfig as $entity => $actions) {
+            foreach ($actions as $actionData) {
+                // التأكد من أن المفتاح 'key' موجود لضمان عدم وجود أخطاء
+                if (isset($actionData['key'])) {
+                    $permissionsToSeed[] = [
+                        'name' => $actionData['key'],
+                        'guard_name' => 'web',
+                        'created_at' => now(),  // إضافة timestamp
+                        'updated_at' => now(),  // إضافة timestamp
+                    ];
+                }
             }
         }
 
-        // إضافة جميع الصلاحيات إلى جدول permissions في لارافيل
-        $insertData = array_map(fn($permission) => [
-            'name' => $permission,
-            'guard_name' => 'web',
-        ], $permissionsArray);
+        // إدراج جميع الصلاحيات دفعة واحدة في جدول الصلاحيات
+        // هذا الأسلوب أسرع بكثير من الإدراج في حلقة
+        Permission::insert($permissionsToSeed);
 
-        \Spatie\Permission\Models\Permission::insert($insertData);
+        // تشغيل Seeder الخاص بالأدوار والصلاحيات بعد الصلاحيات
+        $this->call(RolesAndPermissionsSeeder::class);
+
+        $this->command->info('Permissions seeded successfully!');
     }
 }

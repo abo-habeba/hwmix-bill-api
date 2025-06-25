@@ -2,13 +2,13 @@
 
 namespace App\Http\Controllers;
 
-use Exception;
-use App\Models\User;
-use App\Models\Transaction;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Transaction\TransactionResource;
+use App\Models\Transaction;
+use App\Models\User;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Exception;
 
 class TransactionController extends Controller
 {
@@ -20,7 +20,7 @@ class TransactionController extends Controller
             'amount' => 'required|numeric|min:0.01',
         ]);
 
-        $user = auth()->user();
+        $user = Auth::user();
 
         // الحصول على المستخدم المستهدف
         $targetUser = User::where('id', $validated['target_user_id'])->first();
@@ -39,7 +39,7 @@ class TransactionController extends Controller
     // ارجاع جميع عمليات المستخدم
     public function userTransactions(Request $request)
     {
-        $user = auth()->user();
+        $user = Auth::user();
 
         $perPage = max(1, $request->get('per_page', 10));
         $sortField = $request->get('sort_by', 'id');
@@ -66,14 +66,14 @@ class TransactionController extends Controller
         $validated = $request->validate([
             'amount' => 'required|numeric|min:0.01',
         ]);
-        $authUser = auth()->user();
+        $authUser = Auth::user();
 
         if (
             $authUser->hasPermissionTo('deposit') ||
             $authUser->hasPermissionTo('super_admin') ||
             ($authUser->hasPermissionTo('company_owner'))
         ) {
-            $user = auth()->user();
+            $user = Auth::user();
             $user->deposit($validated['amount']);
         }
 
@@ -87,7 +87,7 @@ class TransactionController extends Controller
             'amount' => 'required|numeric|min:0.01',
         ]);
 
-        $user = auth()->user();
+        $user = Auth::user();
         try {
             if (
                 $user->hasPermissionTo('withdraw') ||
@@ -102,11 +102,10 @@ class TransactionController extends Controller
         }
     }
 
-
     // عرض عمليات التحويل
     public function transactions(Request $request)
     {
-        $authUser = auth()->user();
+        $authUser = Auth::user();
 
         $query = Transaction::with(['user', 'targetUser']);
 
@@ -138,12 +137,12 @@ class TransactionController extends Controller
         }
 
         // تحديد الترتيب
-        $sortField = $request->get('sort_by', 'id'); // الحقل المراد الترتيب بناءً عليه
-        $sortOrder = $request->get('sort_order', 'asc'); // نوع الترتيب (تصاعدي/تنازلي)
+        $sortField = $request->get('sort_by', 'id');  // الحقل المراد الترتيب بناءً عليه
+        $sortOrder = $request->get('sort_order', 'asc');  // نوع الترتيب (تصاعدي/تنازلي)
         $query->orderBy($sortField, $sortOrder);
 
         // تقسيم النتائج إلى صفحات
-        $perPage = max(1, $request->get('per_page', 10)); // عدد العناصر في الصفحة
+        $perPage = max(1, $request->get('per_page', 10));  // عدد العناصر في الصفحة
         $transactions = $query->paginate($perPage);
 
         // تنسيق البيانات للإرجاع
@@ -157,7 +156,7 @@ class TransactionController extends Controller
 
     public function reverseTransaction($transactionId)
     {
-        $authUser = auth()->user(); // استرجاع المستخدم الحالي
+        $authUser = Auth::user();  // استرجاع المستخدم الحالي
 
         // استخدام المعاملة لضمان تكامل البيانات
         DB::beginTransaction();
@@ -172,16 +171,16 @@ class TransactionController extends Controller
             } elseif ($authUser->hasPermission('company_owner')) {
                 // يستطيع عكس المعاملات التي صاحبها belong إلى نفس الشركة
                 if ($transaction->user->company_id !== $authUser->company_id) {
-                    throw new Exception("ليس لديك صلاحية لعكس هذه المعاملة.");
+                    throw new Exception('ليس لديك صلاحية لعكس هذه المعاملة.');
                 }
             } elseif ($authUser->hasPermission('transactions_all_own')) {
                 // يستطيع عكس المعاملات التي أنشأها
                 if ($transaction->user->created_by !== $authUser->id) {
-                    throw new Exception("ليس لديك صلاحية لعكس هذه المعاملة.");
+                    throw new Exception('ليس لديك صلاحية لعكس هذه المعاملة.');
                 }
             } elseif ($transaction->user_id !== $authUser->id) {
                 // يستطيع صاحب المعاملة فقط عكس المعاملة
-                throw new Exception("ليس لديك صلاحية لعكس هذه المعاملة.");
+                throw new Exception('ليس لديك صلاحية لعكس هذه المعاملة.');
             }
 
             // التحقق من نوع المعاملة
@@ -202,7 +201,7 @@ class TransactionController extends Controller
                     break;
 
                 default:
-                    throw new Exception("نوع المعاملة غير مدعوم.");
+                    throw new Exception('نوع المعاملة غير مدعوم.');
             }
 
             // تسجيل المعاملة العكسية في جدول المعاملات
@@ -222,5 +221,4 @@ class TransactionController extends Controller
             return response()->json(['message' => $e->getMessage()], 400);
         }
     }
-
 }

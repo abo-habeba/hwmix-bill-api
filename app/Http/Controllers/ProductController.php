@@ -9,12 +9,24 @@ use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\Stock;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Throwable;  // استخدم Throwable للتعامل الشامل مع الأخطاء والاستثناءات
 
+/**
+ * Class ProductController
+ *
+ * تحكم في عمليات المنتجات (عرض، إضافة، تعديل، حذف)
+ *
+ * @package App\Http\Controllers
+ */
 class ProductController extends Controller
 {
+    /**
+     * العلاقات الافتراضية المستخدمة مع المنتجات
+     * @var array
+     */
     protected array $relations = [
         'company',
         'creator',
@@ -27,12 +39,16 @@ class ProductController extends Controller
     ];
 
     /**
-     * Display a listing of the resource.
+     * عرض قائمة المنتجات مع الفلاتر والصلاحيات.
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse|\Illuminate\Http\Resources\Json\AnonymousResourceCollection
      */
     public function index(Request $request)
     {
+        /** @var \App\Models\User $authUser */
         try {
-            $authUser = auth()->user();
+            $authUser = Auth::user();
 
             if (!$authUser) {
                 return response()->json([
@@ -42,7 +58,7 @@ class ProductController extends Controller
             }
 
             $query = Product::with($this->relations);
-
+            /** @var \App\Models\User $authUser */
             // تطبيق منطق الصلاحيات
             if ($authUser->hasAnyPermission(['products_all', 'super_admin'])) {
                 // إذا كان لديه صلاحية 'products_all' أو 'super_admin'، لا حاجة لتطبيق أي scope خاص
@@ -98,13 +114,15 @@ class ProductController extends Controller
                 'last_page' => $products->lastPage(),
             ]);
         } catch (Throwable $e) {
+            /** @var \App\Models\User $authUser */
+            $authUser = Auth::user();
             // تسجيل الخطأ وتفاصيله
             Log::error('Product index failed: ' . $e->getMessage(), [
                 'exception' => $e,
                 'trace' => $e->getTraceAsString(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
-                'user_id' => auth()->id(),  // إضافة ID المستخدم للمساعدة في تتبع المشاكل
+                'user_id' => $authUser->id,  // إضافة ID المستخدم للمساعدة في تتبع المشاكل
             ]);
             return response()->json([
                 'error' => true,
@@ -122,7 +140,8 @@ class ProductController extends Controller
      */
     public function store(StoreProductRequest $request)
     {
-        $authUser = auth()->user();
+        /** @var \App\Models\User $authUser */
+        $authUser = Auth::user();
 
         if (!$authUser || !$authUser->hasAnyPermission(['products_create', 'company_owner', 'super_admin'])) {
             return response()->json([
@@ -216,7 +235,7 @@ class ProductController extends Controller
      */
     public function show(Product $product)
     {
-        $authUser = auth()->user();
+        $authUser = Auth::user();
 
         if (!$authUser) {
             return response()->json([
@@ -229,6 +248,7 @@ class ProductController extends Controller
         // سنستخدم query جديدة هنا لتطبيق الـ scopes والتحقق من وجود المنتج
         $query = Product::where('id', $product->id)->with($this->relations);
 
+        /** @var \App\Models\User $authUser */
         if ($authUser->hasAnyPermission(['products_show', 'products_all', 'super_admin'])) {
             // إذا كان لديه صلاحية 'products_show' أو 'products_all' أو 'super_admin'، لا حاجة لـ scope خاص
             // فقط نتأكد أن المنتج موجود
@@ -264,7 +284,7 @@ class ProductController extends Controller
      */
     public function update(UpdateProductRequest $request, Product $product)
     {
-        $authUser = auth()->user();
+        $authUser = Auth::user();
 
         if (!$authUser) {
             return response()->json([
@@ -275,7 +295,7 @@ class ProductController extends Controller
 
         // تطبيق منطق الصلاحيات على المنتج المحدد قبل التحديث
         $query = Product::where('id', $product->id);
-
+        /** @var \App\Models\User $authUser */
         if ($authUser->hasAnyPermission(['products_update', 'products_all', 'super_admin'])) {
             // إذا كان لديه صلاحية 'products_update' أو 'products_all' أو 'super_admin'، لا حاجة لـ scope خاص
             // فقط نتأكد أن المنتج موجود
@@ -438,7 +458,7 @@ class ProductController extends Controller
      */
     public function destroy(Product $product)
     {
-        $authUser = auth()->user();
+        $authUser = Auth::user();
 
         if (!$authUser) {
             return response()->json([
@@ -449,7 +469,7 @@ class ProductController extends Controller
 
         // تطبيق منطق الصلاحيات على المنتج المحدد قبل الحذف
         $query = Product::where('id', $product->id);
-
+        /** @var \App\Models\User $authUser */
         if ($authUser->hasAnyPermission(['products_delete', 'products_all', 'super_admin'])) {
             // إذا كان لديه صلاحية 'products_delete' أو 'products_all' أو 'super_admin'، لا حاجة لـ scope خاص
             // فقط نتأكد أن المنتج موجود

@@ -2,17 +2,27 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Brand;
 use App\Http\Controllers\Controller;
-use Symfony\Component\HttpFoundation\Response;
-use App\Http\Resources\Brand\BrandResource;
 use App\Http\Requests\Brand\StoreBrandRequest;
 use App\Http\Requests\Brand\UpdateBrandRequest;
+use App\Http\Resources\Brand\BrandResource;
+use App\Models\Brand;
+use Illuminate\Support\Facades\Auth;
+use Symfony\Component\HttpFoundation\Response;
 
+/**
+ * Class BrandController
+ *
+ * تحكم في عمليات العلامات التجارية (عرض، إضافة، تعديل، حذف)
+ *
+ * @package App\Http\Controllers
+ */
 class BrandController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * عرض جميع العلامات التجارية.
+     *
+     * @return \Illuminate\Http\Resources\Json\AnonymousResourceCollection
      */
     public function index()
     {
@@ -21,12 +31,14 @@ class BrandController extends Controller
     }
 
     /**
-     * Store a newly created resource in storage.
+     * إضافة علامة تجارية جديدة.
+     *
+     * @param StoreBrandRequest $request
+     * @return BrandResource
      */
-
     public function store(StoreBrandRequest $request)
     {
-        $authUser = auth()->user();
+        $authUser = Auth::user();
         $validatedData = $request->validated();
         $validatedData['company_id'] = $validatedData['company_id'] ?? $authUser->company_id;
         $validatedData['created_by'] = $validatedData['created_by'] ?? $authUser->id;
@@ -35,7 +47,10 @@ class BrandController extends Controller
     }
 
     /**
-     * Display the specified resource.
+     * عرض علامة تجارية محددة.
+     *
+     * @param string $id
+     * @return BrandResource
      */
     public function show(string $id)
     {
@@ -44,7 +59,11 @@ class BrandController extends Controller
     }
 
     /**
-     * Update the specified resource in storage.
+     * تحديث علامة تجارية.
+     *
+     * @param UpdateBrandRequest $request
+     * @param string $id
+     * @return BrandResource
      */
     public function update(UpdateBrandRequest $request, string $id)
     {
@@ -54,7 +73,10 @@ class BrandController extends Controller
     }
 
     /**
-     * Remove the specified resource from storage.
+     * حذف علامة تجارية.
+     *
+     * @param Brand $brand
+     * @return \Illuminate\Http\Response
      */
     public function destroy(Brand $brand)
     {

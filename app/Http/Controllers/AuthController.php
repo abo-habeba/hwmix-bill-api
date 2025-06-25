@@ -2,18 +2,30 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\User;
+use App\Http\Controllers\Controller;
+use App\Http\Resources\User\UserResource;
 use App\Models\CashBox;
 use App\Models\CashBoxType;
+use App\Models\User;
 use Illuminate\Http\Request;
-use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
-use App\Http\Resources\User\UserResource;
 
+/**
+ * Class AuthController
+ *
+ * تحكم في عمليات التسجيل وتسجيل الدخول للمستخدمين
+ *
+ * @package App\Http\Controllers
+ */
 class AuthController extends Controller
 {
-    // تسجيل مستخدم جديد
+    /**
+     * تسجيل مستخدم جديد.
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
     public function register(Request $request)
     {
         $validated = $request->validate([
@@ -51,7 +63,12 @@ class AuthController extends Controller
         ], 201);
     }
 
-    // تسجيل الدخول
+    /**
+     * تسجيل الدخول للمستخدم.
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
     public function login(Request $request)
     {
         $validated = $request->validate([
@@ -62,6 +79,7 @@ class AuthController extends Controller
         if (!Auth::attempt([$loginField => $validated['login'], 'password' => $validated['password']])) {
             return response()->json(['message' => 'Invalid credentials'], 401);
         }
+        /** @var \App\Models\User $user */
         $user = Auth::user();
         $token = $user->createToken('auth_token')->plainTextToken;
 
@@ -88,10 +106,12 @@ class AuthController extends Controller
 
     public function checkLogin(Request $request)
     {
-        if (auth()->check()) {
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+        if (Auth::check()) {
             return response()->json([
                 'status' => 'logged_in',
-                'user' => auth()->user(), // يمكنك إعادة بيانات المستخدم إذا أردت
+                'user' => $user,  // يمكنك إعادة بيانات المستخدم إذا أردت
             ], 200);
         }
 

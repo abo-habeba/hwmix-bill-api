@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Warehouse;
 use App\Http\Controllers\Controller;
-use Symfony\Component\HttpFoundation\Response;
-use App\Http\Resources\Warehouse\WarehouseResource;
 use App\Http\Requests\Warehouse\StoreWarehouseRequest;
 use App\Http\Requests\Warehouse\UpdateWarehouseRequest;
+use App\Http\Resources\Warehouse\WarehouseResource;
+use App\Models\Warehouse;
+use Symfony\Component\HttpFoundation\Response;
 
 class WarehouseController extends Controller
 {
@@ -25,7 +25,7 @@ class WarehouseController extends Controller
      */
     public function store(StoreWarehouseRequest $request)
     {
-        $authUser = auth()->user();
+        $authUser = Auth::user();
         $validatedData = $request->validated();
         $validatedData['company_id'] = $validatedData['company_id'] ?? $authUser->company_id;
         $validatedData['created_by'] = $validatedData['created_by'] ?? $authUser->id;

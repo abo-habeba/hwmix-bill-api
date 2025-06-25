@@ -7,6 +7,9 @@ use Illuminate\Support\Facades\Auth;
 use App\Traits\LogsActivity;
 use App\Traits\Blameable;
 
+/**
+ * @mixin IdeHelperInvoice
+ */
 class Invoice extends Model
 {
     use HasFactory, LogsActivity, Blameable;

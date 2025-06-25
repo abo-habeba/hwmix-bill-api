@@ -2,17 +2,27 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\AttributeValue;
 use App\Http\Controllers\Controller;
-use Symfony\Component\HttpFoundation\Response;
-use App\Http\Resources\AttributeValue\AttributeValueResource;
 use App\Http\Requests\AttributeValue\StoreAttributeValueRequest;
 use App\Http\Requests\AttributeValue\UpdateAttributeValueRequest;
+use App\Http\Resources\AttributeValue\AttributeValueResource;
+use App\Models\AttributeValue;
+use Illuminate\Support\Facades\Auth;
+use Symfony\Component\HttpFoundation\Response;
 
+/**
+ * Class AttributeValueController
+ *
+ * تحكم في عمليات قيم السمات (عرض، إضافة، تعديل، حذف)
+ *
+ * @package App\Http\Controllers
+ */
 class AttributeValueController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * عرض جميع قيم السمات.
+     *
+     * @return \Illuminate\Http\Resources\Json\AnonymousResourceCollection
      */
     public function index()
     {
@@ -21,11 +31,14 @@ class AttributeValueController extends Controller
     }
 
     /**
-     * Store a newly created resource in storage.
+     * إضافة قيمة سمة جديدة.
+     *
+     * @param StoreAttributeValueRequest $request
+     * @return AttributeValueResource
      */
     public function store(StoreAttributeValueRequest $request)
     {
-        $authUser = auth()->user();
+        $authUser = Auth::user();
         $validatedData = $request->validated();
         $validatedData['created_by'] = $validatedData['created_by'] ?? $authUser->id;
         $attributeValue = AttributeValue::create($validatedData);
@@ -33,7 +46,10 @@ class AttributeValueController extends Controller
     }
 
     /**
-     * Display the specified resource.
+     * عرض قيمة سمة محددة.
+     *
+     * @param string $id
+     * @return AttributeValueResource
      */
     public function show(string $id)
     {
@@ -42,7 +58,11 @@ class AttributeValueController extends Controller
     }
 
     /**
-     * Update the specified resource in storage.
+     * تحديث قيمة سمة.
+     *
+     * @param UpdateAttributeValueRequest $request
+     * @param string $id
+     * @return AttributeValueResource
      */
     public function update(UpdateAttributeValueRequest $request, string $id)
     {
@@ -52,7 +72,10 @@ class AttributeValueController extends Controller
     }
 
     /**
-     * Remove the specified resource from storage.
+     * حذف قيمة سمة.
+     *
+     * @param string $id
+     * @return \Illuminate\Http\Response
      */
     public function destroy(string $id)
     {

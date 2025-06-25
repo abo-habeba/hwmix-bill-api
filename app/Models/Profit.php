@@ -4,6 +4,9 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
+/**
+ * @mixin IdeHelperProfit
+ */
 class Profit extends Model
 {
     protected $fillable = [

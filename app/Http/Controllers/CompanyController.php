@@ -8,32 +8,30 @@ use App\Http\Resources\Company\CompanyResource;
 use App\Models\Scopes\CompanyScope;
 use App\Models\Company;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 class CompanyController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
     public function index(Request $request)
     {
         try {
-            $authUser = auth()->user();
+            $authUser = Auth::user();
             $query = Company::query();
 
-            $canSeeAllCompanies = $authUser->hasAnyPermission(['companys_all', 'company_owner', 'super_admin']);
-
-            if (!$canSeeAllCompanies) {
-                if ($authUser->hasPermissionTo('companys_show_own')) {
-                    $query->own();
-                } elseif ($authUser->hasPermissionTo('companys_show_self')) {
-                    $query->self();
-                } else {
-                    return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);
-                }
+            if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
+                // وصول مطلق
+            } elseif ($authUser->hasAnyPermission([
+                perm_key('companies.view_all'),
+                perm_key('admin.company'),
+                perm_key('companies.view_children'),
+                perm_key('companies.view_self')
+            ])) {
+                $query->whereIn('id', $authUser->companies->pluck('id')->toArray());
+            } else {
+                return response()->json(['error' => 'Unauthorized'], 403);
             }
 
-            // شروط created_at
             if (!empty($request->get('created_at_from'))) {
                 $query->where('created_at', '>=', $request->get('created_at_from') . ' 00:00:00');
             }
@@ -41,72 +39,57 @@ class CompanyController extends Controller
                 $query->where('created_at', '<=', $request->get('created_at_to') . ' 23:59:59');
             }
 
+            $query->orderBy(
+                $request->get('sort_by', 'id'),
+                $request->get('sort_order', 'asc')
+            );
+
             $perPage = max(1, $request->get('per_page', 10));
-            $sortField = $request->get('sort_by', 'id');
-            $sortOrder = $request->get('sort_order', 'asc');
-
-            $query->orderBy($sortField, $sortOrder);
-
-            // هنا الشرط المنطقي: طبق whereHas فقط إذا لم يكن المستخدم يملك صلاحية رؤية كل الشركات
-            if (!$canSeeAllCompanies) {
-                $query->whereHas('users', function ($q) use ($authUser) {
-                    $q->where('user_id', $authUser->id);
-                });
-            }
-            // ملاحظة: تأكد من أن الـ scopes (own و self) تُطبق بالفعل الشرط على ربط المستخدمين.
-
-            // جلب البيانات مع التصفية والصفحات
-            $querys = $query->paginate($perPage);
+            $companies = $query->paginate($perPage);
 
             return response()->json([
-                'data' => CompanyResource::collection($querys->items()),
-                'total' => $querys->total(),
-                'current_page' => $querys->currentPage(),
-                'last_page' => $querys->lastPage(),
+                'data' => CompanyResource::collection($companies->items()),
+                'total' => $companies->total(),
+                'current_page' => $companies->currentPage(),
+                'last_page' => $companies->lastPage(),
             ]);
         } catch (\Exception $e) {
-            // هذا سيظهر لك رسالة الخطأ الفعلية وstack trace
-            // لا تستخدم هذا في بيئة الإنتاج إلا للديسج سريعًا ثم قم بإزالته لأسباب أمنية
             return response()->json([
                 'error' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString()  // يُظهر المسار الكامل للخطأ
+                'trace' => $e->getTraceAsString()
             ], 500);
         }
     }
 
-    /**
-     * Store a newly created resource in storage.
-     *  value: 'companys_create', name: 'إنشاء شركة'
-     */
     public function store(CompanyRequest $request)
     {
-        $authUser = auth()->user();
-        // 'companys_create', // إنشاء شركة
-        if (!$authUser->hasAnyPermission(['super_admin', 'companys_create', 'company_owner'])) {
-            return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);
+        $authUser = Auth::user();
+        if (!$authUser->hasAnyPermission([
+            perm_key('admin.super'),
+            perm_key('companies.create'),
+            perm_key('admin.company')
+        ])) {
+            return response()->json(['error' => 'Unauthorized'], 403);
         }
+
         $validatedData = $request->validated();
         try {
             DB::beginTransaction();
+
             $validatedData['company_id'] = $validatedData['company_id'] ?? $authUser->company_id;
             $validatedData['created_by'] = $validatedData['created_by'] ?? $authUser->id;
 
-            // $file = $request->file('logo');
-            if ($request->hasFile('logo')) {
-                $file = $request->file('logo');
-            } else {
-                // تحديد لوجو بديل إذا لم يتم إرسال لوجو
-                $defaultLogoPath = public_path('images/default-logo.png');  // مسار اللوجو البديل
-                $file = new \Illuminate\Http\UploadedFile($defaultLogoPath, 'default-logo.png');
-            }
+            $file = $request->hasFile('logo')
+                ? $request->file('logo')
+                : new \Illuminate\Http\UploadedFile(public_path('images/default-logo.png'), 'default-logo.png');
 
             $company = Company::create($validatedData);
             $company->users()->attach($authUser);
             $company->saveImage('logo', $file);
 
-            $company->logCreated(" بانشاء شركة باسم {$company->name}");
+            $company->logCreated("بإنشاء شركة باسم {$company->name}");
             DB::commit();
             return new CompanyResource($company);
         } catch (\Exception $e) {
@@ -115,67 +98,50 @@ class CompanyController extends Controller
         }
     }
 
-    /**
-     * Display the specified resource.
-     */
     public function show(Company $company)
     {
-        $authUser = auth()->user();
+        $authUser = Auth::user();
 
-        if ($authUser->hasPermissionTo('company_owner')) {
-            $company = Company::withoutGlobalScope(CompanyScope::class)->findOrFail($company->id);
+        if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
+            return new CompanyResource(Company::withoutGlobalScope(CompanyScope::class)->findOrFail($company->id));
         }
-        // 'companys_show', // عرض تفاصيل أي شركة
-        // 'companys_show_own', // عرض تفاصيل الشركات التابعين له
-        // 'companys_show_self', // عرض تفاصيل الشركة الخاصه به
+
         if (
-            $authUser->hasPermissionTo('companys_show') ||
-            $authUser->hasPermissionTo('super_admin') ||
-            ($authUser->hasPermissionTo('companys_show_own') && $authUser->id === $company->id) ||
-            ($authUser->hasPermissionTo('company_owner') && $authUser->company_id === $company->company_id) ||
-            $authUser->id === $company->id
+            $authUser->hasPermissionTo(perm_key('companies.view_all')) ||
+            ($authUser->hasPermissionTo(perm_key('companies.view_children')) && $company->isOwn()) ||
+            ($authUser->hasPermissionTo(perm_key('companies.view_self')) && $company->isSelf()) ||
+            ($authUser->hasPermissionTo(perm_key('admin.company')) && $authUser->company_id === $company->company_id)
         ) {
             return new CompanyResource($company);
         }
 
-        return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);
+        return response()->json(['error' => 'Unauthorized'], 403);
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
     public function update(CompanyUpdateRequest $request, Company $company)
     {
-        $authUser = auth()->user();
-
+        $authUser = Auth::user();
         $validated = $request->validated();
-        if ($authUser->id === $company->id) {
-            unset($validated['status'], $validated['balance']);
-        }
 
-        // 'companys_update', // تعديل أي شركة
-        // 'companys_update_own', // تعديل الشركات التابعين له
-        // 'companys_update_self', // تعديل الشركه الخاصه به
         if (
-            $authUser->hasAnyPermission(['super_admin', 'companys_update']) ||
-            ($authUser->hasPermissionTo('companys_update_own') && $company->isOwn()) ||
-            ($authUser->hasPermissionTo('companys_update_self') && $company->isSelf())
+            $authUser->hasPermissionTo(perm_key('admin.super')) ||
+            $authUser->hasPermissionTo(perm_key('companies.update_any')) ||
+            ($authUser->hasPermissionTo(perm_key('companies.update_children')) && $company->isOwn()) ||
+            ($authUser->hasPermissionTo(perm_key('companies.update_self')) && $company->isSelf()) ||
+            ($authUser->hasPermissionTo(perm_key('admin.company')) && $authUser->company_id === $company->company_id)
         ) {
             try {
                 DB::beginTransaction();
                 $company->update($validated);
 
-                $logoRequest = $request->file('logo');
-
-                if ($logoRequest) {
-                    $logo = $company->images()->where('type', 'logo')->first();
-                    if ($logo) {
+                if ($logoRequest = $request->file('logo')) {
+                    if ($logo = $company->images()->where('type', 'logo')->first()) {
                         $company->deleteImage($logo);
                     }
                     $company->saveImage('logo', $logoRequest);
                 }
 
-                $company->logUpdated(' الشركة  ' . $company->name);
+                $company->logUpdated('الشركة ' . $company->name);
                 DB::commit();
                 return new CompanyResource($company);
             } catch (\Exception $e) {
@@ -183,52 +149,44 @@ class CompanyController extends Controller
                 throw $e;
             }
         }
-        return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);
+
+        return response()->json(['error' => 'Unauthorized'], 403);
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
     public function destroy(Request $request)
     {
-        // 'companys_delete', // حذف أي شركة
-        // 'companys_delete_own', // حذف الشركات التابعين له
-        // 'companys_delete_self', // حذف الشركه الخاصه به
-
-        $authUser = auth()->user();
-
+        $authUser = Auth::user();
         $companyIds = $request->input('item_ids');
 
         if (!$companyIds || !is_array($companyIds)) {
             return response()->json(['error' => 'Invalid company IDs provided'], 400);
         }
-        $companysToDelete = Company::whereIn('id', $companyIds)->get();
 
-        foreach ($companysToDelete as $company) {
-            if (
-                $authUser->hasAnyPermission(['super_admin', 'companys_delete']) ||
-                ($authUser->hasPermissionTo('companys_delete_own') && $company->isOwn()) ||
-                ($authUser->hasPermissionTo('companys_delete_self') && $company->created_by == $authUser->id) ||
-                ($authUser->hasPermissionTo('company_owner') && $authUser->company_id === $company->company_id)
-            ) {
-                continue;
+        $companiesToDelete = Company::whereIn('id', $companyIds)->get();
+
+        foreach ($companiesToDelete as $company) {
+            if (!(
+                $authUser->hasPermissionTo(perm_key('admin.super')) ||
+                $authUser->hasPermissionTo(perm_key('companies.delete_any')) ||
+                ($authUser->hasPermissionTo(perm_key('companies.delete_children')) && $company->isOwn()) ||
+                ($authUser->hasPermissionTo(perm_key('companies.delete_self')) && $company->created_by == $authUser->id) ||
+                ($authUser->hasPermissionTo(perm_key('admin.company')) && $authUser->company_id === $company->company_id)
+            )) {
+                return response()->json(['error' => 'You do not have permission to delete company with ID: ' . $company->id], 403);
             }
-
-            return response()->json(['error' => 'You do not have permission to delete company with ID: ' . $company->id], 403);
         }
+
         try {
             DB::beginTransaction();
-
-            foreach ($companysToDelete as $company) {
-                $logo = $company->images()->where('type', 'logo')->first();
-                if ($logo) {
+            foreach ($companiesToDelete as $company) {
+                if ($logo = $company->images()->where('type', 'logo')->first()) {
                     $company->deleteImage($logo);
                 }
                 $company->delete();
-                $company->logForceDeleted(' الشركة ' . $company->name);
+                $company->logForceDeleted('الشركة ' . $company->name);
             }
             DB::commit();
-            return response()->json(['message' => 'company deleted successfully'], 200);
+            return response()->json(['message' => 'Company deleted successfully'], 200);
         } catch (\Exception $e) {
             DB::rollback();
             throw $e;

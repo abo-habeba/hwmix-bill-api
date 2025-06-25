@@ -6,6 +6,9 @@ use App\Traits\LogsActivity;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
+/**
+ * @mixin IdeHelperInstallment
+ */
 class Installment extends Model
 {
     use HasFactory, LogsActivity, Blameable;

@@ -5,6 +5,9 @@ namespace App\Models;
 use App\Traits\Blameable;
 use Illuminate\Database\Eloquent\Model;
 
+/**
+ * @mixin IdeHelperImage
+ */
 class Image extends Model
 {
     use Blameable;

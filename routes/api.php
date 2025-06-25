@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Backup\DatabaseBackupController;
+use App\Http\Controllers\ArtisanController;
 use App\Http\Controllers\AttributeController;
 use App\Http\Controllers\AttributeValueController;
 use App\Http\Controllers\AuthController;
@@ -19,6 +20,7 @@ use App\Http\Controllers\InvoiceTypeController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PaymentMethodController;
+use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductVariantController;
 use App\Http\Controllers\ProfitController;
@@ -32,73 +34,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/dump', function () {
-    try {
-        // شغل أمر composer dump-autoload من خلال shell_exec
-        $output = shell_exec('composer dump-autoload');
-
-        return response()->json([
-            'status' => '✅ dump-autoload تم بنجاح',
-            'output' => $output
-        ]);
-    } catch (\Exception $e) {
-        return response()->json([
-            'status' => '❌ حصل خطأ',
-            'message' => $e->getMessage()
-        ]);
-    }
-});
-
-// Route to run migrations and seeders without authentication (for development only)
-Route::get('db/seed', function (Request $request) {
-    try {
-        \Artisan::call('migrate:fresh', ['--force' => true]);
-        \Artisan::call('db:seed', [
-            '--force' => true
-        ]);
-        return response()->json([
-            'migrate' => \Artisan::output(),
-            'seed' => 'Seeders executed successfully',
-        ]);
-    } catch (\Throwable $e) {
-        return response()->json([
-            'message' => $e->getMessage(),
-            'trace' => $e->getTraceAsString(),
-        ], 500);
-    }
-});
-Route::get('db/seed-permissions', function (\Illuminate\Http\Request $request) {
-    try {
-        \Artisan::call('db:seed', [
-            '--class' => 'Database\Seeders\PermissionsSeeder',
-            '--force' => true
-        ]);
-        return response()->json([
-            'seed' => 'PermissionsSeeder executed successfully',
-        ]);
-    } catch (\Throwable $e) {
-        return response()->json([
-            'message' => $e->getMessage(),
-            'trace' => $e->getTraceAsString(),
-        ], 500);
-    }
-});
-Route::get('db/RolesAndPermissionsSeeder', function (\Illuminate\Http\Request $request) {
-    try {
-        \Artisan::call('db:seed', [
-            '--class' => 'Database\Seeders\RolesAndPermissionsSeeder',
-            '--force' => true
-        ]);
-        return response()->json([
-            'seed' => 'seed-RolesAndPermissionsSeeder executed successfully',
-        ]);
-    } catch (\Throwable $e) {
-        return response()->json([
-            'message' => $e->getMessage(),
-            'trace' => $e->getTraceAsString(),
-        ], 500);
-    }
-});
 Route::prefix('db')->controller(DatabaseBackupController::class)->group(function () {
     // 🔄 [GET] /db/export: إنشاء نسخة احتياطية من البيانات كسيدر
     Route::get('export', 'export');
@@ -108,16 +43,6 @@ Route::prefix('db')->controller(DatabaseBackupController::class)->group(function
 
     // 🧨 [GET] /db/refresh:   عمل فريش للقاعدة واسترجاع النسخة الاحتياطية
     Route::get('restoreAndFresh', 'restoreAndFresh');
-});
-
-// Route to get all JSON files data for permissions
-Route::get('permissions-json', function () {
-    $permissionsJsonArray = [];
-    $jsonDir = database_path('seeders/permission-json');
-    foreach (glob($jsonDir . '/*.json') as $file) {
-        $permissionsJsonArray[] = json_decode(file_get_contents($file), true);
-    }
-    return response()->json($permissionsJsonArray);
 });
 
 Route::post('register', [AuthController::class, 'register']);
@@ -365,6 +290,17 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::put('installment-payment-detail/{installmentPaymentDetail}', 'update');
             Route::delete('installment-payment-detail/delete/{installmentPaymentDetail}', 'destroy');
         });
+});
+
+Route::get('/permissions', [PermissionController::class, 'index']);
+
+// Artisan commands routes
+Route::controller(ArtisanController::class)->prefix('php')->group(function () {
+    Route::get('dump', 'dumpAutoload');
+    Route::get('migrate', 'migrateAndSeed');
+    Route::get('seed-perm', 'seedPermissions');
+    Route::get('seed-roles', 'seedRolesAndPermissions');
+    Route::get('clear', 'clearAllCache');
 });
 
 require __DIR__ . '/installments.php';

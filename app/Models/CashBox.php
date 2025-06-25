@@ -14,6 +14,9 @@ use Illuminate\Database\Eloquent\Attributes\ScopedBy;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 #[ScopedBy([CompanyScope::class])]
+/**
+ * @mixin IdeHelperCashBox
+ */
 class CashBox extends Model
 {
     use Scopes, LogsActivity, RolePermissions, Blameable;

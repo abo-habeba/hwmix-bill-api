@@ -7,6 +7,7 @@ use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
 
 class InvoiceCreationService implements DocumentServiceInterface
@@ -91,9 +92,10 @@ class InvoiceCreationService implements DocumentServiceInterface
             $installmentService = new \App\Services\InstallmentService();
             $installmentService->createInstallments($data, $invoice->id);
         }
+        /** @var \App\Models\User $authUser */
         // زيادة رصيد المستخدم عند إنشاء فاتورة بيع
         if ($data['invoice_type_code'] === 'sale') {
-            $authUser = auth()->user();
+            $authUser = Auth::user();
             $authUser->deposit($invoice->total_amount);
         }
 

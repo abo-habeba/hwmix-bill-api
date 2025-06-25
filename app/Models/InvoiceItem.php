@@ -6,6 +6,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 use App\Traits\Blameable;
 
+/**
+ * @mixin IdeHelperInvoiceItem
+ */
 class InvoiceItem extends Model
 {
     use HasFactory, Blameable;

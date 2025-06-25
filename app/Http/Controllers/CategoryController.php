@@ -2,13 +2,13 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Category;
-use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
-use Symfony\Component\HttpFoundation\Response;
-use App\Http\Resources\Category\CategoryResource;
 use App\Http\Requests\Category\StoreCategoryRequest;
 use App\Http\Requests\Category\UpdateCategoryRequest;
+use App\Http\Resources\Category\CategoryResource;
+use App\Models\Category;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
 
 class CategoryController extends Controller
 {
@@ -28,14 +28,12 @@ class CategoryController extends Controller
         return CategoryResource::collection($categories);
     }
 
-
-
     /**
      * Store a newly created resource in storage.
      */
     public function store(StoreCategoryRequest $request)
     {
-        $authUser = auth()->user();
+        $authUser = Auth::user();
         $validatedData = $request->validated();
         $validatedData['company_id'] = $validatedData['company_id'] ?? $authUser->company_id;
         $validatedData['created_by'] = $validatedData['created_by'] ?? $authUser->id;

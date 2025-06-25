@@ -15,6 +15,7 @@ class UserObserver
     {
         $this->agent = new Agent();
     }
+
     public function created(User $user): void
     {
         ActivityLog::create([
@@ -25,13 +26,13 @@ class UserObserver
             'user_id' => auth()->id(),
             'created_by' => auth()->id(),
             'ip_address' => request()->ip(),
-            'user_agent' => $this->agent->browser() . ' ' .
-                    $this->agent->version($this->agent->browser()) .
-                    ' (' . $this->agent->platform() .
-                    ' ' . $this->agent->version($this->agent->platform()) . ')',
+            'user_agent' => $this->agent->browser() . ' '
+                . $this->agent->version($this->agent->browser())
+                . ' (' . $this->agent->platform()
+                . ' ' . $this->agent->version($this->agent->platform()) . ')',
             'url' => request()->getRequestUri(),
-            'description' => 'قام المستخدم ' . auth()->user()->nickname .
-                ' بإنشاء حساب جديد باسم ' . $user->nickname ,
+            'description' => 'قام المستخدم ' . Auth::user()->nickname
+                . ' بإنشاء حساب جديد باسم ' . $user->nickname,
         ]);
     }
 
@@ -46,16 +47,16 @@ class UserObserver
             'user_id' => auth()->id(),
             'created_by' => auth()->id(),
             'ip_address' => request()->ip(),
-            'user_agent' => $this->agent->browser() . ' ' .
-                    $this->agent->version($this->agent->browser()) .
-                    ' (' . $this->agent->platform() .
-                    ' ' . $this->agent->version($this->agent->platform()) . ')',
+            'user_agent' => $this->agent->browser() . ' '
+                . $this->agent->version($this->agent->browser())
+                . ' (' . $this->agent->platform()
+                . ' ' . $this->agent->version($this->agent->platform()) . ')',
             'url' => request()->getRequestUri(),
-            'description' => 'قام المستخدم ' . auth()->user()->nickname .
-                ' بتحديث بيانات المستخدم ' . $user->nickname .
-                ' (البريد الإلكتروني: ' . $user->email . ') ' .
-                'في تاريخ ' . now()->format('Y-m-d H:i:s') .
-                '. تم تعديل البيانات بنجاح.',
+            'description' => 'قام المستخدم ' . Auth::user()->nickname
+                . ' بتحديث بيانات المستخدم ' . $user->nickname
+                . ' (البريد الإلكتروني: ' . $user->email . ') '
+                . 'في تاريخ ' . now()->format('Y-m-d H:i:s')
+                . '. تم تعديل البيانات بنجاح.',
         ]);
     }
 
@@ -70,16 +71,16 @@ class UserObserver
             'user_id' => auth()->id(),
             'created_by' => auth()->id(),
             'ip_address' => request()->ip(),
-            'user_agent' => $this->agent->browser() . ' ' .
-                    $this->agent->version($this->agent->browser()) .
-                    ' (' . $this->agent->platform() .
-                    ' ' . $this->agent->version($this->agent->platform()) . ')',
+            'user_agent' => $this->agent->browser() . ' '
+                . $this->agent->version($this->agent->browser())
+                . ' (' . $this->agent->platform()
+                . ' ' . $this->agent->version($this->agent->platform()) . ')',
             'url' => request()->getRequestUri(),
-            'description' => 'قام المستخدم ' . auth()->user()->nickname .
-                ' بحذف الحساب الخاص بالمستخدم ' . $user->nickname .
-                ' بالبريد الإلكتروني ' . $user->email .
-                ' في تاريخ ' . now()->format('Y-m-d H:i:s') .
-                ' من العنوان IP ' . request()->ip() . '.',
+            'description' => 'قام المستخدم ' . Auth::user()->nickname
+                . ' بحذف الحساب الخاص بالمستخدم ' . $user->nickname
+                . ' بالبريد الإلكتروني ' . $user->email
+                . ' في تاريخ ' . now()->format('Y-m-d H:i:s')
+                . ' من العنوان IP ' . request()->ip() . '.',
         ]);
     }
 
@@ -94,15 +95,15 @@ class UserObserver
             'user_id' => auth()->id(),
             'created_by' => auth()->id(),
             'ip_address' => request()->ip(),
-            'user_agent' => $this->agent->browser() . ' ' .
-                    $this->agent->version($this->agent->browser()) .
-                    ' (' . $this->agent->platform() .
-                    ' ' . $this->agent->version($this->agent->platform()) . ')',
+            'user_agent' => $this->agent->browser() . ' '
+                . $this->agent->version($this->agent->browser())
+                . ' (' . $this->agent->platform()
+                . ' ' . $this->agent->version($this->agent->platform()) . ')',
             'url' => request()->getRequestUri(),
-            'description' => 'قام المستخدم ' . auth()->user()->nickname .
-                ' باستعادة حساب المستخدم ' . $user->nickname .
-                ' (البريد الإلكتروني: ' . $user->email . ') ' .
-                'في تاريخ ' . now()->format('Y-m-d H:i:s') . '.',
+            'description' => 'قام المستخدم ' . Auth::user()->nickname
+                . ' باستعادة حساب المستخدم ' . $user->nickname
+                . ' (البريد الإلكتروني: ' . $user->email . ') '
+                . 'في تاريخ ' . now()->format('Y-m-d H:i:s') . '.',
         ]);
     }
 
@@ -117,16 +118,16 @@ class UserObserver
             'user_id' => auth()->id(),
             'created_by' => auth()->id(),
             'ip_address' => request()->ip(),
-            'user_agent' => $this->agent->browser() . ' ' .
-                    $this->agent->version($this->agent->browser()) .
-                    ' (' . $this->agent->platform() .
-                    ' ' . $this->agent->version($this->agent->platform()) . ')',
+            'user_agent' => $this->agent->browser() . ' '
+                . $this->agent->version($this->agent->browser())
+                . ' (' . $this->agent->platform()
+                . ' ' . $this->agent->version($this->agent->platform()) . ')',
             'url' => request()->getRequestUri(),
-            'description' => 'قام المستخدم ' . auth()->user()->nickname .
-                ' بحذف حساب المستخدم ' . $user->nickname .
-                ' (البريد الإلكتروني: ' . $user->email . ') ' .
-                'بشكل نهائي في تاريخ ' . now()->format('Y-m-d H:i:s') .
-                '. هذه العملية تمت من العنوان IP ' . request()->ip() . '.',
+            'description' => 'قام المستخدم ' . Auth::user()->nickname
+                . ' بحذف حساب المستخدم ' . $user->nickname
+                . ' (البريد الإلكتروني: ' . $user->email . ') '
+                . 'بشكل نهائي في تاريخ ' . now()->format('Y-m-d H:i:s')
+                . '. هذه العملية تمت من العنوان IP ' . request()->ip() . '.',
         ]);
     }
 }

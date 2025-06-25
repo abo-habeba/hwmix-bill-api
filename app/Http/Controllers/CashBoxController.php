@@ -9,28 +9,43 @@ use App\Models\CashBox;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * Class CashBoxController
+ *
+ * تحكم في عمليات الخزن (عرض، إضافة، تعديل، حذف)
+ *
+ * @package App\Http\Controllers
+ */
 class CashBoxController extends Controller
 {
+    /**
+     * عرض جميع الخزن مع الفلاتر والصلاحيات.
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
     public function index(Request $request)
     {
         try {
-            $authUser = auth()->user();
+            /** @var \App\Models\User|null $authUser */
+            $authUser = Auth::user();
             $cashBoxQuery = CashBox::query();
             if ($request->query('Current_user') == 1) {
-                $cashBoxQuery->where('user_id', $authUser->id)->company();
+                $cashBoxQuery->where('user_id', $authUser->id)->whereCompanyIsCurrent();
             } else {
                 $cashBoxQuery->whereDoesntHave('typeBox', function ($query) {
                     $query->where('description', 'النوع الافتراضي للسيستم');
                 });
                 // التحقق من صلاحيات المستخدم
                 if ($authUser->hasAnyPermission(['cashbox_all', 'company_owner', 'super_admin'])) {
-                    $cashBoxQuery->company();
+                    $cashBoxQuery->whereCompanyIsCurrent();
                 } elseif ($authUser->hasPermissionTo('cashbox_all_own')) {
-                    $cashBoxQuery->createdBySubUsers()->company();
+                    $cashBoxQuery->createdBySubUsers()->whereCompanyIsCurrent();
                 } elseif ($authUser->hasPermissionTo('cashbox_all_self')) {
-                    $cashBoxQuery->createdByUser()->company();
+                    $cashBoxQuery->createdByUser()->whereCompanyIsCurrent();
                 } else {
                     return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);
                 }
@@ -73,9 +88,16 @@ class CashBoxController extends Controller
         }
     }
 
+    /**
+     * تخزين خزنة جديدة.
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
     public function store(Request $request)
     {
-        $authUser = auth()->user();
+        /** @var \App\Models\User|null $authUser */
+        $authUser = Auth::user();
 
         if ($authUser->hasAnyPermission(['super_admin', 'cashbox_create', 'company_owner'])) {
             $validated = $request->validate([
@@ -101,9 +123,16 @@ class CashBoxController extends Controller
         return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);
     }
 
+    /**
+     * عرض تفاصيل خزنة معينة.
+     *
+     * @param CashBox $cashBox
+     * @return \Illuminate\Http\JsonResponse
+     */
     public function show(CashBox $cashBox)
     {
-        $authUser = auth()->user();
+        /** @var \App\Models\User|null $authUser */
+        $authUser = Auth::user();
 
         if (
             $authUser->hasPermissionTo('company_owner') && $cashBox->isCompany() ||
@@ -116,9 +145,17 @@ class CashBoxController extends Controller
         }
     }
 
+    /**
+     * تحديث بيانات خزنة موجودة.
+     *
+     * @param Request $request
+     * @param CashBox $cashBox
+     * @return \Illuminate\Http\JsonResponse
+     */
     public function update(Request $request, CashBox $cashBox)
     {
-        $authUser = auth()->user();
+        /** @var \App\Models\User|null $authUser */
+        $authUser = Auth::user();
 
         $validated = $request->validate([
             'name' => "required|unique:cash_boxes,name,{$cashBox->id}",
@@ -146,9 +183,16 @@ class CashBoxController extends Controller
         return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);
     }
 
+    /**
+     * حذف خزنة.
+     *
+     * @param CashBox $cashBox
+     * @return \Illuminate\Http\JsonResponse
+     */
     public function destroy(CashBox $cashBox)
     {
-        $authUser = auth()->user();
+        /** @var \App\Models\User|null $authUser */
+        $authUser = Auth::user();
 
         if (
             $authUser->hasAnyPermission(['super_admin', 'cashbox_delete']) ||
@@ -170,9 +214,16 @@ class CashBoxController extends Controller
         return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);
     }
 
+    /**
+     * تحويل أموال بين الخزن.
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
     public function transferFunds(Request $request)
     {
-        $authUser = auth()->user();
+        /** @var \App\Models\User|null $authUser */
+        $authUser = Auth::user();
         $toUser = User::findOrFail($request->to_user_id);
         $amount = $request->amount;
         $cashBoxId = $request->cashBoxId;

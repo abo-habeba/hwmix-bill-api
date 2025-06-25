@@ -37,7 +37,7 @@ class UserResource extends JsonResource
             'roles' => $this->getRolesWithPermissions(),
             'balance' => $this->balanceBox() ?? 0,
             // الشركات التي يمكن للمستخدم الوصول إليها
-            'companies' => CompanyResource::collection(Company::visibleFor($this->resource)->get()),
+            'companies' => CompanyResource::collection($this->getVisibleCompaniesForUser()),
             // 'companies' => CompanyResource::collection($this->companies),
             'cashBoxes' => CashBoxResource::collection($this->cashBoxesByCompany()),
             'status' => $this->status,
@@ -48,5 +48,15 @@ class UserResource extends JsonResource
             'created_by' => $this->created_by,
             'customer_type' => $this->customer_type,
         ];
+    }
+
+    protected function getVisibleCompaniesForUser()
+    {
+        // لو المستخدم ده (اللي بيتعرض في الريسورس) هو سوبر أدمن => يرجع كل الشركات
+        if ($this->hasPermissionTo(perm_key('admin.super'))) {
+            return \App\Models\Company::all();
+        }
+        // لو مش سوبر أدمن => يرجع الشركات المرتبطة بيه
+        return $this->companies;
     }
 }

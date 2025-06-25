@@ -5,6 +5,9 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+/**
+ * @mixin IdeHelperTranslation
+ */
 class Translation extends Model
 {
     protected $fillable = ['locale', 'field', 'value'];

@@ -4,6 +4,9 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
+/**
+ * @mixin IdeHelperQuotation
+ */
 class Quotation extends Model
 {
     protected $fillable = [

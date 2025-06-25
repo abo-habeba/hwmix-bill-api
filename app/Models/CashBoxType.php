@@ -7,6 +7,9 @@ use App\Traits\LogsActivity;
 use App\Traits\RolePermissions;
 use Illuminate\Database\Eloquent\Model;
 
+/**
+ * @mixin IdeHelperCashBoxType
+ */
 class CashBoxType extends Model
 {
     use Scopes, LogsActivity, RolePermissions;

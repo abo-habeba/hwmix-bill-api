@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\ActivityLog;
-use Illuminate\Http\Request;
 use App\Http\Resources\LogResource;
 use App\Models\Scopes\CompanyScope;
+use App\Models\ActivityLog;
+use Illuminate\Http\Request;
 
 class LogController extends Controller
 {
@@ -28,16 +28,15 @@ class LogController extends Controller
     public function index(Request $request)
     {
         try {
-            $authUser = auth()->user();
+            $authUser = Auth::user();
             $query = ActivityLog::query();
 
-
             if ($authUser->hasAnyPermission(['logs_all', 'company_owner', 'super_admin'])) {
-                $query->company();
+                $query->whereCompanyIsCurrent();
             } elseif ($authUser->hasPermissionTo('logs_show_own')) {
-                $query->own();
+                $query->whereCreatedByUserOrChildren();
             } elseif ($authUser->hasPermissionTo('logs_show_self')) {
-                $query->self();
+                $query->whereCreatedByUser();
             } else {
                 return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);
             }
@@ -70,6 +69,7 @@ class LogController extends Controller
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
+
     public function undo(Request $request, $logId)
     {
         $log = ActivityLog::findOrFail($logId);
