@@ -14,7 +14,7 @@ class ArtisanController extends Controller
     public function dumpAutoload()
     {
         try {
-            $output = shell_exec('composer dump-autoload');
+            $output = Artisan::call('dump-autoload');
             return response()->json([
                 'status' => '✅ dump-autoload تم بنجاح',
                 'output' => $output
