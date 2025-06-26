@@ -1,18 +1,19 @@
 <?php
 namespace App\Models;
 
+use App\Traits\Blameable;
+use App\Traits\LogsActivity;
+use App\Traits\Scopes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
-use App\Traits\LogsActivity;
-use App\Traits\Blameable;
 
 /**
  * @mixin IdeHelperInvoice
  */
 class Invoice extends Model
 {
-    use HasFactory, LogsActivity, Blameable;
+    use HasFactory, LogsActivity, Blameable, Scopes;
 
     protected $fillable = [
         'company_id',

@@ -26,7 +26,9 @@ class PermissionsSeeder extends Seeder
 
         // المرور على كل كيان (entity) وكل فعل (action) داخل ملف الصلاحيات
         foreach ($permissionsConfig as $entity => $actions) {
-            foreach ($actions as $actionData) {
+            foreach ($actions as $key => $actionData) {
+                if ($key === 'name')
+                    continue;
                 // التأكد من أن المفتاح 'key' موجود لضمان عدم وجود أخطاء
                 if (isset($actionData['key'])) {
                     $permissionsToSeed[] = [

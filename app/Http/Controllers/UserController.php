@@ -135,8 +135,8 @@ class UserController extends Controller
         $authUser = Auth::user();
 
         if (!$authUser || (
-            !$authUser->hasPermissionTo(perm_key('admin.super')) &&
-            !$authUser->hasPermissionTo(perm_key('users.create')) &&
+            !$authUser->hasPermissionTo(perm_key('admin.super')) ||
+            !$authUser->hasPermissionTo(perm_key('users.create')) ||
             !$authUser->hasPermissionTo(perm_key('admin.company'))
         )) {
             return response()->json([

@@ -147,7 +147,7 @@ class ProductVariantController extends Controller
         $products = $query->with(['variants' => function ($query) {
             $query->with($this->relations);
         }])->paginate($perPage);
-        $variants = $products->getCollection()->flatMap(function ($product) {
+        $variants = collect($products->items())->flatMap(function ($product) {
             return $product->variants;
         });
 

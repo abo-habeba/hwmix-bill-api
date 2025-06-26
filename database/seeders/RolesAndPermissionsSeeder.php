@@ -15,7 +15,7 @@ class RolesAndPermissionsSeeder extends Seeder
 {
     public function run()
     {
-        $permissions = Permission::pluck('name')->toArray();
+        $permissions = Permission::all();
 
         $existingCompany = Company::where('email', 'company@admin.com')->first();
         if (!$existingCompany) {
@@ -26,7 +26,7 @@ class RolesAndPermissionsSeeder extends Seeder
         if (!$admin) {
             $this->createSystemOwner($permissions);
         } else {
-            $admin->givePermissionTo($permissions);
+            $admin->syncPermissions($permissions);
         }
     }
 

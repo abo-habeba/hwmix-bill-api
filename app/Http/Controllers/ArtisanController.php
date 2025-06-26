@@ -11,21 +11,23 @@ class ArtisanController extends Controller
      * Run composer dump-autoload.
      * @return \Illuminate\Http\JsonResponse
      */
-public function dumpAutoload()
-{
-    try {
-        Artisan::call('dump-autoload');
-        return response()->json([
-            'status' => '✅ dump-autoload تم بنجاح',
-            'output' => Artisan::output()
-        ]);
-    } catch (\Exception $e) {
-        return response()->json([
-            'status' => '❌ حصل خطأ',
-            'message' => $e->getMessage()
-        ]);
+    public function dumpAutoload()
+    {
+        try {
+            $output = shell_exec('composer dump-autoload');
+            return response()->json([
+                'status' => '✅ dump-autoload تم بنجاح',
+                'output' => $output
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => '❌ حصل خطأ',
+                'message' => $e->getMessage()
+            ]);
+        }
     }
-}
+
+    /**
      * Run migrate:fresh and db:seed (for development only).
      * @return \Illuminate\Http\JsonResponse
      */
@@ -90,26 +92,18 @@ public function dumpAutoload()
         }
     }
 
-    /**
-     * حذف جميع أنواع الكاش في المشروع (كاش Laravel + كاش Spatie Permission + كاش config + كاش route ...إلخ)
-     * @return \Illuminate\Http\JsonResponse
-     */
-    public function clearAllCache()
+    public function AddPermissionsSeeder()
     {
         try {
-            // Laravel caches
-            \Artisan::call('cache:clear');
-            \Artisan::call('config:clear');
-            \Artisan::call('route:clear');
-            \Artisan::call('view:clear');
-            // Spatie Permission cache
-            app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
+            Artisan::call('db:seed', [
+                '--class' => 'Database\Seeders\AddPermissionsSeeder',
+                '--force' => true
+            ]);
             return response()->json([
-                'status' => '✅ تم حذف جميع أنواع الكاش (Laravel + Spatie Permission)',
+                'seed' => 'AddPermissionsSeeder executed successfully',
             ]);
         } catch (\Throwable $e) {
             return response()->json([
-                'status' => '❌ حصل خطأ',
                 'message' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ], 500);

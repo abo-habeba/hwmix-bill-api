@@ -80,7 +80,7 @@ return [
         'name' => ['key' => 'admin', 'label' => 'صلاحيات المديرين'],
         'page' => ['key' => 'admin.page', 'label' => 'الصفحة الرئيسية'],
         'super' => ['key' => 'admin.super', 'label' => ' صلاحية المدير العام'],
-        'company' => ['key' => 'company.owner', 'label' => 'صلاحية ادارة الشركة'],
+        'company' => ['key' => 'admin.company', 'label' => 'صلاحية ادارة الشركة'],
     ],
     // =====================================================================
     // COMPANIES
@@ -142,21 +142,63 @@ return [
     // =====================================================================
     'transactions' => [
         'name' => ['key' => 'transactions', 'label' => 'صلاحيات إدارة المعاملات'],
-        'page' => ['key' => 'transactions.page', 'label' => 'صفحة المعاملات'],
-        'view_any' => ['key' => 'transactions.view_any', 'label' => 'عرض كل المعاملات'],
-        'view' => ['key' => 'transactions.view', 'label' => 'عرض تفاصيل المعاملة'],
-        'create' => ['key' => 'transactions.create', 'label' => 'إنشاء معاملة'],
-        'update_any' => ['key' => 'transactions.update_any', 'label' => 'تعديل أى معاملة'],
-        'delete_any' => ['key' => 'transactions.delete_any', 'label' => 'حذف أى معاملة'],
+        'page' => ['key' => 'transactions.page', 'label' => 'الوصول إلى صفحة المعاملات'],
+
+        // صلاحيات العرض (View)
+        'view_any' => ['key' => 'transactions.view_any', 'label' => 'عرض جميع المعاملات (ضمن الشركة)'],
+        'view_children' => ['key' => 'transactions.view_children', 'label' => 'عرض المعاملات التي أنشأها المستخدمون التابعون'],
+        'view_self' => ['key' => 'transactions.view_self', 'label' => 'عرض المعاملات التي أنشأها المستخدم فقط'],
+        'view' => ['key' => 'transactions.view', 'label' => 'عرض تفاصيل معاملة محددة (تتطلب إحدى صلاحيات العرض الأخرى)'],
+
+        // صلاحيات الإنشاء (Create)
+        'create' => ['key' => 'transactions.create', 'label' => 'إنشاء معاملة جديدة'],
+
+        // صلاحيات التعديل (Update)
+        'update_any' => ['key' => 'transactions.update_any', 'label' => 'تعديل أي معاملة (ضمن الشركة)'],
+        'update_children' => ['key' => 'transactions.update_children', 'label' => 'تعديل المعاملات التي أنشأها المستخدمون التابعون'],
+        'update_self' => ['key' => 'transactions.update_self', 'label' => 'تعديل المعاملات التي أنشأها المستخدم فقط'],
+
+        // صلاحيات الحذف (Delete)
+        'delete_any' => ['key' => 'transactions.delete_any', 'label' => 'حذف أي معاملة (ضمن الشركة)'],
+        'delete_children' => ['key' => 'transactions.delete_children', 'label' => 'حذف المعاملات التي أنشأها المستخدمون التابعون'],
+        'delete_self' => ['key' => 'transactions.delete_self', 'label' => 'حذف المعاملات التي أنشأها المستخدم فقط'],
     ],
     // =====================================================================
     // ACTIVITY LOGS
     // =====================================================================
     'activity_logs' => [
-        'name' => ['key' => 'activity_logs', 'label' => 'صلاحيات سجلات النشاط'],
-        'page' => ['key' => 'activity_logs.page', 'label' => 'صفحة سجلات النشاط'],
-        'view_any' => ['key' => 'activity_logs.view_any', 'label' => 'عرض كل سجلات النشاط'],
-        'view' => ['key' => 'activity_logs.view', 'label' => 'عرض تفاصيل سجل النشاط'],
+        'name' => [
+            'key' => 'activity_logs',
+            'label' => 'سجل النشاطات'
+        ],
+        'page' => [
+            'key' => 'activity_logs.page',
+            'label' => 'الوصول إلى صفحة سجل النشاطات',
+        ],
+        'view_all' => [
+            'key' => 'activity_logs.view_all',
+            'label' => 'عرض كافة سجلات النشاطات',
+        ],
+        'view_children' => [
+            'key' => 'activity_logs.view_children',
+            'label' => 'عرض السجلات التي أنشأها المستخدم والتابعون له',
+        ],
+        'view_self' => [
+            'key' => 'activity_logs.view_self',
+            'label' => 'عرض سجل النشاطات الخاصة بالمستخدم فقط',
+        ],
+        'delete_any' => [
+            'key' => 'activity_logs.delete_any',
+            'label' => 'حذف أي سجل من سجل النشاطات',
+        ],
+        'delete_children' => [
+            'key' => 'activity_logs.delete_children',
+            'label' => 'حذف سجلات أنشأها المستخدمون التابعون',
+        ],
+        'delete_self' => [
+            'key' => 'activity_logs.delete_self',
+            'label' => 'حذف سجلات النشاطات الخاصة بالمستخدم فقط',
+        ],
     ],
     // =====================================================================
     // CASH BOX TYPES
@@ -175,12 +217,26 @@ return [
     // =====================================================================
     'cash_boxes' => [
         'name' => ['key' => 'cash_boxes', 'label' => 'صلاحيات إدارة الصناديق النقدية'],
-        'page' => ['key' => 'cash_boxes.page', 'label' => 'صفحة الصناديق النقدية'],
-        'view_any' => ['key' => 'cash_boxes.view_any', 'label' => 'عرض كل الصناديق النقدية'],
-        'view' => ['key' => 'cash_boxes.view', 'label' => 'عرض تفاصيل الصندوق النقدي'],
-        'create' => ['key' => 'cash_boxes.create', 'label' => 'إنشاء صندوق نقدي'],
-        'update_any' => ['key' => 'cash_boxes.update_any', 'label' => 'تعديل أى صندوق نقدي'],
-        'delete_any' => ['key' => 'cash_boxes.delete_any', 'label' => 'حذف أى صندوق نقدي'],
+        'page' => ['key' => 'cash_boxes.page', 'label' => 'الوصول إلى صفحة الصناديق النقدية'],
+
+        // صلاحيات العرض (View)
+        'view_any' => ['key' => 'cash_boxes.view_any', 'label' => 'عرض جميع الصناديق النقدية (ضمن الشركة)'],
+        'view_children' => ['key' => 'cash_boxes.view_children', 'label' => 'عرض الصناديق النقدية التي أنشأها المستخدمون التابعون'],
+        'view_self' => ['key' => 'cash_boxes.view_self', 'label' => 'عرض الصناديق النقدية التي أنشأها المستخدم فقط'],
+        'view' => ['key' => 'cash_boxes.view', 'label' => 'عرض تفاصيل صندوق نقدي محدد (تتطلب إحدى صلاحيات العرض الأخرى)'],
+
+        // صلاحيات الإنشاء (Create)
+        'create' => ['key' => 'cash_boxes.create', 'label' => 'إنشاء صندوق نقدي جديد'],
+
+        // صلاحيات التعديل (Update)
+        'update_any' => ['key' => 'cash_boxes.update_any', 'label' => 'تعديل أي صندوق نقدي (ضمن الشركة)'],
+        'update_children' => ['key' => 'cash_boxes.update_children', 'label' => 'تعديل الصناديق النقدية التي أنشأها المستخدمون التابعون'],
+        'update_self' => ['key' => 'cash_boxes.update_self', 'label' => 'تعديل الصناديق النقدية التي أنشأها المستخدم فقط'],
+
+        // صلاحيات الحذف (Delete)
+        'delete_any' => ['key' => 'cash_boxes.delete_any', 'label' => 'حذف أي صندوق نقدي (ضمن الشركة)'],
+        'delete_children' => ['key' => 'cash_boxes.delete_children', 'label' => 'حذف الصناديق النقدية التي أنشأها المستخدمون التابعون'],
+        'delete_self' => ['key' => 'cash_boxes.delete_self', 'label' => 'حذف الصناديق النقدية التي أنشأها المستخدم فقط'],
     ],
     // =====================================================================
     // IMAGES
@@ -198,12 +254,26 @@ return [
     // =====================================================================
     'warehouses' => [
         'name' => ['key' => 'warehouses', 'label' => 'صلاحيات إدارة المستودعات'],
-        'page' => ['key' => 'warehouses.page', 'label' => 'صفحة المستودعات'],
-        'view_any' => ['key' => 'warehouses.view_any', 'label' => 'عرض كل المستودعات'],
-        'view' => ['key' => 'warehouses.view', 'label' => 'عرض تفاصيل المستودع'],
-        'create' => ['key' => 'warehouses.create', 'label' => 'إنشاء مستودع'],
-        'update_any' => ['key' => 'warehouses.update_any', 'label' => 'تعديل أى مستودع'],
-        'delete_any' => ['key' => 'warehouses.delete_any', 'label' => 'حذف أى مستودع'],
+        'page' => ['key' => 'warehouses.page', 'label' => 'الوصول إلى صفحة المستودعات'],
+
+        // صلاحيات العرض (View)
+        'view_any' => ['key' => 'warehouses.view_any', 'label' => 'عرض جميع المستودعات (ضمن الشركة)'],
+        'view_children' => ['key' => 'warehouses.view_children', 'label' => 'عرض المستودعات التي أنشأها المستخدمون التابعون'],
+        'view_self' => ['key' => 'warehouses.view_self', 'label' => 'عرض المستودعات التي أنشأها المستخدم فقط'],
+        'view' => ['key' => 'warehouses.view', 'label' => 'عرض تفاصيل مستودع محدد (تتطلب إحدى صلاحيات العرض الأخرى)'],
+
+        // صلاحيات الإنشاء (Create)
+        'create' => ['key' => 'warehouses.create', 'label' => 'إنشاء مستودع جديد'],
+
+        // صلاحيات التعديل (Update)
+        'update_any' => ['key' => 'warehouses.update_any', 'label' => 'تعديل أي مستودع (ضمن الشركة)'],
+        'update_children' => ['key' => 'warehouses.update_children', 'label' => 'تعديل المستودعات التي أنشأها المستخدمون التابعون'],
+        'update_self' => ['key' => 'warehouses.update_self', 'label' => 'تعديل المستودعات التي أنشأها المستخدم فقط'],
+
+        // صلاحيات الحذف (Delete)
+        'delete_any' => ['key' => 'warehouses.delete_any', 'label' => 'حذف أي مستودع (ضمن الشركة)'],
+        'delete_children' => ['key' => 'warehouses.delete_children', 'label' => 'حذف المستودعات التي أنشأها المستخدمون التابعون'],
+        'delete_self' => ['key' => 'warehouses.delete_self', 'label' => 'حذف المستودعات التي أنشأها المستخدم فقط'],
     ],
     // =====================================================================
     // CATEGORIES
@@ -258,12 +328,26 @@ return [
     // =====================================================================
     'products' => [
         'name' => ['key' => 'products', 'label' => 'صلاحيات إدارة المنتجات'],
-        'page' => ['key' => 'products.page', 'label' => 'صفحة المنتجات'],
-        'view_any' => ['key' => 'products.view_any', 'label' => 'عرض كل المنتجات'],
-        'view' => ['key' => 'products.view', 'label' => 'عرض تفاصيل المنتج'],
-        'create' => ['key' => 'products.create', 'label' => 'إنشاء منتج'],
-        'update_any' => ['key' => 'products.update_any', 'label' => 'تعديل أى منتج'],
-        'delete_any' => ['key' => 'products.delete_any', 'label' => 'حذف أى منتج'],
+        'page' => ['key' => 'products.page', 'label' => 'الوصول إلى صفحة المنتجات'],
+
+        // صلاحيات العرض (View)
+        'view_any' => ['key' => 'products.view_any', 'label' => 'عرض جميع المنتجات (ضمن الشركة)'],
+        'view_children' => ['key' => 'products.view_children', 'label' => 'عرض المنتجات التي أنشأها المستخدمون التابعون'],
+        'view_self' => ['key' => 'products.view_self', 'label' => 'عرض المنتجات التي أنشأها المستخدم فقط'],
+        'view' => ['key' => 'products.view', 'label' => 'عرض تفاصيل منتج محدد (تتطلب إحدى صلاحيات العرض الأخرى)'],
+
+        // صلاحيات الإنشاء (Create)
+        'create' => ['key' => 'products.create', 'label' => 'إنشاء منتج جديد'],
+
+        // صلاحيات التعديل (Update)
+        'update_any' => ['key' => 'products.update_any', 'label' => 'تعديل أي منتج (ضمن الشركة)'],
+        'update_children' => ['key' => 'products.update_children', 'label' => 'تعديل المنتجات التي أنشأها المستخدمون التابعون'],
+        'update_self' => ['key' => 'products.update_self', 'label' => 'تعديل المنتجات التي أنشأها المستخدم فقط'],
+
+        // صلاحيات الحذف (Delete)
+        'delete_any' => ['key' => 'products.delete_any', 'label' => 'حذف أي منتج (ضمن الشركة)'],
+        'delete_children' => ['key' => 'products.delete_children', 'label' => 'حذف المنتجات التي أنشأها المستخدمون التابعون'],
+        'delete_self' => ['key' => 'products.delete_self', 'label' => 'حذف المنتجات التي أنشأها المستخدم فقط'],
     ],
     // =====================================================================
     // PRODUCT VARIANTS
@@ -304,50 +388,84 @@ return [
     // =====================================================================
     // INVOICE TYPES
     // =====================================================================
-    'invoice_types' => [
-        'name' => ['key' => 'invoice_types', 'label' => 'صلاحيات إدارة أنواع الفواتير'],
-        'page' => ['key' => 'invoice_types.page', 'label' => 'صفحة أنواع الفواتير'],
-        'view_any' => ['key' => 'invoice_types.view_any', 'label' => 'عرض كل أنواع الفواتير'],
-        'view' => ['key' => 'invoice_types.view', 'label' => 'عرض تفاصيل نوع الفاتورة'],
-        'create' => ['key' => 'invoice_types.create', 'label' => 'إنشاء نوع فاتورة'],
-        'update_any' => ['key' => 'invoice_types.update_any', 'label' => 'تعديل أى نوع فاتورة'],
-        'delete_any' => ['key' => 'invoice_types.delete_any', 'label' => 'حذف أى نوع فاتورة'],
-    ],
+    // 'invoice_types' => [
+    //     'name' => ['key' => 'invoice_types', 'label' => 'صلاحيات إدارة أنواع الفواتير'],
+    //     'page' => ['key' => 'invoice_types.page', 'label' => 'صفحة أنواع الفواتير'],
+    //     'view_any' => ['key' => 'invoice_types.view_any', 'label' => 'عرض كل أنواع الفواتير'],
+    //     'view' => ['key' => 'invoice_types.view', 'label' => 'عرض تفاصيل نوع الفاتورة'],
+    //     'create' => ['key' => 'invoice_types.create', 'label' => 'إنشاء نوع فاتورة'],
+    //     'update_any' => ['key' => 'invoice_types.update_any', 'label' => 'تعديل أى نوع فاتورة'],
+    //     'delete_any' => ['key' => 'invoice_types.delete_any', 'label' => 'حذف أى نوع فاتورة'],
+    // ],
     // =====================================================================
     // INVOICES
     // =====================================================================
     'invoices' => [
         'name' => ['key' => 'invoices', 'label' => 'صلاحيات إدارة الفواتير'],
-        'page' => ['key' => 'invoices.page', 'label' => 'صفحة الفواتير'],
-        'view_any' => ['key' => 'invoices.view_any', 'label' => 'عرض كل الفواتير'],
-        'view' => ['key' => 'invoices.view', 'label' => 'عرض تفاصيل الفاتورة'],
-        'create' => ['key' => 'invoices.create', 'label' => 'إنشاء فاتورة'],
-        'update_any' => ['key' => 'invoices.update_any', 'label' => 'تعديل أى فاتورة'],
-        'delete_any' => ['key' => 'invoices.delete_any', 'label' => 'حذف أى فاتورة'],
+        'page' => ['key' => 'invoices.page', 'label' => 'الوصول إلى صفحة الفواتير'],
+        // صلاحيات العرض (View)
+        'view_any' => ['key' => 'invoices.view_any', 'label' => 'عرض جميع الفواتير (ضمن الشركة)'],
+        'view_children' => ['key' => 'invoices.view_children', 'label' => 'عرض الفواتير التي أنشأها المستخدمون التابعون'],
+        'view_self' => ['key' => 'invoices.view_self', 'label' => 'عرض الفواتير التي أنشأها المستخدم فقط'],
+        'view' => ['key' => 'invoices.view', 'label' => 'عرض تفاصيل فاتورة محددة (تتطلب إحدى صلاحيات العرض الأخرى)'],  // يمكن استخدامها للتحقق من الوصول إلى فاتورة فردية بعد الفلترة العامة
+        // صلاحيات الإنشاء (Create)
+        'create' => ['key' => 'invoices.create', 'label' => 'إنشاء فاتورة جديدة'],
+        // صلاحيات التعديل (Update)
+        'update_any' => ['key' => 'invoices.update_any', 'label' => 'تعديل أي فاتورة (ضمن الشركة)'],
+        'update_children' => ['key' => 'invoices.update_children', 'label' => 'تعديل الفواتير التي أنشأها المستخدمون التابعون'],
+        'update_self' => ['key' => 'invoices.update_self', 'label' => 'تعديل الفواتير التي أنشأها المستخدم فقط'],
+        // صلاحيات الحذف (Delete)
+        'delete_any' => ['key' => 'invoices.delete_any', 'label' => 'حذف أي فاتورة (ضمن الشركة)'],
+        'delete_children' => ['key' => 'invoices.delete_children', 'label' => 'حذف الفواتير التي أنشأها المستخدمون التابعون'],
+        'delete_self' => ['key' => 'invoices.delete_self', 'label' => 'حذف الفواتير التي أنشأها المستخدم فقط'],
     ],
     // =====================================================================
     // INSTALLMENT PLANS
     // =====================================================================
     'installment_plans' => [
         'name' => ['key' => 'installment_plans', 'label' => 'صلاحيات إدارة خطط التقسيط'],
-        'page' => ['key' => 'installment_plans.page', 'label' => 'صفحة خطط التقسيط'],
-        'view_any' => ['key' => 'installment_plans.view_any', 'label' => 'عرض كل خطط التقسيط'],
-        'view' => ['key' => 'installment_plans.view', 'label' => 'عرض تفاصيل خطة التقسيط'],
-        'create' => ['key' => 'installment_plans.create', 'label' => 'إنشاء خطة تقسيط'],
-        'update_any' => ['key' => 'installment_plans.update_any', 'label' => 'تعديل أى خطة تقسيط'],
-        'delete_any' => ['key' => 'installment_plans.delete_any', 'label' => 'حذف أى خطة تقسيط'],
+        'page' => ['key' => 'installment_plans.page', 'label' => 'الوصول إلى صفحة خطط التقسيط'],
+
+        // صلاحيات العرض (View)
+        'view_any' => ['key' => 'installment_plans.view_any', 'label' => 'عرض جميع خطط التقسيط (ضمن الشركة)'],
+        'view_children' => ['key' => 'installment_plans.view_children', 'label' => 'عرض خطط التقسيط التي أنشأها المستخدمون التابعون'],
+        'view_self' => ['key' => 'installment_plans.view_self', 'label' => 'عرض خطط التقسيط التي أنشأها المستخدم فقط'],
+        'view' => ['key' => 'installment_plans.view', 'label' => 'عرض تفاصيل خطة تقسيط محددة (تتطلب إحدى صلاحيات العرض الأخرى)'],
+
+        // صلاحيات الإنشاء (Create)
+        'create' => ['key' => 'installment_plans.create', 'label' => 'إنشاء خطة تقسيط جديدة'],
+
+        // صلاحيات التعديل (Update)
+        'update_any' => ['key' => 'installment_plans.update_any', 'label' => 'تعديل أي خطة تقسيط (ضمن الشركة)'],
+        'update_children' => ['key' => 'installment_plans.update_children', 'label' => 'تعديل خطط التقسيط التي أنشأها المستخدمون التابعون'],
+        'update_self' => ['key' => 'installment_plans.update_self', 'label' => 'تعديل خطط التقسيط التي أنشأها المستخدم فقط'],
+
+        // صلاحيات الحذف (Delete)
+        'delete_any' => ['key' => 'installment_plans.delete_any', 'label' => 'حذف أي خطة تقسيط (ضمن الشركة)'],
+        'delete_children' => ['key' => 'installment_plans.delete_children', 'label' => 'حذف خطط التقسيط التي أنشأها المستخدمون التابعون'],
+        'delete_self' => ['key' => 'installment_plans.delete_self', 'label' => 'حذف خطط التقسيط التي أنشأها المستخدم فقط'],
     ],
     // =====================================================================
     // INSTALLMENTS
     // =====================================================================
     'installments' => [
         'name' => ['key' => 'installments', 'label' => 'صلاحيات إدارة الأقساط'],
-        'page' => ['key' => 'installments.page', 'label' => 'صفحة الأقساط'],
-        'view_any' => ['key' => 'installments.view_any', 'label' => 'عرض كل الأقساط'],
-        'view' => ['key' => 'installments.view', 'label' => 'عرض تفاصيل القسط'],
-        'create' => ['key' => 'installments.create', 'label' => 'إنشاء قسط'],
-        'update_any' => ['key' => 'installments.update_any', 'label' => 'تعديل أى قسط'],
-        'delete_any' => ['key' => 'installments.delete_any', 'label' => 'حذف أى قسط'],
+        'page' => ['key' => 'installments.page', 'label' => 'الوصول إلى صفحة الأقساط'],
+        // صلاحيات العرض (View)
+        'view_any' => ['key' => 'installments.view_any', 'label' => 'عرض جميع الأقساط (ضمن الشركة)'],
+        'view_children' => ['key' => 'installments.view_children', 'label' => 'عرض الأقساط التي أنشأها المستخدمون التابعون'],
+        'view_self' => ['key' => 'installments.view_self', 'label' => 'عرض الأقساط التي أنشأها المستخدم فقط'],
+        'view' => ['key' => 'installments.view', 'label' => 'عرض تفاصيل قسط محدد (تتطلب إحدى صلاحيات العرض الأخرى)'],  // يمكن استخدامها للتحقق من الوصول إلى قسط فردي بعد الفلترة العامة
+        // صلاحيات الإنشاء (Create)
+        'create' => ['key' => 'installments.create', 'label' => 'إنشاء قسط جديد'],
+        // صلاحيات التعديل (Update)
+        'update_any' => ['key' => 'installments.update_any', 'label' => 'تعديل أي قسط (ضمن الشركة)'],
+        'update_children' => ['key' => 'installments.update_children', 'label' => 'تعديل الأقساط التي أنشأها المستخدمون التابعون'],
+        'update_self' => ['key' => 'installments.update_self', 'label' => 'تعديل الأقساط التي أنشأها المستخدم فقط'],
+        // صلاحيات الحذف (Delete)
+        'delete_any' => ['key' => 'installments.delete_any', 'label' => 'حذف أي قسط (ضمن الشركة)'],
+        'delete_children' => ['key' => 'installments.delete_children', 'label' => 'حذف الأقساط التي أنشأها المستخدمون التابعون'],
+        'delete_self' => ['key' => 'installments.delete_self', 'label' => 'حذف الأقساط التي أنشأها المستخدم فقط'],
     ],
     // =====================================================================
     // INSTALLMENT PAYMENTS
