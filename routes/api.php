@@ -300,8 +300,6 @@ Route::controller(ArtisanController::class)->prefix('php')->group(function () {
     Route::get('migrate', 'migrateAndSeed');
     Route::get('seed-perm', 'seedPermissions');
     Route::get('seed-roles', 'seedRolesAndPermissions');
-    Route::get('AddPermissionsSeeder', 'AddPermissionsSeeder');
+    Route::get('PermissionsSeeder', 'PermissionsSeeder');
     Route::get('clear', 'clearAllCache');
 });
-
-require __DIR__ . '/installments.php';

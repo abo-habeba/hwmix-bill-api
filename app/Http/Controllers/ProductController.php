@@ -61,7 +61,7 @@ class ProductController extends Controller
             // تطبيق منطق الصلاحيات
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
                 // المسؤول العام يرى جميع المنتجات (لا توجد قيود إضافية على الاستعلام)
-            } elseif ($authUser->hasAnyPermission([perm_key('products.view_any'), perm_key('admin.company')])) {
+            } elseif ($authUser->hasAnyPermission([perm_key('products.view_all'), perm_key('admin.company')])) {
                 // يرى جميع المنتجات الخاصة بالشركة النشطة (بما في ذلك مديرو الشركة)
                 $query->whereCompanyIsCurrent();
             } elseif ($authUser->hasPermissionTo(perm_key('products.view_children'))) {
@@ -287,7 +287,7 @@ class ProductController extends Controller
             $canView = false;
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
                 $canView = true; // المسؤول العام يرى أي منتج
-            } elseif ($authUser->hasAnyPermission([perm_key('products.view_any'), perm_key('admin.company')])) {
+            } elseif ($authUser->hasAnyPermission([perm_key('products.view_all'), perm_key('admin.company')])) {
                 // يرى إذا كان المنتج ينتمي للشركة النشطة (بما في ذلك مديرو الشركة)
                 $canView = $product->belongsToCurrentCompany();
             } elseif ($authUser->hasPermissionTo(perm_key('products.view_children'))) {

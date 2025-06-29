@@ -17,9 +17,10 @@ class PermissionsSeeder extends Seeder
         // مسح الصلاحيات الموجودة مسبقًا لتجنب التكرار في كل مرة يتم تشغيل Seeder
         Permission::query()->delete();
 
+        app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
+
         // جلب جميع تعريفات الصلاحيات من ملف config/permissions_keys.php
         $permissionsConfig = config('permissions_keys');
-        app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
 
         // مصفوفة لتخزين جميع مفاتيح الصلاحيات التي سيتم إضافتها
         $permissionsToSeed = [];

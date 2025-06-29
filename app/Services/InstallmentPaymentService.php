@@ -2,15 +2,16 @@
 
 namespace App\Services;
 
+use Exception;
+use App\Models\Payment;
+use App\Models\Revenue;
 use App\Models\ActivityLog;
 use App\Models\Installment;
-use App\Models\InstallmentPlan;
-use App\Models\Payment;
-use App\Models\PaymentMethod;
-use App\Models\Revenue;
 use App\Models\Transaction;
+use App\Models\PaymentMethod;
+use App\Models\InstallmentPlan;
 use Illuminate\Support\Facades\DB;
-use Exception;
+use Illuminate\Support\Facades\Auth;
 
 class InstallmentPaymentService
 {
@@ -29,7 +30,7 @@ class InstallmentPaymentService
 
             $payment = Payment::create([
                 'payment_date' => $options['paid_at'] ?? now(),
-                'user_id' => auth()->id(),
+                'user_id' => Auth::id(),
                 'payment_method_id' => $paymentMethodId,
                 'notes' => $options['notes'] ?? '',
                 'amount' => $amount,
@@ -83,20 +84,26 @@ class InstallmentPaymentService
                 'note' => $options['notes'] ?? '',
                 'source_type' => $options['source_type'] ?? 'InstallmentPayment',
                 'source_id' => $payment->id,
-                'user_id' => auth()->id(),
-                'created_by' => auth()->id(),
+                'user_id' => Auth::id(),
+                'created_by' => Auth::id(),
                 'wallet_id' => $options['wallet_id'] ?? null,
                 'company_id' => $options['company_id'] ?? Auth::user()->company_id,
                 'payment_method' => $options['payment_method'] ?? 'default',
             ]);
 
             Transaction::create([
-                'cash_box_id' => $cashBoxId,
+                'user_id' => Auth::id(),
+                'cashbox_id' => $cashBoxId,
+                'target_user_id' => null,
+                'target_cashbox_id' => null,
+                'created_by' => Auth::id(),
+                'company_id' => $options['company_id'] ?? Auth::user()->company_id,
+                'type' => $options['type_ar'] ?? 'دفع قسط',
                 'amount' => $amount,
-                'transaction_date' => $options['paid_at'] ?? now(),
+                'balance_before' => null,
+                'balance_after' => null,
                 'description' => $options['notes'] ?? '',
-                'user_id' => auth()->id(),
-                'type' => $options['type'] ?? 'InstallmentPayment',
+                'original_transaction_id' => null,
             ]);
 
             $user = Auth::user();

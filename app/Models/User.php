@@ -96,12 +96,20 @@ class User extends Authenticatable
             ->withPivot('cash_box_id', 'created_by');  // أضف الحقول الإضافية التي تريد الوصول إليها
     }
 
+    /**
+     * Get the balance of the default cash box for the active company.
+     */
     public function balanceBox($id = null)
     {
-        $cashBoxes = $this->cashBoxes;
-        $cashBox = $id
-            ? $cashBoxes->firstWhere('id', $id)
-            : $cashBoxes->firstWhere('is_default', true);
+        if ($id) {
+            $cashBox = $this->cashBoxes()->where('id', $id)->first();
+            return $cashBox ? $cashBox->balance : 0;
+        }
+        // رصيد الصندوق الافتراضي للشركة النشطة فقط
+        $cashBox = $this->cashBoxes()
+            ->where('company_id', $this->company_id)
+            ->where('is_default', true)
+            ->first();
         return $cashBox ? $cashBox->balance : 0;
     }
 
@@ -257,22 +265,32 @@ class User extends Authenticatable
 
             $transaction = Transaction::create([
                 'user_id' => $this->id,
+                'cashbox_id' => $cashBox->id ?? null,
                 'target_user_id' => $targetUserId,
-                'type' => 'transfer',
-                'amount' => $amount,
-                'description' => $description,
-                'company_id' => $cashBox->company_id,
+                'target_cashbox_id' => $targetCashBox->id ?? null,
                 'created_by' => $this->id,
+                'company_id' => $cashBox->company_id ?? null,
+                'type' => 'تحويل',
+                'amount' => $amount,
+                'balance_before' => $cashBox->balance + $amount ?? null,
+                'balance_after' => $cashBox->balance ?? null,
+                'description' => $description,
+                'original_transaction_id' => null,
             ]);
 
             Transaction::create([
                 'user_id' => $targetUserId,
-                'original_transaction_id' => $transaction->id,
-                'type' => 'deposit',
-                'amount' => $amount,
-                'description' => 'Received from transfer',
-                'company_id' => $targetCashBox->company_id,
+                'cashbox_id' => $targetCashBox->id ?? null,
+                'target_user_id' => $this->id,
+                'target_cashbox_id' => $cashBox->id ?? null,
                 'created_by' => $this->id,
+                'company_id' => $targetCashBox->company_id ?? null,
+                'type' => 'إيداع',
+                'amount' => $amount,
+                'balance_before' => $targetCashBox->balance - $amount ?? null,
+                'balance_after' => $targetCashBox->balance ?? null,
+                'description' => 'Received from transfer',
+                'original_transaction_id' => $transaction->id,
             ]);
 
             DB::commit();
@@ -328,5 +346,30 @@ class User extends Authenticatable
             unset($descendants[$key]);
         }
         return array_values($descendants);
+    }
+
+    /**
+     * Ensure the user has a cash box for every company they belong to.
+     * If not, create a default cash box for that company.
+     */
+    public function ensureCashBoxesForAllCompanies()
+    {
+        $companies = $this->companies;
+        foreach ($companies as $company) {
+            $exists = $this->cashBoxes()->where('company_id', $company->id)->exists();
+            if (!$exists) {
+                $defaultType = \App\Models\CashBoxType::where('description', 'النوع الافتراضي للسيستم')->first();
+                $cashBoxTypeId = $defaultType ? $defaultType->id : null;
+                \App\Models\CashBox::create([
+                    'name' => 'نقدي',
+                    'balance' => 0,
+                    'cash_box_type_id' => $cashBoxTypeId,
+                    'is_default' => true,
+                    'user_id' => $this->id,
+                    'created_by' => $this->created_by ?? $this->id,
+                    'company_id' => $company->id,
+                ]);
+            }
+        }
     }
 }

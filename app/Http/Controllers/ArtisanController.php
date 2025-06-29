@@ -92,15 +92,15 @@ class ArtisanController extends Controller
         }
     }
 
-    public function AddPermissionsSeeder()
+    public function PermissionsSeeder()
     {
         try {
             Artisan::call('db:seed', [
-                '--class' => 'Database\Seeders\AddPermissionsSeeder',
+                '--class' => 'Database\Seeders\PermissionsSeeder',
                 '--force' => true
             ]);
             return response()->json([
-                'seed' => 'AddPermissionsSeeder executed successfully',
+                'seed' => 'PermissionsSeeder executed successfully',
             ]);
         } catch (\Throwable $e) {
             return response()->json([

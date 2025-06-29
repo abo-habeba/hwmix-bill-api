@@ -63,21 +63,7 @@ class RolesAndPermissionsSeeder extends Seeder
             $pivotData[$companyId] = ['created_by' => $user->id];
         }
         $user->companies()->sync($pivotData);
-
-        $cashBoxType = CashBoxType::create([
-            'name' => 'نقدي',
-            'description' => 'النوع الافتراضي للسيستم',
-        ]);
-        // إنشاء خزنة للمستخدم
-        CashBox::create([
-            'name' => 'نقدي',
-            'balance' => 0,
-            'cash_box_type_id' => $cashBoxType->id,
-            'is_default' => true,
-            'account_number' => $user->id,
-            'user_id' => $user->id,
-            'created_by' => $user->id,
-            'company_id' => $user->company_id,
-        ]);
+        // إنشاء صناديق المستخدم الافتراضية لكل شركة
+        $user->ensureCashBoxesForAllCompanies();
     }
 }

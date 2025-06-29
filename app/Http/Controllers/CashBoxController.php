@@ -84,7 +84,7 @@ class CashBoxController extends Controller
                 // تطبيق منطق الصلاحيات العامة
                 if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
                     // المسؤول العام يرى جميع الصناديق (لا قيود إضافية)
-                } elseif ($authUser->hasAnyPermission([perm_key('cash_boxes.view_any'), perm_key('admin.company')])) {
+                } elseif ($authUser->hasAnyPermission([perm_key('cash_boxes.view_all'), perm_key('admin.company')])) {
                     // يرى جميع الصناديق الخاصة بالشركة النشطة (بما في ذلك مديرو الشركة)
                     $cashBoxQuery->whereCompanyIsCurrent();
                 } elseif ($authUser->hasPermissionTo(perm_key('cash_boxes.view_children'))) {
@@ -265,7 +265,7 @@ class CashBoxController extends Controller
             $canView = false;
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
                 $canView = true; // المسؤول العام يرى أي صندوق
-            } elseif ($authUser->hasAnyPermission([perm_key('cash_boxes.view_any'), perm_key('admin.company')])) {
+            } elseif ($authUser->hasAnyPermission([perm_key('cash_boxes.view_all'), perm_key('admin.company')])) {
                 // يرى إذا كان الصندوق ينتمي للشركة النشطة (بما في ذلك مديرو الشركة)
                 $canView = $cashBox->belongsToCurrentCompany();
             } elseif ($authUser->hasPermissionTo(perm_key('cash_boxes.view_children'))) {
@@ -580,13 +580,14 @@ class CashBoxController extends Controller
                     'cashbox_id' => $fromCashBoxId,
                     'target_user_id' => $toUser->id,
                     'target_cashbox_id' => $toCashBoxId,
-                    'type' => 'تحويل', // نوع الحركة: تحويل
-                    'amount' => -$amount, // قيمة سالبة للدلالة على الخصم
-                    'description' => $description,
                     'created_by' => $authUser->id,
                     'company_id' => $companyId,
+                    'type' => 'تحويل',
+                    'amount' => -$amount,
                     'balance_before' => $authUserBalance,
                     'balance_after' => $authUserBalance - $amount,
+                    'description' => $description,
+                    'original_transaction_id' => null,
                 ]);
 
                 // إضافة السجل الخاص بالمستخدم المستلم (حركة إضافة إلى الصندوق الهدف)
@@ -595,15 +596,16 @@ class CashBoxController extends Controller
                 Transaction::create([
                     'user_id' => $toUser->id,
                     'cashbox_id' => $toCashBoxId,
-                    'target_cashbox_id' => $fromCashBoxId,
                     'target_user_id' => $authUser->id,
-                    'type' => 'استلام', // نوع الحركة: استلام
-                    'amount' => $amount, // قيمة موجبة للدلالة على الإضافة
-                    'description' => "استلام من {$authUser->nickname}",
+                    'target_cashbox_id' => $fromCashBoxId,
                     'created_by' => $authUser->id,
                     'company_id' => $companyId,
+                    'type' => 'استلام',
+                    'amount' => $amount,
                     'balance_before' => $toUserBalance,
                     'balance_after' => $toUserBalance + $amount,
+                    'description' => "استلام من {$authUser->nickname}",
+                    'original_transaction_id' => null,
                 ]);
 
                 // تحديث أرصدة الخزن (إذا كانت `withdraw` و `deposit` تحدث الرصيد في قاعدة البيانات)
@@ -666,4 +668,6 @@ class CashBoxController extends Controller
             ], 500);
         }
     }
+
+    // تم نقل الدالة إلى نموذج المستخدم User كـ ensureCashBoxesForAllCompanies
 }

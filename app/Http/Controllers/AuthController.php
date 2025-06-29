@@ -44,18 +44,8 @@ class AuthController extends Controller
         ]);
 
         $token = $user->createToken('auth_token')->plainTextToken;
-        $cashBoxType = CashBoxType::where('description', 'النوع الافتراضي للسيستم')->first();
-        // إنشاء خزنة للمستخدم
-        CashBox::create([
-            'name' => 'نقدي',
-            'balance' => 0,
-            'cash_box_type_id' => $cashBoxType->id,
-            'is_default' => true,
-            'account_number' => $user->id,
-            'user_id' => $user->id,
-            'created_by' => $user->id,
-            'company_id' => $user->company_id,
-        ]);
+        // إنشاء صناديق المستخدم الافتراضية لكل شركة
+        $user->ensureCashBoxesForAllCompanies();
         return response()->json([
             'message' => 'User registered successfully.',
             'user' => $user,

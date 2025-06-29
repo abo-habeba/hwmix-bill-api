@@ -42,6 +42,7 @@ class UserController extends Controller
         /** @var \App\Models\User|null $authUser */
         $authUser = Auth::user();
 
+
         try {
             if (!$authUser) {
                 return response()->json([
@@ -197,22 +198,8 @@ class UserController extends Controller
             }
 
             $user = User::create($validatedData);
-            $cashBoxType = CashBoxType::where('description', 'النوع الافتراضي للسيستم')->first();
-
-            if ($cashBoxType) {
-                CashBox::create([
-                    'name' => 'نقدي',
-                    'balance' => 0,
-                    'cash_box_type_id' => $cashBoxType->id,
-                    'is_default' => true,
-                    'account_number' => $user->id,
-                    'user_id' => $user->id,
-                    'created_by' => $user->id,  // الخزنة تُنشأ بواسطة المستخدم نفسه
-                    'company_id' => $user->company_id,  // ربط الخزنة بالشركة الأساسية للمستخدم
-                ]);
-            } else {
-                throw new \Exception('نوع الخزنة الافتراضي غير موجود.');
-            }
+            // إنشاء صناديق المستخدم الافتراضية لكل شركة
+            $user->ensureCashBoxesForAllCompanies();
 
             if (!empty($validatedData['company_ids'])) {
                 $pivotData = [];
@@ -348,6 +335,7 @@ class UserController extends Controller
             $user->update($validated);
 
             if (isset($validated['company_ids']) && is_array($validated['company_ids'])) {
+                $oldCompanyIds = $user->companies()->pluck('companies.id')->toArray();
                 $pivotData = [];
                 foreach ($validated['company_ids'] as $companyId) {
                     $pivotData[$companyId] = [
@@ -356,6 +344,23 @@ class UserController extends Controller
                     ];
                 }
                 $user->companies()->sync($pivotData);
+                // إضافة صناديق فقط للشركات الجديدة
+                $newCompanyIds = array_diff($validated['company_ids'], $oldCompanyIds);
+                foreach ($newCompanyIds as $companyId) {
+                    if (!$user->cashBoxes()->where('company_id', $companyId)->exists()) {
+                        $defaultType = \App\Models\CashBoxType::where('description', 'النوع الافتراضي للسيستم')->first();
+                        $cashBoxTypeId = $defaultType ? $defaultType->id : null;
+                        \App\Models\CashBox::create([
+                            'name' => 'نقدي',
+                            'balance' => 0,
+                            'cash_box_type_id' => $cashBoxTypeId,
+                            'is_default' => true,
+                            'user_id' => $user->id,
+                            'created_by' => $user->created_by ?? $user->id,
+                            'company_id' => $companyId,
+                        ]);
+                    }
+                }
             }
 
             if (isset($validated['permissions']) && is_array($validated['permissions'])) {

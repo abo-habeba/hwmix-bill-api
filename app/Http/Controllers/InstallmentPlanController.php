@@ -2,24 +2,17 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use App\Models\InstallmentPlan;
+use Illuminate\Support\Facades\DB;
+use App\Http\Controllers\Controller;
+use Illuminate\Support\Facades\Auth;
+use Throwable; // تم إضافة هذا الاستيراد
+use Illuminate\Support\Facades\Log; // تم إضافة هذا الاستيراد
+use App\Http\Resources\InstallmentPlan\InstallmentPlanResource;
 use App\Http\Requests\InstallmentPlan\StoreInstallmentPlanRequest;
 use App\Http\Requests\InstallmentPlan\UpdateInstallmentPlanRequest;
-use App\Http\Resources\InstallmentPlan\InstallmentPlanResource;
-use Illuminate\Support\Facades\Auth; // تم إضافة هذا الاستيراد
-use Illuminate\Support\Facades\Log; // تم إضافة هذا الاستيراد
-use Throwable; // تم إضافة هذا الاستيراد
 
-// دالة مساعدة لضمان الاتساق في مفاتيح الأذونات (إذا لم تكن معرفة عالميا)
-// if (!function_exists('perm_key')) {
-//     function perm_key(string $permission): string
-//     {
-//         return $permission;
-//     }
-// }
 
 class InstallmentPlanController extends Controller
 {
@@ -46,9 +39,13 @@ class InstallmentPlanController extends Controller
     {
         try {
             $authUser = Auth::user();
+            // $authUser = $request->user();
+            if (!$authUser) {
+                return response()->json(['error' => 'Unauthorized', 'message' => 'User is not authenticated.'], 401);
+            }
             $query = InstallmentPlan::with($this->relations);
-            $companyId = $authUser->company_id; // معرف الشركة النشطة للمستخدم
 
+            $companyId = $authUser->company_id; // معرف الشركة النشطة للمستخدم
             // التحقق الأساسي: إذا لم يكن المستخدم مرتبطًا بشركة وليس سوبر أدمن
             if (!$companyId && !$authUser->hasPermissionTo(perm_key('admin.super'))) {
                 return response()->json(['error' => 'Unauthorized', 'message' => 'User is not associated with a company.'], 403);
@@ -57,7 +54,7 @@ class InstallmentPlanController extends Controller
             // تطبيق فلترة الصلاحيات بناءً على صلاحيات العرض
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
                 // المسؤول العام يرى جميع خطط التقسيط (لا توجد قيود إضافية على الاستعلام)
-            } elseif ($authUser->hasAnyPermission([perm_key('installment_plans.view_any'), perm_key('admin.company')])) {
+            } elseif ($authUser->hasAnyPermission([perm_key('installment_plans.view_all'), perm_key('admin.company')])) {
                 // يرى جميع خطط التقسيط الخاصة بالشركة النشطة (بما في ذلك مديرو الشركة)
                 $query->whereCompanyIsCurrent();
             } elseif ($authUser->hasPermissionTo(perm_key('installment_plans.view_children'))) {
@@ -207,7 +204,7 @@ class InstallmentPlanController extends Controller
             $canView = false;
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
                 $canView = true; // المسؤول العام يرى أي خطة تقسيط
-            } elseif ($authUser->hasAnyPermission([perm_key('installment_plans.view_any'), perm_key('admin.company')])) {
+            } elseif ($authUser->hasAnyPermission([perm_key('installment_plans.view_all'), perm_key('admin.company')])) {
                 // يرى إذا كانت خطة التقسيط تنتمي للشركة النشطة (بما في ذلك مديرو الشركة)
                 $canView = $plan->belongsToCurrentCompany();
             } elseif ($authUser->hasPermissionTo(perm_key('installment_plans.view_children'))) {

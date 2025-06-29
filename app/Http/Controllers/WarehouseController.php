@@ -56,7 +56,7 @@ class WarehouseController extends Controller
             // تطبيق فلترة الصلاحيات بناءً على صلاحيات العرض
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
                 // المسؤول العام يرى جميع المستودعات (لا توجد قيود إضافية على الاستعلام)
-            } elseif ($authUser->hasAnyPermission([perm_key('warehouses.view_any'), perm_key('admin.company')])) {
+            } elseif ($authUser->hasAnyPermission([perm_key('warehouses.view_all'), perm_key('admin.company')])) {
                 // يرى جميع المستودعات الخاصة بالشركة النشطة (بما في ذلك مديرو الشركة)
                 $query->whereCompanyIsCurrent();
             } elseif ($authUser->hasPermissionTo(perm_key('warehouses.view_children'))) {
@@ -210,7 +210,7 @@ class WarehouseController extends Controller
             $canView = false;
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
                 $canView = true; // المسؤول العام يرى أي مستودع
-            } elseif ($authUser->hasAnyPermission([perm_key('warehouses.view_any'), perm_key('admin.company')])) {
+            } elseif ($authUser->hasAnyPermission([perm_key('warehouses.view_all'), perm_key('admin.company')])) {
                 // يرى إذا كان المستودع ينتمي للشركة النشطة (بما في ذلك مديرو الشركة)
                 $canView = $warehouse->belongsToCurrentCompany();
             } elseif ($authUser->hasPermissionTo(perm_key('warehouses.view_children'))) {

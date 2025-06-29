@@ -15,11 +15,17 @@ class Attribute extends Model
 
     protected $fillable = ['name', 'value', 'company_id', 'created_by'];
 
-    public function company() {
+    public function company()
+    {
         return $this->belongsTo(Company::class);
     }
 
-    public function values() {
+    public function values()
+    {
         return $this->hasMany(AttributeValue::class);
+    }
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'created_by');
     }
 }

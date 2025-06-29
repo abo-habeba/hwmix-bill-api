@@ -182,7 +182,7 @@ class TransactionController extends Controller
             // تطبيق صلاحية 'transactions.view_self'
             // المستخدم يمكنه رؤية معاملاته الخاصة فقط.
             $query->where('user_id', $authUser->id)
-                ->whereCompanyIsCurrent(); // تأكد من أنها ضمن شركته
+                ->where('company_id', $companyId); // تأكد من أنها ضمن شركته
 
             // فلاتر البحث
             if ($request->filled('type')) {
@@ -194,11 +194,13 @@ class TransactionController extends Controller
             if ($request->filled('target_user_id')) {
                 $query->where('target_user_id', $request->input('target_user_id'));
             }
-            if ($request->filled('created_at_from')) {
-                $query->where('created_at', '>=', $request->input('created_at_from') . ' 00:00:00');
+            $createdAtFrom = $request->input('created_at_from');
+            if (!empty($createdAtFrom)) {
+                $query->where('created_at', '>=', $createdAtFrom . ' 00:00:00');
             }
-            if ($request->filled('created_at_to')) {
-                $query->where('created_at', '<=', $request->input('created_at_to') . ' 23:59:59');
+            $createdAtTo = $request->input('created_at_to');
+            if (!empty($createdAtTo)) {
+                $query->where('created_at', '<=', $createdAtTo . ' 23:59:59');
             }
 
             $perPage = max(1, $request->get('per_page', 10));
@@ -207,12 +209,12 @@ class TransactionController extends Controller
 
             $transactions = $query->orderBy($sortField, $sortOrder)->paginate($perPage);
 
-            return response()->json([
-                'data' => TransactionResource::collection($transactions)->items(),
-                'total' => $transactions->total(),
-                'current_page' => $transactions->currentPage(),
-                'last_page' => $transactions->lastPage(),
-            ]);
+            return TransactionResource::collection($transactions)
+                ->additional([
+                    'total' => $transactions->total(),
+                    'current_page' => $transactions->currentPage(),
+                    'last_page' => $transactions->lastPage(),
+                ]);
         } catch (Throwable $e) {
             Log::error('User transactions retrieval failed: ' . $e->getMessage(), [
                 'exception' => $e,
@@ -447,7 +449,7 @@ class TransactionController extends Controller
             // تطبيق شروط الصلاحيات
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
                 // استرجاع جميع المعاملات (لا قيود إضافية)
-            } elseif ($authUser->hasAnyPermission([perm_key('transactions.view_any'), perm_key('admin.company')])) {
+            } elseif ($authUser->hasAnyPermission([perm_key('transactions.view_all'), perm_key('admin.company')])) {
                 // يرى جميع المعاملات ضمن الشركة
                 $query->whereCompanyIsCurrent();
             } elseif ($authUser->hasPermissionTo(perm_key('transactions.view_children'))) {
@@ -578,18 +580,18 @@ class TransactionController extends Controller
 
                 // تسجيل المعاملة العكسية في جدول المعاملات
                 $reversedTransaction = Transaction::create([
-                    'type' => 'reversal',
-                    'amount' => $transaction->amount, // المبلغ الأصلي للمعاملة
-                    'user_id' => $transaction->target_user_id, // المستلم يصبح هو الطرف الذي ينفذ العكس
-                    'target_user_id' => $transaction->user_id, // المنشئ الأصلي يصبح هو المستهدف
-                    'original_transaction_id' => $transaction->id,
-                    'cashbox_id' => $transaction->target_cashbox_id, // الصندوق الهدف يصبح المصدر
-                    'target_cashbox_id' => $transaction->cashbox_id, // الصندوق المصدر يصبح الهدف
-                    'description' => 'عكس المعاملة الأصلية رقم: ' . $transaction->id,
+                    'user_id' => $transaction->target_user_id,
+                    'cashbox_id' => $transaction->target_cashbox_id,
+                    'target_user_id' => $transaction->user_id,
+                    'target_cashbox_id' => $transaction->cashbox_id,
                     'created_by' => $authUser->id,
                     'company_id' => $companyId,
-                    'balance_before' => null, // يمكن حسابها داخل الدوال العكسية إذا كانت تدعم
-                    'balance_after' => null,  // يمكن حسابها داخل الدوال العكسية إذا كانت تدعم
+                    'type' => 'عكس',
+                    'amount' => $transaction->amount,
+                    'balance_before' => null,
+                    'balance_after' => null,
+                    'description' => 'عكس المعاملة الأصلية رقم: ' . $transaction->id,
+                    'original_transaction_id' => $transaction->id,
                 ]);
 
                 DB::commit();

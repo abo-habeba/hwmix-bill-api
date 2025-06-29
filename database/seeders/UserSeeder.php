@@ -59,6 +59,8 @@ class UserSeeder extends Seeder
                 $pivotData[$companyId] = ['created_by' => $userData['created_by']];
             }
             $user->companies()->sync($pivotData);
+            // إنشاء صناديق المستخدم الافتراضية لكل شركة
+            $user->ensureCashBoxesForAllCompanies();
         }
     }
 }

@@ -13,7 +13,7 @@ class Brand extends Model
 {
     use HasFactory, Blameable;
 
-    protected $fillable = ['company_id','created_by', 'name', 'description'];
+    protected $fillable = ['company_id', 'created_by', 'name', 'description'];
 
     public function company()
     {
@@ -23,5 +23,9 @@ class Brand extends Model
     public function products()
     {
         return $this->hasMany(Product::class);
+    }
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'created_by');
     }
 }
