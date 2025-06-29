@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Artisan;
 
 class ArtisanController extends Controller
@@ -106,6 +107,46 @@ class ArtisanController extends Controller
             return response()->json([
                 'message' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
+            ], 500);
+        }
+    }
+
+    public function clearAllCache(): JsonResponse
+    {
+        try {
+            // تنظيف الكاشات
+            Artisan::call('cache:clear');
+            Artisan::call('config:clear');
+            Artisan::call('route:clear');
+            Artisan::call('view:clear');
+            Artisan::call('clear-compiled');
+
+            // تنظيف كاش Spatie لو موجود
+            if (class_exists(\Spatie\Permission\PermissionRegistrar::class)) {
+                app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
+            }
+
+            // إعادة بناء الكاشات المهمة
+            Artisan::call('config:cache');
+            Artisan::call('route:cache');
+
+            return response()->json([
+                'status' => '✅ All caches cleared and rebuilt successfully',
+                'details' => [
+                    'cache' => 'cleared',
+                    'config' => 'cleared + cached',
+                    'route' => 'cleared + cached',
+                    'view' => 'cleared',
+                    'compiled' => 'cleared',
+                    'permissions' => 'spatie permissions cache cleared (if exists)',
+                ]
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'error' => '❌ Failed to clear and rebuild caches',
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
             ], 500);
         }
     }
