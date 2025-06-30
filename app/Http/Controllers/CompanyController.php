@@ -2,14 +2,15 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Requests\Company\CompanyRequest;
-use App\Http\Requests\Company\CompanyUpdateRequest;
-use App\Http\Resources\Company\CompanyResource;
-use App\Models\Scopes\CompanyScope;
 use App\Models\Company;
+use App\Models\Warehouse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use App\Models\Scopes\CompanyScope;
+use Illuminate\Support\Facades\Auth;
+use App\Http\Requests\Company\CompanyRequest;
+use App\Http\Resources\Company\CompanyResource;
+use App\Http\Requests\Company\CompanyUpdateRequest;
 
 class CompanyController extends Controller
 {
@@ -88,6 +89,14 @@ class CompanyController extends Controller
             $company = Company::create($validatedData);
             $company->users()->attach($authUser->id, ['created_by' => $authUser->id]);
             $company->saveImage('logo', $file);
+
+            // إنشاء المخزن الرئيسي تلقائياً عند إنشاء الشركة
+            Warehouse::create([
+                'name' => 'المخزن الرئيسي',
+                'company_id' => $company->id,
+                'created_by' => $authUser->id,
+                'status' => 'active',
+            ]);
 
             $company->logCreated("بإنشاء شركة باسم {$company->name}");
             DB::commit();

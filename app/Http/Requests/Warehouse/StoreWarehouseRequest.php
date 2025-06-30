@@ -26,9 +26,9 @@ class StoreWarehouseRequest extends FormRequest
             'location' => 'nullable|string|max:255',
             'manager' => 'nullable|string|max:255',
             'capacity' => 'nullable|integer|min:0',
-            'status' => 'required|in:active,inactive',
-            'company_id' => 'required|exists:companies,id',
-            'created_by' => 'required|exists:users,id',
+            'status' => 'nullable|in:active,inactive',
+            'company_id' => 'nullable|exists:companies,id',
+            'created_by' => 'nullable|exists:users,id',
         ];
     }
 }
