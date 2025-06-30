@@ -2,16 +2,17 @@
 
 namespace App\Models;
 
+use App\Traits\Scopes;
+use App\Traits\Blameable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use App\Traits\Blameable;
 
 /**
  * @mixin IdeHelperAttributeValue
  */
 class AttributeValue extends Model
 {
-    use HasFactory, Blameable;
+    use HasFactory, Blameable, Scopes;
 
     protected $fillable = [
         'attribute_id',

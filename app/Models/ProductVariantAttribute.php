@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Traits\Blameable;
+use App\Traits\Scopes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -11,7 +12,7 @@ use Illuminate\Database\Eloquent\Model;
  */
 class ProductVariantAttribute extends Model
 {
-    use HasFactory, Blameable;
+    use HasFactory, Blameable, Scopes;
 
     protected $fillable = ['product_variant_id', 'attribute_id', 'attribute_value_id', 'company_id', 'created_by'];
 

@@ -30,8 +30,8 @@ class AttributeController extends Controller
     {
         $this->relations = [
             'values',
-            'company',   // للتحقق من belongsToCurrentCompany
-            'creator',   // للتحقق من createdByCurrentUser/OrChildren
+            'company',
+            'creator',
         ];
     }
 

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Traits\Blameable;
+use App\Traits\Scopes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
@@ -12,7 +13,7 @@ use Illuminate\Support\Str;
  */
 class ProductVariant extends Model
 {
-    use HasFactory, Blameable;
+    use HasFactory, Blameable, Scopes;
 
     protected $fillable = [
         'barcode',

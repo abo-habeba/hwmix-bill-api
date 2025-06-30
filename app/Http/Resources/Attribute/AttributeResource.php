@@ -19,7 +19,7 @@ class AttributeResource extends JsonResource
             'name' => $this->name,
             'company_id' => $this->company_id,
             'created_by' => $this->created_by,
-            'values' => AttributeValueResource::collection($this->values),
+            'values' => AttributeValueResource::collection($this->whenLoaded('values')),
             'created_at' => $this->created_at->format('Y-m-d H:i:s'),
             'updated_at' => $this->updated_at->format('Y-m-d H:i:s'),
             'id' => $this->id,

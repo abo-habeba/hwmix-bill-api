@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Traits\Blameable;
 use App\Traits\Scopes;
 // يجب أن يمتد نموذج Pivot من Illuminate\Database\Eloquent\Relations\Pivot
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -14,7 +15,7 @@ use Illuminate\Database\Eloquent\Relations\Pivot;  // استيراد فئة Pivo
  */
 class RoleCompany extends Pivot  // **** التعديل الرئيسي: يجب أن يمتد من Pivot ****
 {
-    use HasFactory, Scopes;
+    use HasFactory, Scopes, Blameable;
 
     // اسم الجدول الذي يمثله هذا النموذج
     protected $table = 'role_company';

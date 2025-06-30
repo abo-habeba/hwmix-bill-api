@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Traits\Scopes;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
@@ -10,7 +11,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
  */
 class Category extends Model
 {
-    use HasFactory;
+    use HasFactory, Scopes;
 
     protected $fillable = ['company_id', 'created_by', 'parent_id', 'name', 'description'];
 
@@ -32,5 +33,4 @@ class Category extends Model
     {
         return $this->belongsTo(Category::class, 'parent_id');
     }
-
 }

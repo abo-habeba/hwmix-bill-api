@@ -1,15 +1,18 @@
 <?php
+
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
+use App\Traits\Scopes;
+use App\Traits\Blameable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 /**
  * @mixin IdeHelperPaymentMethod
  */
 class PaymentMethod extends Model
 {
-    use HasFactory;
+    use HasFactory, Scopes, Blameable;
     protected $fillable = ['name', 'code', 'active'];
     public function payments()
     {

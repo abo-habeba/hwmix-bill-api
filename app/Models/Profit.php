@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Traits\Blameable;
+use App\Traits\Scopes;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -9,6 +11,7 @@ use Illuminate\Database\Eloquent\Model;
  */
 class Profit extends Model
 {
+    use Scopes, Blameable;
     protected $fillable = [
         'source_type',
         'source_id',

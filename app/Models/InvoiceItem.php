@@ -1,20 +1,31 @@
 <?php
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 use App\Traits\Blameable;
+use App\Traits\Scopes;
 
 /**
  * @mixin IdeHelperInvoiceItem
  */
 class InvoiceItem extends Model
 {
-    use HasFactory, Blameable;
+    use HasFactory, Blameable, Scopes;
 
     protected $fillable = [
-        'invoice_id', 'product_id', 'installment_number', 'name', 'quantity', 'unit_price', 'discount', 'total', 'company_id', 'created_by'
+        'invoice_id',
+        'product_id',
+        'installment_number',
+        'name',
+        'quantity',
+        'unit_price',
+        'discount',
+        'total',
+        'company_id',
+        'created_by'
     ];
 
     public function invoice()

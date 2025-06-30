@@ -5,13 +5,14 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use App\Traits\Blameable;
+use App\Traits\Scopes;
 
 /**
  * @mixin IdeHelperAttribute
  */
 class Attribute extends Model
 {
-    use HasFactory, Blameable;
+    use HasFactory, Blameable, Scopes;
 
     protected $fillable = ['name', 'value', 'company_id', 'created_by'];
 

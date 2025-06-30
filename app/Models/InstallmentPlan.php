@@ -1,8 +1,11 @@
 <?php
+
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
+use App\Traits\Scopes;
+use App\Traits\Blameable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 /**
  * @mixin IdeHelperInstallmentPlan
@@ -10,11 +13,23 @@ use Illuminate\Database\Eloquent\Model;
 class InstallmentPlan extends Model
 {
     use HasFactory,
-        \App\Traits\Blameable;  // Assuming you have a Blameable trait for tracking created_by
+        Blameable,
+        Scopes;  // Assuming you have a Blameable trait for tracking created_by
 
     protected $fillable = [
-        'invoice_id', 'user_id', 'total_amount', 'down_payment', 'remaining_amount', 'company_id', 'created_by',
-        'number_of_installments', 'installment_amount', 'start_date', 'end_date', 'status', 'notes'
+        'invoice_id',
+        'user_id',
+        'total_amount',
+        'down_payment',
+        'remaining_amount',
+        'company_id',
+        'created_by',
+        'number_of_installments',
+        'installment_amount',
+        'start_date',
+        'end_date',
+        'status',
+        'notes'
     ];
 
     protected $casts = [

@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Traits\Blameable;
+use App\Traits\Scopes;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -10,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class Translation extends Model
 {
+    use Scopes, Blameable;
     protected $fillable = ['locale', 'field', 'value'];
 
     // علاقة Polymorphic

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Traits\Blameable;
 use App\Traits\LogsActivity;
 use App\Traits\RolePermissions;  // افترض أن هذا trait مخصص ومطلوب
 use App\Traits\Scopes;
@@ -17,7 +18,7 @@ class Role extends SpatieRole implements RoleContract
 {
     // HasRoles و HasPermissions متوفرتان بالفعل من SpatieRole، لذا لا حاجة لتكرارهما هنا.
     // افترض أن Scopes و LogsActivity و RolePermissions traits مخصصة ومطلوبة.
-    use Scopes, LogsActivity, RolePermissions;
+    use Scopes, Blameable, LogsActivity, RolePermissions;
 
     protected $fillable = [
         'name',
