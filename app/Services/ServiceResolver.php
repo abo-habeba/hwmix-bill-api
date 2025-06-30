@@ -10,16 +10,51 @@ use App\Services\OrderAndQuotationService;
 use App\Services\InventoryService;
 use App\Services\FinancialTransactionService;
 
+/**
+ * Resolves the appropriate service for each invoice type code.
+ *
+ * To add a new invoice type, simply add a new case in the match statement below.
+ * If a service requires dependencies, consider refactoring to use the service container.
+ */
 class ServiceResolver
 {
+    /**
+     * Resolve the service for a given invoice type code.
+     *
+     * @param string $invoiceTypeCode
+     * @return DocumentServiceInterface
+     * @throws InvalidInvoiceTypeCodeException
+     */
     public static function resolve(string $invoiceTypeCode): DocumentServiceInterface
     {
         return match ($invoiceTypeCode) {
-            'sale', 'purchase', 'installment_sale', 'service_invoice', 'discount_invoice' => new InvoiceCreationService(),
-            'sale_return', 'purchase_return' => new ReturnService(),
-            'quotation', 'sales_order', 'purchase_order' => new OrderAndQuotationService(),
-            'inventory_adjustment', 'stock_transfer' => new InventoryService(),
-            'receipt', 'payment', 'credit_note', 'debit_note' => new FinancialTransactionService(),
+            // Main invoice types
+            'sale' => new SaleInvoiceService(),
+            'purchase' => new PurchaseInvoiceService(),
+            'installment_sale' => new InstallmentSaleInvoiceService(),
+            'service_invoice' => new ServiceInvoiceService(),
+            'discount_invoice' => new DiscountInvoiceService(),
+
+            // Returns
+            'sale_return' => new ReturnService(),
+            'purchase_return' => new ReturnService(),
+
+            // Orders & Quotations
+            'quotation' => new OrderAndQuotationService(),
+            'sales_order' => new OrderAndQuotationService(),
+            'purchase_order' => new OrderAndQuotationService(),
+
+            // Inventory
+            'inventory_adjustment' => new InventoryService(),
+            'stock_transfer' => new InventoryService(),
+
+            // Financial transactions
+            'receipt' => new FinancialTransactionService(),
+            'payment' => new FinancialTransactionService(),
+            'credit_note' => new FinancialTransactionService(),
+            'debit_note' => new FinancialTransactionService(),
+
+            // Add new types above this line
             default => throw new InvalidInvoiceTypeCodeException('Invalid invoice type code: ' . $invoiceTypeCode),
         };
     }
