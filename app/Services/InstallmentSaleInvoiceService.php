@@ -27,8 +27,6 @@ class InstallmentSaleInvoiceService implements DocumentServiceInterface
             $installmentService->createInstallments($data, $invoice->id);
         }
         $invoice->logCreated('إنشاء فاتورة بيع بالتقسيط رقم ' . $invoice->invoice_number);
-        $authUser = Auth::user();
-        $authUser->deposit($invoice->total_amount);
         return $invoice;
     }
 }

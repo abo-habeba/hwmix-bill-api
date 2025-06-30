@@ -119,9 +119,9 @@ class InvoiceController extends Controller
 
             // التأكد من أن الفاتورة تُنشأ للشركة الحالية للمستخدم
             // إذا كان company_id مُرسلاً في الطلب، فيجب أن يتطابق مع company_id للمستخدم
-            if (isset($validated['company_id']) && $validated['company_id'] != $companyId) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You can only create invoices for your current company.'], 403);
-            }
+            // if (isset($validated['company_id']) && $validated['company_id'] != $companyId) {
+            //     return response()->json(['error' => 'Unauthorized', 'message' => 'You can only create invoices for your current company.'], 403);
+            // }
             // إسناد company_id للمستخدم إذا لم يكن موجودًا في الطلب
             $validated['company_id'] = $companyId;
             $validated['created_by'] = $authUser->id;  // تسجيل من قام بإنشاء الفاتورة

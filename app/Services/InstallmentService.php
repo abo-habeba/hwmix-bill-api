@@ -2,9 +2,10 @@
 
 namespace App\Services;
 
+use Carbon\Carbon;
 use App\Models\Installment;
 use App\Models\InstallmentPlan;
-use Carbon\Carbon;
+use Illuminate\Support\Facades\Auth;
 
 /**
  * خدمة إنشاء خطط الأقساط والأقساط الفردية بدقة عالية
@@ -70,6 +71,19 @@ class InstallmentService
             'status' => 'لم يتم الدفع',
             'notes' => $planData['notes'] ?? null,
         ]);
+
+        $cashBoxId = $data['cash_box_id'] ?? null;
+        // تحديث الرصيد: خصم المتبقي من رصيد المشتري، وزيادة الدفعة المقدمة لرصيد الأوث يوزر
+        $authUser = Auth::user();
+        if ($downPayment > 0 && $authUser) {
+            $authUser->deposit($downPayment, $cashBoxId);
+        }
+        if ($remaining > 0 && $userId) {
+            $buyer = \App\Models\User::find($userId);
+            if ($buyer) {
+                $buyer->withdraw($remaining, $cashBoxId);
+            }
+        }
 
         /*-------------------------------------------------
         | 4. إنشاء الأقساط الفردية                        |

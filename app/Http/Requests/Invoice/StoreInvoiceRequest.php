@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Requests\Invoice;
 
 use Illuminate\Foundation\Http\FormRequest;
@@ -18,6 +19,8 @@ class StoreInvoiceRequest extends FormRequest
             'invoice_type_code' => 'nullable|string',
             'status' => 'nullable|string',
             'total_amount' => 'required|numeric',
+            'paid_amount' => 'required|numeric|min:0',
+            'remaining_amount' => 'required|numeric|min:0',
             'items' => 'required|array',
             'items.*.product_id' => 'required|integer',
             'items.*.variant_id' => 'required|integer',
@@ -50,6 +53,7 @@ class StoreInvoiceRequest extends FormRequest
             'installment_plan.due_date' => 'nullable|date',
             'installment_plan.round_step' => 'nullable|integer',
             'due_date' => 'nullable|date',
+            'cash_box_id' => 'nullable|integer|exists:cash_boxes,id',
         ];
     }
 }

@@ -21,6 +21,8 @@ trait InvoiceHelperTrait
             'status' => $data['status'] ?? 'confirmed',
             'user_id' => $data['user_id'],
             'total_amount' => $data['total_amount'],
+            'paid_amount' => $data['paid_amount'],
+            'remaining_amount' => $data['remaining_amount'],
             'company_id' => $data['company_id'] ?? null,
             'created_by' => $data['created_by'] ?? null,
         ]);

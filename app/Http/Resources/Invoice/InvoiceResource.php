@@ -21,6 +21,8 @@ class InvoiceResource extends JsonResource
             'issue_date' => optional($this->issue_date)->format('Y-m-d H:i:s'),
             'due_date' => optional($this->due_date)->format('Y-m-d H:i:s'),
             'total_amount' => $this->total_amount,
+            'paid_amount' => $this->paid_amount,
+            'remaining_amount' => $this->remaining_amount,
             'status' => $this->status,
             'notes' => $this->notes,
             'created_at' => optional($this->created_at)->format('Y-m-d H:i:s'),
