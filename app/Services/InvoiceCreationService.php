@@ -100,10 +100,11 @@ class InvoiceCreationService implements DocumentServiceInterface
         }
 
         // إعادة البيانات النهائية
-        return [
-            'invoice_number' => $invoice->invoice_number,
-            'total' => $invoice->total_amount,
-            'items' => $data['items'],
-        ];
+        return $invoice;
+        // return [
+        //     'invoice_number' => $invoice->invoice_number,
+        //     'total' => $invoice->total_amount,
+        //     'items' => $data['items'],
+        // ];
     }
 }

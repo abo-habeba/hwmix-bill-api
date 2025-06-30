@@ -28,7 +28,14 @@ class RolesAndPermissionsSeeder extends Seeder
         } else {
             $admin->syncPermissions($permissions);
         }
+
+        User::with('companies')->chunk(100, function ($users) {
+            foreach ($users as $user) {
+                $user->ensureCashBoxesForAllCompanies();
+            }
+        });
     }
+
 
     private function createSystemCompany()
     {

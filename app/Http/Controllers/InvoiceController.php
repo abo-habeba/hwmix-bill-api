@@ -143,15 +143,8 @@ class InvoiceController extends Controller
                 'message' => 'تم إنشاء المستند بنجاح',
                 'data' => new InvoiceResource($responseDTO),  // استخدم Resource هنا
             ], 201);
-        } catch (ValidationException $e) {
-            Log::error('Invoice store validation failed: ' . $e->getMessage(), ['errors' => $e->errors(), 'user_id' => Auth::id()]);
-            return response()->json([
-                'status' => 'error',
-                'message' => $e->getMessage(),
-                'errors' => $e->errors(),
-            ], 422);
         } catch (Throwable $e) {
-            Log::error('Invoice store failed: ' . $e->getMessage(), ['exception' => $e, 'trace' => $e->getTraceAsString(), 'user_id' => Auth::id()]);
+
             return response()->json([
                 'status' => 'error',
                 'message' => 'حدث خطأ أثناء إنشاء المستند',
@@ -159,6 +152,15 @@ class InvoiceController extends Controller
                     'message' => $e->getMessage(),
                     'file' => $e->getFile(),
                     'line' => $e->getLine(),
+                    'exception_class' => get_class($e),
+                    'trace' => $e->getTraceAsString(),
+                    'previous' => $e->getPrevious() ? [
+                        'message' => $e->getPrevious()->getMessage(),
+                        'file' => $e->getPrevious()->getFile(),
+                        'line' => $e->getPrevious()->getLine(),
+                        'exception_class' => get_class($e->getPrevious()),
+                        'trace' => $e->getPrevious()->getTraceAsString(),
+                    ] : null,
                 ],
             ], 500);
         }

@@ -101,15 +101,23 @@ class User extends Authenticatable
      */
     public function balanceBox($id = null)
     {
+        // $this->ensureCashBoxesForAllCompanies();
+        $query = $this->cashBoxes();
+        $cashBox = null;
         if ($id) {
-            $cashBox = $this->cashBoxes()->where('id', $id)->first();
-            return $cashBox ? $cashBox->balance : 0;
+            $cashBox = $query->where('id', $id)->where('company_id', $this->company_id)->first();
+        } else {
+            $cashBox = $query->where('company_id', $this->company_id)->where('is_default', true)->first();
         }
-        // رصيد الصندوق الافتراضي للشركة النشطة فقط
-        $cashBox = $this->cashBoxes()
-            ->where('company_id', $this->company_id)
-            ->where('is_default', true)
-            ->first();
+        if (!$cashBox) {
+            $this->refresh();
+            $query = $this->cashBoxes();
+            if ($id) {
+                $cashBox = $query->where('id', $id)->where('company_id', $this->company_id)->first();
+            } else {
+                $cashBox = $query->where('company_id', $this->company_id)->where('is_default', true)->first();
+            }
+        }
         return $cashBox ? $cashBox->balance : 0;
     }
 
@@ -120,11 +128,13 @@ class User extends Authenticatable
 
     public function cashBoxeDefault()
     {
+        // $this->ensureCashBoxesForAllCompanies();
         return $this->hasOne(CashBox::class)->where('is_default', 1);
     }
 
     public function cashBoxesByCompany()
     {
+        $this->ensureCashBoxesForAllCompanies();
         return $this->cashBoxes()->where('company_id', $this->company_id)->get();
     }
 
@@ -179,15 +189,30 @@ class User extends Authenticatable
         return $this->belongsTo(User::class, 'created_by');
     }
 
+    public function payments()
+    {
+        return $this->hasMany(Payment::class);
+    }
+
+
     public function deposit($amount, $cashBoxId = null)
     {
+        $this->ensureCashBoxesForAllCompanies();
         DB::beginTransaction();
         try {
-            $cashBoxes = $this->cashBoxes;
-
+            $query = $this->cashBoxes();
             $cashBox = $cashBoxId
-                ? $cashBoxes->firstWhere('id', $cashBoxId)
-                : $cashBoxes->firstWhere('is_default', true);
+                ? $query->where('id', $cashBoxId)->where('company_id', $this->company_id)->first()
+                : $query->where('company_id', $this->company_id)->where('is_default', true)->first();
+
+            // إعادة المحاولة بعد تحديث العلاقة إذا لم يوجد الصندوق
+            if (!$cashBox) {
+                $this->refresh();
+                $query = $this->cashBoxes();
+                $cashBox = $cashBoxId
+                    ? $query->where('id', $cashBoxId)->where('company_id', $this->company_id)->first()
+                    : $query->where('company_id', $this->company_id)->where('is_default', true)->first();
+            }
 
             if (!$cashBox) {
                 throw new Exception('Cash box not found.');
@@ -205,13 +230,22 @@ class User extends Authenticatable
 
     public function withdraw($amount, $cashBoxId = null)
     {
+        $this->ensureCashBoxesForAllCompanies();
         DB::beginTransaction();
         try {
-            $cashBoxes = $this->cashBoxes;
-
+            $query = $this->cashBoxes();
             $cashBox = $cashBoxId
-                ? $cashBoxes->firstWhere('id', $cashBoxId)
-                : $cashBoxes->firstWhere('is_default', true);
+                ? $query->where('id', $cashBoxId)->where('company_id', $this->company_id)->first()
+                : $query->where('company_id', $this->company_id)->where('is_default', true)->first();
+
+            // إعادة المحاولة بعد تحديث العلاقة إذا لم يوجد الصندوق
+            if (!$cashBox) {
+                $this->refresh();
+                $query = $this->cashBoxes();
+                $cashBox = $cashBoxId
+                    ? $query->where('id', $cashBoxId)->where('company_id', $this->company_id)->first()
+                    : $query->where('company_id', $this->company_id)->where('is_default', true)->first();
+            }
 
             if (!$cashBox) {
                 throw new Exception('Cash box not found.');
@@ -311,10 +345,6 @@ class User extends Authenticatable
         return $this->hasMany(InstallmentPlan::class);
     }
 
-    public function payments()
-    {
-        return $this->hasMany(Payment::class);
-    }
 
     /**
      * إرجاع جميع معرفات المستخدمين التابعين (hierarchy) للمستخدم الحالي داخل الشركة النشطة فقط.
@@ -354,7 +384,14 @@ class User extends Authenticatable
      */
     public function ensureCashBoxesForAllCompanies()
     {
-        $companies = $this->companies;
+        // لو مفيش شركات لكن المستخدم سوبر أدمن
+        if ($this->hasPermissionTo(perm_key('admin.super'))) {
+            $companies = Company::all();
+        } else {
+            // غير كده هات الشركات اللي مرتبط بيها فقط
+            $companies = $this->companies;
+        }
+
         foreach ($companies as $company) {
             $exists = $this->cashBoxes()->where('company_id', $company->id)->exists();
             if (!$exists) {
