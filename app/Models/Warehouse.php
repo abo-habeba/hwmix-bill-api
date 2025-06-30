@@ -4,13 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-
+use App\Traits\Scopes;
 /**
  * @mixin IdeHelperWarehouse
  */
 class Warehouse extends Model
 {
-    use HasFactory, \App\Traits\Blameable;
+    use HasFactory, \App\Traits\Blameable,Scopes;
 
     protected $fillable = [
         'name', 'location', 'manager', 'capacity', 'status', 'company_id', 'created_by'
