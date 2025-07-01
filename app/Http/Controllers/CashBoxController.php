@@ -324,7 +324,7 @@ class CashBoxController extends Controller
             $canUpdate = false;
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
                 $canUpdate = true; // المسؤول العام يمكنه تعديل أي صندوق
-            } elseif ($authUser->hasAnyPermission([perm_key('cash_boxes.update_any'), perm_key('admin.company')])) {
+            } elseif ($authUser->hasAnyPermission([perm_key('cash_boxes.update_all'), perm_key('admin.company')])) {
                 // يمكنه تعديل أي صندوق داخل الشركة النشطة (بما في ذلك مديرو الشركة)
                 $canUpdate = $cashBox->belongsToCurrentCompany();
             } elseif ($authUser->hasPermissionTo(perm_key('cash_boxes.update_children'))) {
@@ -432,7 +432,7 @@ class CashBoxController extends Controller
             $canDelete = false;
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
                 $canDelete = true; // المسؤول العام يمكنه حذف أي صندوق
-            } elseif ($authUser->hasAnyPermission([perm_key('cash_boxes.delete_any'), perm_key('admin.company')])) {
+            } elseif ($authUser->hasAnyPermission([perm_key('cash_boxes.delete_all'), perm_key('admin.company')])) {
                 // يمكنه حذف أي صندوق داخل الشركة النشطة (بما في ذلك مديرو الشركة)
                 $canDelete = $cashBox->belongsToCurrentCompany();
             } elseif ($authUser->hasPermissionTo(perm_key('cash_boxes.delete_children'))) {

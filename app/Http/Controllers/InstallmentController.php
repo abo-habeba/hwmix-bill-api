@@ -273,7 +273,7 @@ class InstallmentController extends Controller
             $canUpdate = false;
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
                 $canUpdate = true;  // المسؤول العام يمكنه تعديل أي قسط
-            } elseif ($authUser->hasAnyPermission([perm_key('installments.update_any'), perm_key('admin.company')])) {
+            } elseif ($authUser->hasAnyPermission([perm_key('installments.update_all'), perm_key('admin.company')])) {
                 // يمكنه تعديل أي قسط داخل الشركة النشطة (بما في ذلك مديرو الشركة)
                 $canUpdate = $installment->belongsToCurrentCompany();
             } elseif ($authUser->hasPermissionTo(perm_key('installments.update_children'))) {
@@ -353,7 +353,7 @@ class InstallmentController extends Controller
             $canDelete = false;
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
                 $canDelete = true;  // المسؤول العام يمكنه حذف أي قسط
-            } elseif ($authUser->hasAnyPermission([perm_key('installments.delete_any'), perm_key('admin.company')])) {
+            } elseif ($authUser->hasAnyPermission([perm_key('installments.delete_all'), perm_key('admin.company')])) {
                 // يمكنه حذف أي قسط داخل الشركة النشطة (بما في ذلك مديرو الشركة)
                 $canDelete = $installment->belongsToCurrentCompany();
             } elseif ($authUser->hasPermissionTo(perm_key('installments.delete_children'))) {

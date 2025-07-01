@@ -134,7 +134,7 @@ class CompanyController extends Controller
 
         if (
             $authUser->hasPermissionTo(perm_key('admin.super')) ||
-            $authUser->hasPermissionTo(perm_key('companies.update_any')) ||
+            $authUser->hasPermissionTo(perm_key('companies.update_all')) ||
             ($authUser->hasPermissionTo(perm_key('companies.update_children')) && $company->isOwn()) ||
             ($authUser->hasPermissionTo(perm_key('companies.update_self')) && $company->isSelf()) ||
             ($authUser->hasPermissionTo(perm_key('admin.company')) && $authUser->company_id === $company->company_id)
@@ -176,7 +176,7 @@ class CompanyController extends Controller
         foreach ($companiesToDelete as $company) {
             if (!(
                 $authUser->hasPermissionTo(perm_key('admin.super')) ||
-                $authUser->hasPermissionTo(perm_key('companies.delete_any')) ||
+                $authUser->hasPermissionTo(perm_key('companies.delete_all')) ||
                 ($authUser->hasPermissionTo(perm_key('companies.delete_children')) && $company->isOwn()) ||
                 ($authUser->hasPermissionTo(perm_key('companies.delete_self')) && $company->created_by == $authUser->id) ||
                 ($authUser->hasPermissionTo(perm_key('admin.company')) && $authUser->company_id === $company->company_id)

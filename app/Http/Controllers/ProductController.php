@@ -345,7 +345,7 @@ class ProductController extends Controller
             $canUpdate = false;
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
                 $canUpdate = true; // المسؤول العام يمكنه تعديل أي منتج
-            } elseif ($authUser->hasAnyPermission([perm_key('products.update_any'), perm_key('admin.company')])) {
+            } elseif ($authUser->hasAnyPermission([perm_key('products.update_all'), perm_key('admin.company')])) {
                 // يمكنه تعديل أي منتج داخل الشركة النشطة (بما في ذلك مديرو الشركة)
                 $canUpdate = $product->belongsToCurrentCompany();
             } elseif ($authUser->hasPermissionTo(perm_key('products.update_children'))) {
@@ -533,7 +533,7 @@ class ProductController extends Controller
             $canDelete = false;
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
                 $canDelete = true; // المسؤول العام يمكنه حذف أي منتج
-            } elseif ($authUser->hasAnyPermission([perm_key('products.delete_any'), perm_key('admin.company')])) {
+            } elseif ($authUser->hasAnyPermission([perm_key('products.delete_all'), perm_key('admin.company')])) {
                 // يمكنه حذف أي منتج داخل الشركة النشطة (بما في ذلك مديرو الشركة)
                 $canDelete = $product->belongsToCurrentCompany();
             } elseif ($authUser->hasPermissionTo(perm_key('products.delete_children'))) {

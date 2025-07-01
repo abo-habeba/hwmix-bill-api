@@ -13,7 +13,8 @@ return new class extends Migration {
         Schema::table('roles', function (Blueprint $table) {
             $table->unsignedBigInteger('created_by')->nullable()->after('id');
             $table->foreign('created_by')->references('id')->on('users')->onDelete('set null');
-            $table->string('company_id');
+            $table->unsignedBigInteger('company_id')->nullable()->after('created_by');
+            $table->foreign('company_id')->references('id')->on('companies')->onDelete('set null');
         });
     }
 
@@ -26,6 +27,10 @@ return new class extends Migration {
             if (Schema::hasColumn('roles', 'created_by')) {
                 $table->dropForeign(['created_by']);
                 $table->dropColumn('created_by');
+            }
+            if (Schema::hasColumn('roles', 'company_id')) {
+                $table->dropForeign(['company_id']);
+                $table->dropColumn('company_id');
             }
         });
     }

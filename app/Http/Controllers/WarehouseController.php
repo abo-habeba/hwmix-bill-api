@@ -270,7 +270,7 @@ class WarehouseController extends Controller
             $canUpdate = false;
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
                 $canUpdate = true; // المسؤول العام يمكنه تعديل أي مستودع
-            } elseif ($authUser->hasAnyPermission([perm_key('warehouses.update_any'), perm_key('admin.company')])) {
+            } elseif ($authUser->hasAnyPermission([perm_key('warehouses.update_all'), perm_key('admin.company')])) {
                 // يمكنه تعديل أي مستودع داخل الشركة النشطة (بما في ذلك مديرو الشركة)
                 $canUpdate = $warehouse->belongsToCurrentCompany();
             } elseif ($authUser->hasPermissionTo(perm_key('warehouses.update_children'))) {
@@ -364,7 +364,7 @@ class WarehouseController extends Controller
             $canDelete = false;
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
                 $canDelete = true; // المسؤول العام يمكنه حذف أي مستودع
-            } elseif ($authUser->hasAnyPermission([perm_key('warehouses.delete_any'), perm_key('admin.company')])) {
+            } elseif ($authUser->hasAnyPermission([perm_key('warehouses.delete_all'), perm_key('admin.company')])) {
                 // يمكنه حذف أي مستودع داخل الشركة النشطة (بما في ذلك مديرو الشركة)
                 $canDelete = $warehouse->belongsToCurrentCompany();
             } elseif ($authUser->hasPermissionTo(perm_key('warehouses.delete_children'))) {

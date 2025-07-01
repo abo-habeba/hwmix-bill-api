@@ -15,7 +15,7 @@
  * - الترجمة والتمثيل البصري لأسماء الصلاحيات.
  *
  * ✅ دالة المساعد `perm_key('entity.action')` تُستخدم للوصول إلى المفتاح الرسمي.
- * ➤ مثال: perm_key('users.update_any') → "users.update_any"
+ * ➤ مثال: perm_key('users.update_all') → "users.update_all"
  *
  * ✅ يجب أن تحتوي كل صلاحية على:
  * - key   → الاسم الموحد المحفوظ في قاعدة البيانات (بالإنجليزية)
@@ -46,7 +46,7 @@
  * إنشاء سجل جديد في هذا الكيان **ضمن نطاق الشركة النشطة**، مثل إضافة مستخدم
  * جديد أو إنشاء شركة جديدة.
  *
- * - update_any:
+ * - update_all:
  * تعديل أي سجل داخل الكيان **ضمن نطاق الشركة النشطة** للمستخدم، دون قيود على
  * من أنشأ السجل أو ملكيته.
  *
@@ -58,7 +58,7 @@
  * تعديل السجل المرتبط بالمستخدم مباشرة فقط (مثل تعديل ملفه الشخصي أو بيانات شركته
  * الخاصة به).
  *
- * - delete_any:
+ * - delete_all:
  * حذف أي سجل من الكيان **ضمن نطاق الشركة النشطة** للمستخدم، بغض النظر عن الملكية.
  *
  * - delete_children:
@@ -92,11 +92,11 @@ return [
         // صلاحيات الإنشاء (Create)
         'create' => ['key' => 'companies.create', 'label' => 'إنشاء شركة'],
         // صلاحيات التعديل (Update)
-        'update_any' => ['key' => 'companies.update_any', 'label' => 'تعديل أى شركة'],
+        'update_all' => ['key' => 'companies.update_all', 'label' => 'تعديل أى شركة'],
         'update_children' => ['key' => 'companies.update_children', 'label' => 'تعديل الشركات التابعة'],
         'update_self' => ['key' => 'companies.update_self', 'label' => 'تعديل الشركة الحالية'],
         // صلاحيات الحذف (Delete)
-        'delete_any' => ['key' => 'companies.delete_any', 'label' => 'حذف أى شركة'],
+        'delete_all' => ['key' => 'companies.delete_all', 'label' => 'حذف أى شركة'],
         'delete_children' => ['key' => 'companies.delete_children', 'label' => 'حذف الشركات التابعة'],
         'delete_self' => ['key' => 'companies.delete_self', 'label' => 'حذف الشركة الحالية'],
     ],
@@ -111,11 +111,11 @@ return [
         // صلاحيات الإنشاء (Create)
         'create' => ['key' => 'users.create', 'label' => 'إنشاء مستخدم'],
         // صلاحيات التعديل (Update)
-        'update_any' => ['key' => 'users.update_any', 'label' => 'تعديل أى مستخدم'],
+        'update_all' => ['key' => 'users.update_all', 'label' => 'تعديل أى مستخدم'],
         'update_children' => ['key' => 'users.update_children', 'label' => 'تعديل التابعين'],
         'update_self' => ['key' => 'users.update_self', 'label' => 'تعديل حسابه'],
         // صلاحيات الحذف (Delete)
-        'delete_any' => ['key' => 'users.delete_any', 'label' => 'حذف أى مستخدم'],
+        'delete_all' => ['key' => 'users.delete_all', 'label' => 'حذف أى مستخدم'],
         'delete_children' => ['key' => 'users.delete_children', 'label' => 'حذف التابعين'],
         'delete_self' => ['key' => 'users.delete_self', 'label' => 'حذف حسابه'],
     ],
@@ -130,11 +130,11 @@ return [
         // صلاحيات الإنشاء (Create)
         'create' => ['key' => 'personal_access_tokens.create', 'label' => 'إنشاء رمز وصول'],
         // صلاحيات التعديل (Update)
-        'update_any' => ['key' => 'personal_access_tokens.update_any', 'label' => 'تعديل أي رمز وصول'],
+        'update_all' => ['key' => 'personal_access_tokens.update_all', 'label' => 'تعديل أي رمز وصول'],
         'update_children' => ['key' => 'personal_access_tokens.update_children', 'label' => 'تعديل رموز الوصول التي أنشأها المستخدمون التابعون'],
         'update_self' => ['key' => 'personal_access_tokens.update_self', 'label' => 'تعديل رموز الوصول الخاصة بالمستخدم'],
         // صلاحيات الحذف (Delete)
-        'delete_any' => ['key' => 'personal_access_tokens.delete_any', 'label' => 'حذف أي رمز وصول'],
+        'delete_all' => ['key' => 'personal_access_tokens.delete_all', 'label' => 'حذف أي رمز وصول'],
         'delete_children' => ['key' => 'personal_access_tokens.delete_children', 'label' => 'حذف رموز الوصول التي أنشأها المستخدمون التابعون'],
         'delete_self' => ['key' => 'personal_access_tokens.delete_self', 'label' => 'حذف رموز الوصول الخاصة بالمستخدم'],
     ],
@@ -149,11 +149,11 @@ return [
         // صلاحيات الإنشاء (Create)
         'create' => ['key' => 'translations.create', 'label' => 'إنشاء ترجمة جديدة'],
         // صلاحيات التعديل (Update)
-        'update_any' => ['key' => 'translations.update_any', 'label' => 'تعديل أي ترجمة'],
+        'update_all' => ['key' => 'translations.update_all', 'label' => 'تعديل أي ترجمة'],
         'update_children' => ['key' => 'translations.update_children', 'label' => 'تعديل الترجمات التي أنشأها التابعون'],
         'update_self' => ['key' => 'translations.update_self', 'label' => 'تعديل الترجمات الخاصة بالمستخدم'],
         // صلاحيات الحذف (Delete)
-        'delete_any' => ['key' => 'translations.delete_any', 'label' => 'حذف أي ترجمة'],
+        'delete_all' => ['key' => 'translations.delete_all', 'label' => 'حذف أي ترجمة'],
         'delete_children' => ['key' => 'translations.delete_children', 'label' => 'حذف الترجمات التي أنشأها التابعون'],
         'delete_self' => ['key' => 'translations.delete_self', 'label' => 'حذف الترجمات الخاصة بالمستخدم'],
     ],
@@ -168,11 +168,11 @@ return [
         // صلاحيات الإنشاء (Create)
         'create' => ['key' => 'transactions.create', 'label' => 'إنشاء معاملة جديدة'],
         // صلاحيات التعديل (Update)
-        'update_any' => ['key' => 'transactions.update_any', 'label' => 'تعديل أي معاملة'],
+        'update_all' => ['key' => 'transactions.update_all', 'label' => 'تعديل أي معاملة'],
         'update_children' => ['key' => 'transactions.update_children', 'label' => 'تعديل المعاملات التي أنشأها التابعون'],
         'update_self' => ['key' => 'transactions.update_self', 'label' => 'تعديل المعاملات الخاصة بالمستخدم'],
         // صلاحيات الحذف (Delete)
-        'delete_any' => ['key' => 'transactions.delete_any', 'label' => 'حذف أي معاملة'],
+        'delete_all' => ['key' => 'transactions.delete_all', 'label' => 'حذف أي معاملة'],
         'delete_children' => ['key' => 'transactions.delete_children', 'label' => 'حذف المعاملات التي أنشأها التابعون'],
         'delete_self' => ['key' => 'transactions.delete_self', 'label' => 'حذف المعاملات الخاصة بالمستخدم'],
     ],
@@ -186,7 +186,7 @@ return [
         'view_self' => ['key' => 'activity_logs.view_self', 'label' => 'عرض سجلات الأنشطة الخاصة بالمستخدم'],
 
         // صلاحيات الحذف (Delete)
-        'delete_any' => ['key' => 'activity_logs.delete_any', 'label' => 'حذف أي سجل نشاط'],
+        'delete_all' => ['key' => 'activity_logs.delete_all', 'label' => 'حذف أي سجل نشاط'],
         'delete_children' => ['key' => 'activity_logs.delete_children', 'label' => 'حذف سجلات الأنشطة التي أنشأها التابعون'],
         'delete_self' => ['key' => 'activity_logs.delete_self', 'label' => 'حذف سجلات الأنشطة الخاصة بالمستخدم'],
     ],
@@ -201,11 +201,11 @@ return [
         // صلاحيات الإنشاء (Create)
         'create' => ['key' => 'cash_box_types.create', 'label' => 'إنشاء نوع صندوق نقدية جديد'],
         // صلاحيات التعديل (Update)
-        'update_any' => ['key' => 'cash_box_types.update_any', 'label' => 'تعديل أي نوع صندوق نقدية'],
+        'update_all' => ['key' => 'cash_box_types.update_all', 'label' => 'تعديل أي نوع صندوق نقدية'],
         'update_children' => ['key' => 'cash_box_types.update_children', 'label' => 'تعديل أنواع صناديق النقدية التي أنشأها التابعون'],
         'update_self' => ['key' => 'cash_box_types.update_self', 'label' => 'تعديل أنواع صناديق النقدية الخاصة بالمستخدم'],
         // صلاحيات الحذف (Delete)
-        'delete_any' => ['key' => 'cash_box_types.delete_any', 'label' => 'حذف أي نوع صندوق نقدية'],
+        'delete_all' => ['key' => 'cash_box_types.delete_all', 'label' => 'حذف أي نوع صندوق نقدية'],
         'delete_children' => ['key' => 'cash_box_types.delete_children', 'label' => 'حذف أنواع صناديق النقدية التي أنشأها التابعون'],
         'delete_self' => ['key' => 'cash_box_types.delete_self', 'label' => 'حذف أنواع صناديق النقدية الخاصة بالمستخدم'],
     ],
@@ -220,11 +220,11 @@ return [
         // صلاحيات الإنشاء (Create)
         'create' => ['key' => 'cash_boxes.create', 'label' => 'إنشاء صندوق نقدية جديد'],
         // صلاحيات التعديل (Update)
-        'update_any' => ['key' => 'cash_boxes.update_any', 'label' => 'تعديل أي صندوق نقدية'],
+        'update_all' => ['key' => 'cash_boxes.update_all', 'label' => 'تعديل أي صندوق نقدية'],
         'update_children' => ['key' => 'cash_boxes.update_children', 'label' => 'تعديل صناديق النقدية التي أنشأها التابعون'],
         'update_self' => ['key' => 'cash_boxes.update_self', 'label' => 'تعديل صناديق النقدية الخاصة بالمستخدم'],
         // صلاحيات الحذف (Delete)
-        'delete_any' => ['key' => 'cash_boxes.delete_any', 'label' => 'حذف أي صندوق نقدية'],
+        'delete_all' => ['key' => 'cash_boxes.delete_all', 'label' => 'حذف أي صندوق نقدية'],
         'delete_children' => ['key' => 'cash_boxes.delete_children', 'label' => 'حذف صناديق النقدية التي أنشأها التابعون'],
         'delete_self' => ['key' => 'cash_boxes.delete_self', 'label' => 'حذف صناديق النقدية الخاصة بالمستخدم'],
     ],
@@ -239,11 +239,11 @@ return [
         // صلاحيات الإنشاء (Create)
         'create' => ['key' => 'images.create', 'label' => 'إضافة صورة جديدة'],
         // صلاحيات التعديل (Update)
-        'update_any' => ['key' => 'images.update_any', 'label' => 'تعديل أي صورة'],
+        'update_all' => ['key' => 'images.update_all', 'label' => 'تعديل أي صورة'],
         'update_children' => ['key' => 'images.update_children', 'label' => 'تعديل الصور التي أنشأها التابعون'],
         'update_self' => ['key' => 'images.update_self', 'label' => 'تعديل الصور الخاصة بالمستخدم'],
         // صلاحيات الحذف (Delete)
-        'delete_any' => ['key' => 'images.delete_any', 'label' => 'حذف أي صورة'],
+        'delete_all' => ['key' => 'images.delete_all', 'label' => 'حذف أي صورة'],
         'delete_children' => ['key' => 'images.delete_children', 'label' => 'حذف الصور التي أنشأها التابعون'],
         'delete_self' => ['key' => 'images.delete_self', 'label' => 'حذف الصور الخاصة بالمستخدم'],
     ],
@@ -258,11 +258,11 @@ return [
         // صلاحيات الإنشاء (Create)
         'create' => ['key' => 'warehouses.create', 'label' => 'إنشاء مستودع جديد'],
         // صلاحيات التعديل (Update)
-        'update_any' => ['key' => 'warehouses.update_any', 'label' => 'تعديل أي مستودع'],
+        'update_all' => ['key' => 'warehouses.update_all', 'label' => 'تعديل أي مستودع'],
         'update_children' => ['key' => 'warehouses.update_children', 'label' => 'تعديل المستودعات التي أنشأها التابعون'],
         'update_self' => ['key' => 'warehouses.update_self', 'label' => 'تعديل المستودعات الخاصة بالمستخدم'],
         // صلاحيات الحذف (Delete)
-        'delete_any' => ['key' => 'warehouses.delete_any', 'label' => 'حذف أي مستودع'],
+        'delete_all' => ['key' => 'warehouses.delete_all', 'label' => 'حذف أي مستودع'],
         'delete_children' => ['key' => 'warehouses.delete_children', 'label' => 'حذف المستودعات التي أنشأها التابعون'],
         'delete_self' => ['key' => 'warehouses.delete_self', 'label' => 'حذف المستودعات الخاصة بالمستخدم'],
     ],
@@ -277,11 +277,11 @@ return [
         // صلاحيات الإنشاء (Create)
         'create' => ['key' => 'categories.create', 'label' => 'إنشاء فئة جديدة'],
         // صلاحيات التعديل (Update)
-        'update_any' => ['key' => 'categories.update_any', 'label' => 'تعديل أي فئة'],
+        'update_all' => ['key' => 'categories.update_all', 'label' => 'تعديل أي فئة'],
         'update_children' => ['key' => 'categories.update_children', 'label' => 'تعديل الفئات التي أنشأها التابعون'],
         'update_self' => ['key' => 'categories.update_self', 'label' => 'تعديل الفئات الخاصة بالمستخدم'],
         // صلاحيات الحذف (Delete)
-        'delete_any' => ['key' => 'categories.delete_any', 'label' => 'حذف أي فئة'],
+        'delete_all' => ['key' => 'categories.delete_all', 'label' => 'حذف أي فئة'],
         'delete_children' => ['key' => 'categories.delete_children', 'label' => 'حذف الفئات التي أنشأها التابعون'],
         'delete_self' => ['key' => 'categories.delete_self', 'label' => 'حذف الفئات الخاصة بالمستخدم'],
     ],
@@ -296,11 +296,11 @@ return [
         // صلاحيات الإنشاء (Create)
         'create' => ['key' => 'brands.create', 'label' => 'إنشاء علامة تجارية جديدة'],
         // صلاحيات التعديل (Update)
-        'update_any' => ['key' => 'brands.update_any', 'label' => 'تعديل أي علامة تجارية'],
+        'update_all' => ['key' => 'brands.update_all', 'label' => 'تعديل أي علامة تجارية'],
         'update_children' => ['key' => 'brands.update_children', 'label' => 'تعديل العلامات التجارية التي أنشأها التابعون'],
         'update_self' => ['key' => 'brands.update_self', 'label' => 'تعديل العلامات التجارية الخاصة بالمستخدم'],
         // صلاحيات الحذف (Delete)
-        'delete_any' => ['key' => 'brands.delete_any', 'label' => 'حذف أي علامة تجارية'],
+        'delete_all' => ['key' => 'brands.delete_all', 'label' => 'حذف أي علامة تجارية'],
         'delete_children' => ['key' => 'brands.delete_children', 'label' => 'حذف العلامات التجارية التي أنشأها التابعون'],
         'delete_self' => ['key' => 'brands.delete_self', 'label' => 'حذف العلامات التجارية الخاصة بالمستخدم'],
     ],
@@ -315,11 +315,11 @@ return [
         // صلاحيات الإنشاء (Create)
         'create' => ['key' => 'attributes.create', 'label' => 'إنشاء سمة جديدة'],
         // صلاحيات التعديل (Update)
-        'update_any' => ['key' => 'attributes.update_any', 'label' => 'تعديل أي سمة'],
+        'update_all' => ['key' => 'attributes.update_all', 'label' => 'تعديل أي سمة'],
         'update_children' => ['key' => 'attributes.update_children', 'label' => 'تعديل السمات التي أنشأها التابعون'],
         'update_self' => ['key' => 'attributes.update_self', 'label' => 'تعديل السمات الخاصة بالمستخدم'],
         // صلاحيات الحذف (Delete)
-        'delete_any' => ['key' => 'attributes.delete_any', 'label' => 'حذف أي سمة'],
+        'delete_all' => ['key' => 'attributes.delete_all', 'label' => 'حذف أي سمة'],
         'delete_children' => ['key' => 'attributes.delete_children', 'label' => 'حذف السمات التي أنشأها التابعون'],
         'delete_self' => ['key' => 'attributes.delete_self', 'label' => 'حذف السمات الخاصة بالمستخدم'],
     ],
@@ -334,11 +334,11 @@ return [
         // صلاحيات الإنشاء (Create)
         'create' => ['key' => 'attribute_values.create', 'label' => 'إنشاء قيمة سمة جديدة'],
         // صلاحيات التعديل (Update)
-        'update_any' => ['key' => 'attribute_values.update_any', 'label' => 'تعديل أي قيمة سمة'],
+        'update_all' => ['key' => 'attribute_values.update_all', 'label' => 'تعديل أي قيمة سمة'],
         'update_children' => ['key' => 'attribute_values.update_children', 'label' => 'تعديل قيم السمات التي أنشأها التابعون'],
         'update_self' => ['key' => 'attribute_values.update_self', 'label' => 'تعديل قيم السمات الخاصة بالمستخدم'],
         // صلاحيات الحذف (Delete)
-        'delete_any' => ['key' => 'attribute_values.delete_any', 'label' => 'حذف أي قيمة سمة'],
+        'delete_all' => ['key' => 'attribute_values.delete_all', 'label' => 'حذف أي قيمة سمة'],
         'delete_children' => ['key' => 'attribute_values.delete_children', 'label' => 'حذف قيم السمات التي أنشأها التابعون'],
         'delete_self' => ['key' => 'attribute_values.delete_self', 'label' => 'حذف قيم السمات الخاصة بالمستخدم'],
     ],
@@ -353,11 +353,11 @@ return [
         // صلاحيات الإنشاء (Create)
         'create' => ['key' => 'products.create', 'label' => 'إنشاء منتج جديد'],
         // صلاحيات التعديل (Update)
-        'update_any' => ['key' => 'products.update_any', 'label' => 'تعديل أي منتج'],
+        'update_all' => ['key' => 'products.update_all', 'label' => 'تعديل أي منتج'],
         'update_children' => ['key' => 'products.update_children', 'label' => 'تعديل المنتجات التي أنشأها التابعون'],
         'update_self' => ['key' => 'products.update_self', 'label' => 'تعديل المنتجات الخاصة بالمستخدم'],
         // صلاحيات الحذف (Delete)
-        'delete_any' => ['key' => 'products.delete_any', 'label' => 'حذف أي منتج'],
+        'delete_all' => ['key' => 'products.delete_all', 'label' => 'حذف أي منتج'],
         'delete_children' => ['key' => 'products.delete_children', 'label' => 'حذف المنتجات التي أنشأها التابعون'],
         'delete_self' => ['key' => 'products.delete_self', 'label' => 'حذف المنتجات الخاصة بالمستخدم'],
     ],
@@ -372,11 +372,11 @@ return [
         // صلاحيات الإنشاء (Create)
         'create' => ['key' => 'product_variants.create', 'label' => 'إنشاء متغير منتج جديد'],
         // صلاحيات التعديل (Update)
-        'update_any' => ['key' => 'product_variants.update_any', 'label' => 'تعديل أي متغير منتج'],
+        'update_all' => ['key' => 'product_variants.update_all', 'label' => 'تعديل أي متغير منتج'],
         'update_children' => ['key' => 'product_variants.update_children', 'label' => 'تعديل متغيرات المنتجات التي أنشأها التابعون'],
         'update_self' => ['key' => 'product_variants.update_self', 'label' => 'تعديل متغيرات المنتجات الخاصة بالمستخدم'],
         // صلاحيات الحذف (Delete)
-        'delete_any' => ['key' => 'product_variants.delete_any', 'label' => 'حذف أي متغير منتج'],
+        'delete_all' => ['key' => 'product_variants.delete_all', 'label' => 'حذف أي متغير منتج'],
         'delete_children' => ['key' => 'product_variants.delete_children', 'label' => 'حذف متغيرات المنتجات التي أنشأها التابعون'],
         'delete_self' => ['key' => 'product_variants.delete_self', 'label' => 'حذف متغيرات المنتجات الخاصة بالمستخدم'],
     ],
@@ -391,11 +391,11 @@ return [
         // صلاحيات الإنشاء (Create)
         'create' => ['key' => 'product_variant_attributes.create', 'label' => 'إنشاء سمة متغير منتج جديدة'],
         // صلاحيات التعديل (Update)
-        'update_any' => ['key' => 'product_variant_attributes.update_any', 'label' => 'تعديل أي سمة متغير منتج'],
+        'update_all' => ['key' => 'product_variant_attributes.update_all', 'label' => 'تعديل أي سمة متغير منتج'],
         'update_children' => ['key' => 'product_variant_attributes.update_children', 'label' => 'تعديل سمات متغيرات المنتجات التي أنشأها التابعون'],
         'update_self' => ['key' => 'product_variant_attributes.update_self', 'label' => 'تعديل سمات متغيرات المنتجات الخاصة بالمستخدم'],
         // صلاحيات الحذف (Delete)
-        'delete_any' => ['key' => 'product_variant_attributes.delete_any', 'label' => 'حذف أي سمة متغير منتج'],
+        'delete_all' => ['key' => 'product_variant_attributes.delete_all', 'label' => 'حذف أي سمة متغير منتج'],
         'delete_children' => ['key' => 'product_variant_attributes.delete_children', 'label' => 'حذف سمات متغيرات المنتجات التي أنشأها التابعون'],
         'delete_self' => ['key' => 'product_variant_attributes.delete_self', 'label' => 'حذف سمات متغيرات المنتجات الخاصة بالمستخدم'],
     ],
@@ -410,11 +410,11 @@ return [
         // صلاحيات الإنشاء (Create)
         'create' => ['key' => 'stocks.create', 'label' => 'إنشاء سجل مخزون جديد'],
         // صلاحيات التعديل (Update)
-        'update_any' => ['key' => 'stocks.update_any', 'label' => 'تعديل أي سجل مخزون'],
+        'update_all' => ['key' => 'stocks.update_all', 'label' => 'تعديل أي سجل مخزون'],
         'update_children' => ['key' => 'stocks.update_children', 'label' => 'تعديل سجلات المخزون التي أنشأها التابعون'],
         'update_self' => ['key' => 'stocks.update_self', 'label' => 'تعديل سجلات المخزون الخاصة بالمستخدم'],
         // صلاحيات الحذف (Delete)
-        'delete_any' => ['key' => 'stocks.delete_any', 'label' => 'حذف أي سجل مخزون'],
+        'delete_all' => ['key' => 'stocks.delete_all', 'label' => 'حذف أي سجل مخزون'],
         'delete_children' => ['key' => 'stocks.delete_children', 'label' => 'حذف سجلات المخزون التي أنشأها التابعون'],
         'delete_self' => ['key' => 'stocks.delete_self', 'label' => 'حذف سجلات المخزون الخاصة بالمستخدم'],
     ],
@@ -429,11 +429,11 @@ return [
         // صلاحيات الإنشاء (Create)
         'create' => ['key' => 'invoices.create', 'label' => 'إنشاء فاتورة جديدة'],
         // صلاحيات التعديل (Update)
-        'update_any' => ['key' => 'invoices.update_any', 'label' => 'تعديل أي فاتورة'],
+        'update_all' => ['key' => 'invoices.update_all', 'label' => 'تعديل أي فاتورة'],
         'update_children' => ['key' => 'invoices.update_children', 'label' => 'تعديل الفواتير التي أنشأها التابعون'],
         'update_self' => ['key' => 'invoices.update_self', 'label' => 'تعديل الفواتير الخاصة بالمستخدم'],
         // صلاحيات الحذف (Delete)
-        'delete_any' => ['key' => 'invoices.delete_any', 'label' => 'حذف أي فاتورة'],
+        'delete_all' => ['key' => 'invoices.delete_all', 'label' => 'حذف أي فاتورة'],
         'delete_children' => ['key' => 'invoices.delete_children', 'label' => 'حذف الفواتير التي أنشأها التابعون'],
         'delete_self' => ['key' => 'invoices.delete_self', 'label' => 'حذف الفواتير الخاصة بالمستخدم'],
     ],
@@ -448,11 +448,11 @@ return [
         // صلاحيات الإنشاء (Create)
         'create' => ['key' => 'installment_plans.create', 'label' => 'إنشاء خطة أقساط جديدة'],
         // صلاحيات التعديل (Update)
-        'update_any' => ['key' => 'installment_plans.update_any', 'label' => 'تعديل أي خطة أقساط'],
+        'update_all' => ['key' => 'installment_plans.update_all', 'label' => 'تعديل أي خطة أقساط'],
         'update_children' => ['key' => 'installment_plans.update_children', 'label' => 'تعديل خطط الأقساط التي أنشأها التابعون'],
         'update_self' => ['key' => 'installment_plans.update_self', 'label' => 'تعديل خطط الأقساط الخاصة بالمستخدم'],
         // صلاحيات الحذف (Delete)
-        'delete_any' => ['key' => 'installment_plans.delete_any', 'label' => 'حذف أي خطة أقساط'],
+        'delete_all' => ['key' => 'installment_plans.delete_all', 'label' => 'حذف أي خطة أقساط'],
         'delete_children' => ['key' => 'installment_plans.delete_children', 'label' => 'حذف خطط الأقساط التي أنشأها التابعون'],
         'delete_self' => ['key' => 'installment_plans.delete_self', 'label' => 'حذف خطط الأقساط الخاصة بالمستخدم'],
     ],
@@ -467,11 +467,11 @@ return [
         // صلاحيات الإنشاء (Create)
         'create' => ['key' => 'installments.create', 'label' => 'إنشاء قسط جديد'],
         // صلاحيات التعديل (Update)
-        'update_any' => ['key' => 'installments.update_any', 'label' => 'تعديل أي قسط'],
+        'update_all' => ['key' => 'installments.update_all', 'label' => 'تعديل أي قسط'],
         'update_children' => ['key' => 'installments.update_children', 'label' => 'تعديل الأقساط التي أنشأها التابعون'],
         'update_self' => ['key' => 'installments.update_self', 'label' => 'تعديل الأقساط الخاصة بالمستخدم'],
         // صلاحيات الحذف (Delete)
-        'delete_any' => ['key' => 'installments.delete_any', 'label' => 'حذف أي قسط'],
+        'delete_all' => ['key' => 'installments.delete_all', 'label' => 'حذف أي قسط'],
         'delete_children' => ['key' => 'installments.delete_children', 'label' => 'حذف الأقساط التي أنشأها التابعون'],
         'delete_self' => ['key' => 'installments.delete_self', 'label' => 'حذف الأقساط الخاصة بالمستخدم'],
     ],
@@ -486,11 +486,11 @@ return [
         // صلاحيات الإنشاء (Create)
         'create' => ['key' => 'installment_payments.create', 'label' => 'إنشاء دفعة قسط جديدة'],
         // صلاحيات التعديل (Update)
-        'update_any' => ['key' => 'installment_payments.update_any', 'label' => 'تعديل أي دفعة قسط'],
+        'update_all' => ['key' => 'installment_payments.update_all', 'label' => 'تعديل أي دفعة قسط'],
         'update_children' => ['key' => 'installment_payments.update_children', 'label' => 'تعديل مدفوعات الأقساط التي أنشأها التابعون'],
         'update_self' => ['key' => 'installment_payments.update_self', 'label' => 'تعديل مدفوعات الأقساط الخاصة بالمستخدم'],
         // صلاحيات الحذف (Delete)
-        'delete_any' => ['key' => 'installment_payments.delete_any', 'label' => 'حذف أي دفعة قسط'],
+        'delete_all' => ['key' => 'installment_payments.delete_all', 'label' => 'حذف أي دفعة قسط'],
         'delete_children' => ['key' => 'installment_payments.delete_children', 'label' => 'حذف مدفوعات الأقساط التي أنشأها التابعون'],
         'delete_self' => ['key' => 'installment_payments.delete_self', 'label' => 'حذف مدفوعات الأقساط الخاصة بالمستخدم'],
     ],
@@ -505,11 +505,11 @@ return [
         // صلاحيات الإنشاء (Create)
         'create' => ['key' => 'invoice_items.create', 'label' => 'إنشاء عنصر فاتورة جديد'],
         // صلاحيات التعديل (Update)
-        'update_any' => ['key' => 'invoice_items.update_any', 'label' => 'تعديل أي عنصر فاتورة'],
+        'update_all' => ['key' => 'invoice_items.update_all', 'label' => 'تعديل أي عنصر فاتورة'],
         'update_children' => ['key' => 'invoice_items.update_children', 'label' => 'تعديل عناصر الفاتورة التي أنشأها التابعون'],
         'update_self' => ['key' => 'invoice_items.update_self', 'label' => 'تعديل عناصر الفاتورة الخاصة بالمستخدم'],
         // صلاحيات الحذف (Delete)
-        'delete_any' => ['key' => 'invoice_items.delete_any', 'label' => 'حذف أي عنصر فاتورة'],
+        'delete_all' => ['key' => 'invoice_items.delete_all', 'label' => 'حذف أي عنصر فاتورة'],
         'delete_children' => ['key' => 'invoice_items.delete_children', 'label' => 'حذف عناصر الفاتورة التي أنشأها التابعون'],
         'delete_self' => ['key' => 'invoice_items.delete_self', 'label' => 'حذف عناصر الفاتورة الخاصة بالمستخدم'],
     ],
@@ -524,11 +524,11 @@ return [
         // صلاحيات الإنشاء (Create)
         'create' => ['key' => 'payments.create', 'label' => 'إنشاء دفعة جديدة'],
         // صلاحيات التعديل (Update)
-        'update_any' => ['key' => 'payments.update_any', 'label' => 'تعديل أي دفعة'],
+        'update_all' => ['key' => 'payments.update_all', 'label' => 'تعديل أي دفعة'],
         'update_children' => ['key' => 'payments.update_children', 'label' => 'تعديل المدفوعات التي أنشأها التابعون'],
         'update_self' => ['key' => 'payments.update_self', 'label' => 'تعديل المدفوعات الخاصة بالمستخدم'],
         // صلاحيات الحذف (Delete)
-        'delete_any' => ['key' => 'payments.delete_any', 'label' => 'حذف أي دفعة'],
+        'delete_all' => ['key' => 'payments.delete_all', 'label' => 'حذف أي دفعة'],
         'delete_children' => ['key' => 'payments.delete_children', 'label' => 'حذف المدفوعات التي أنشأها التابعون'],
         'delete_self' => ['key' => 'payments.delete_self', 'label' => 'حذف المدفوعات الخاصة بالمستخدم'],
     ],
@@ -543,11 +543,11 @@ return [
         // صلاحيات الإنشاء (Create)
         'create' => ['key' => 'payment_methods.create', 'label' => 'إنشاء طريقة دفع جديدة'],
         // صلاحيات التعديل (Update)
-        'update_any' => ['key' => 'payment_methods.update_any', 'label' => 'تعديل أي طريقة دفع'],
+        'update_all' => ['key' => 'payment_methods.update_all', 'label' => 'تعديل أي طريقة دفع'],
         'update_children' => ['key' => 'payment_methods.update_children', 'label' => 'تعديل طرق الدفع التي أنشأها التابعون'],
         'update_self' => ['key' => 'payment_methods.update_self', 'label' => 'تعديل طرق الدفع الخاصة بالمستخدم'],
         // صلاحيات الحذف (Delete)
-        'delete_any' => ['key' => 'payment_methods.delete_any', 'label' => 'حذف أي طريقة دفع'],
+        'delete_all' => ['key' => 'payment_methods.delete_all', 'label' => 'حذف أي طريقة دفع'],
         'delete_children' => ['key' => 'payment_methods.delete_children', 'label' => 'حذف طرق الدفع التي أنشأها التابعون'],
         'delete_self' => ['key' => 'payment_methods.delete_self', 'label' => 'حذف طرق الدفع الخاصة بالمستخدم'],
     ],
@@ -562,11 +562,11 @@ return [
         // صلاحيات الإنشاء (Create)
         'create' => ['key' => 'revenues.create', 'label' => 'إنشاء سجل إيراد جديد'],
         // صلاحيات التعديل (Update)
-        'update_any' => ['key' => 'revenues.update_any', 'label' => 'تعديل أي إيراد'],
+        'update_all' => ['key' => 'revenues.update_all', 'label' => 'تعديل أي إيراد'],
         'update_children' => ['key' => 'revenues.update_children', 'label' => 'تعديل الإيرادات التي أنشأها التابعون'],
         'update_self' => ['key' => 'revenues.update_self', 'label' => 'تعديل الإيرادات الخاصة بالمستخدم'],
         // صلاحيات الحذف (Delete)
-        'delete_any' => ['key' => 'revenues.delete_any', 'label' => 'حذف أي إيراد'],
+        'delete_all' => ['key' => 'revenues.delete_all', 'label' => 'حذف أي إيراد'],
         'delete_children' => ['key' => 'revenues.delete_children', 'label' => 'حذف الإيرادات التي أنشأها التابعون'],
         'delete_self' => ['key' => 'revenues.delete_self', 'label' => 'حذف الإيرادات الخاصة بالمستخدم'],
     ],
@@ -581,11 +581,11 @@ return [
         // صلاحيات الإنشاء (Create)
         'create' => ['key' => 'profits.create', 'label' => 'إنشاء سجل ربح جديد'],
         // صلاحيات التعديل (Update)
-        'update_any' => ['key' => 'profits.update_any', 'label' => 'تعديل أي ربح'],
+        'update_all' => ['key' => 'profits.update_all', 'label' => 'تعديل أي ربح'],
         'update_children' => ['key' => 'profits.update_children', 'label' => 'تعديل الأرباح التي أنشأها التابعون'],
         'update_self' => ['key' => 'profits.update_self', 'label' => 'تعديل الأرباح الخاصة بالمستخدم'],
         // صلاحيات الحذف (Delete)
-        'delete_any' => ['key' => 'profits.delete_any', 'label' => 'حذف أي ربح'],
+        'delete_all' => ['key' => 'profits.delete_all', 'label' => 'حذف أي ربح'],
         'delete_children' => ['key' => 'profits.delete_children', 'label' => 'حذف الأرباح التي أنشأها التابعون'],
         'delete_self' => ['key' => 'profits.delete_self', 'label' => 'حذف الأرباح الخاصة بالمستخدم'],
     ],
@@ -600,11 +600,11 @@ return [
         // صلاحيات الإنشاء (Create)
         'create' => ['key' => 'services.create', 'label' => 'إنشاء خدمة جديدة'],
         // صلاحيات التعديل (Update)
-        'update_any' => ['key' => 'services.update_any', 'label' => 'تعديل أي خدمة'],
+        'update_all' => ['key' => 'services.update_all', 'label' => 'تعديل أي خدمة'],
         'update_children' => ['key' => 'services.update_children', 'label' => 'تعديل الخدمات التي أنشأها التابعون'],
         'update_self' => ['key' => 'services.update_self', 'label' => 'تعديل الخدمات الخاصة بالمستخدم'],
         // صلاحيات الحذف (Delete)
-        'delete_any' => ['key' => 'services.delete_any', 'label' => 'حذف أي خدمة'],
+        'delete_all' => ['key' => 'services.delete_all', 'label' => 'حذف أي خدمة'],
         'delete_children' => ['key' => 'services.delete_children', 'label' => 'حذف الخدمات التي أنشأها التابعون'],
         'delete_self' => ['key' => 'services.delete_self', 'label' => 'حذف الخدمات الخاصة بالمستخدم'],
     ],
@@ -619,11 +619,11 @@ return [
         // صلاحيات الإنشاء (Create)
         'create' => ['key' => 'subscriptions.create', 'label' => 'إنشاء اشتراك جديد'],
         // صلاحيات التعديل (Update)
-        'update_any' => ['key' => 'subscriptions.update_any', 'label' => 'تعديل أي اشتراك'],
+        'update_all' => ['key' => 'subscriptions.update_all', 'label' => 'تعديل أي اشتراك'],
         'update_children' => ['key' => 'subscriptions.update_children', 'label' => 'تعديل الاشتراكات التي أنشأها التابعون'],
         'update_self' => ['key' => 'subscriptions.update_self', 'label' => 'تعديل الاشتراكات الخاصة بالمستخدم'],
         // صلاحيات الحذف (Delete)
-        'delete_any' => ['key' => 'subscriptions.delete_any', 'label' => 'حذف أي اشتراك'],
+        'delete_all' => ['key' => 'subscriptions.delete_all', 'label' => 'حذف أي اشتراك'],
         'delete_children' => ['key' => 'subscriptions.delete_children', 'label' => 'حذف الاشتراكات التي أنشأها التابعون'],
         'delete_self' => ['key' => 'subscriptions.delete_self', 'label' => 'حذف الاشتراكات الخاصة بالمستخدم'],
     ],
@@ -638,11 +638,11 @@ return [
         // صلاحيات الإنشاء (Create)
         'create' => ['key' => 'roles.create', 'label' => 'إنشاء دور جديد'],
         // صلاحيات التعديل (Update)
-        'update_any' => ['key' => 'roles.update_any', 'label' => 'تعديل أي دور'],
+        'update_all' => ['key' => 'roles.update_all', 'label' => 'تعديل أي دور'],
         'update_children' => ['key' => 'roles.update_children', 'label' => 'تعديل الأدوار التي أنشأها التابعون'],
         'update_self' => ['key' => 'roles.update_self', 'label' => 'تعديل الأدوار الخاصة بالمستخدم'],
         // صلاحيات الحذف (Delete)
-        'delete_any' => ['key' => 'roles.delete_any', 'label' => 'حذف أي دور'],
+        'delete_all' => ['key' => 'roles.delete_all', 'label' => 'حذف أي دور'],
         'delete_children' => ['key' => 'roles.delete_children', 'label' => 'حذف الأدوار التي أنشأها التابعون'],
         'delete_self' => ['key' => 'roles.delete_self', 'label' => 'حذف الأدوار الخاصة بالمستخدم'],
     ],

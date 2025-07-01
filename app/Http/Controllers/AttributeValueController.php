@@ -311,7 +311,7 @@ class AttributeValueController extends Controller
             $canUpdate = false;
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
                 $canUpdate = true; // المسؤول العام يمكنه تعديل أي قيمة سمة
-            } elseif ($authUser->hasAnyPermission([perm_key('attribute_values.update_any'), perm_key('admin.company')])) {
+            } elseif ($authUser->hasAnyPermission([perm_key('attribute_values.update_all'), perm_key('admin.company')])) {
                 // يمكنه تعديل أي قيمة سمة داخل الشركة النشطة (بما في ذلك مديرو الشركة)
                 $canUpdate = $attributeValue->belongsToCurrentCompany();
             } elseif ($authUser->hasPermissionTo(perm_key('attribute_values.update_children'))) {
@@ -434,7 +434,7 @@ class AttributeValueController extends Controller
             $canDelete = false;
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
                 $canDelete = true; // المسؤول العام يمكنه حذف أي قيمة سمة
-            } elseif ($authUser->hasAnyPermission([perm_key('attribute_values.delete_any'), perm_key('admin.company')])) {
+            } elseif ($authUser->hasAnyPermission([perm_key('attribute_values.delete_all'), perm_key('admin.company')])) {
                 // يمكنه حذف أي قيمة سمة داخل الشركة النشطة (بما في ذلك مديرو الشركة)
                 $canDelete = $attributeValue->belongsToCurrentCompany();
             } elseif ($authUser->hasPermissionTo(perm_key('attribute_values.delete_children'))) {

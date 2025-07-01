@@ -194,7 +194,7 @@ class RoleController extends Controller
         $authUser = Auth::user();
         $companyId = $authUser->company_id;
         $canUpdate = false;
-        if ($authUser->hasPermissionTo(perm_key('admin.super')) || $authUser->hasPermissionTo(perm_key('roles.update_any'))) {
+        if ($authUser->hasPermissionTo(perm_key('admin.super')) || $authUser->hasPermissionTo(perm_key('roles.update_all'))) {
             $canUpdate = true;
         } elseif ($authUser->hasPermissionTo(perm_key('roles.update_children'))) {
             $descendantUserIds = $authUser->getDescendantUserIds();
@@ -290,7 +290,7 @@ class RoleController extends Controller
             $deletedRoleNames = [];
             foreach ($rolesToDelete as $role) {
                 $canDelete = false;
-                if ($authUser->hasPermissionTo(perm_key('admin.super')) || $authUser->hasPermissionTo(perm_key('roles.delete_any'))) {
+                if ($authUser->hasPermissionTo(perm_key('admin.super')) || $authUser->hasPermissionTo(perm_key('roles.delete_all'))) {
                     $canDelete = $role->companies()->where('companies.id', $companyId)->exists();
                 } elseif ($authUser->hasPermissionTo(perm_key('roles.delete_children'))) {
                     $descendantUserIds = $authUser->getDescendantUserIds();

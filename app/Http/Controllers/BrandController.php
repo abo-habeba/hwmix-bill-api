@@ -292,7 +292,7 @@ class BrandController extends Controller
             $canUpdate = false;
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
                 $canUpdate = true; // المسؤول العام يمكنه تعديل أي ماركة
-            } elseif ($authUser->hasAnyPermission([perm_key('brands.update_any'), perm_key('admin.company')])) {
+            } elseif ($authUser->hasAnyPermission([perm_key('brands.update_all'), perm_key('admin.company')])) {
                 // يمكنه تعديل أي ماركة داخل الشركة النشطة (بما في ذلك مديرو الشركة)
                 $canUpdate = $brand->belongsToCurrentCompany();
             } elseif ($authUser->hasPermissionTo(perm_key('brands.update_children'))) {
@@ -406,7 +406,7 @@ class BrandController extends Controller
             $canDelete = false;
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
                 $canDelete = true; // المسؤول العام يمكنه حذف أي ماركة
-            } elseif ($authUser->hasAnyPermission([perm_key('brands.delete_any'), perm_key('admin.company')])) {
+            } elseif ($authUser->hasAnyPermission([perm_key('brands.delete_all'), perm_key('admin.company')])) {
                 // يمكنه حذف أي ماركة داخل الشركة النشطة (بما في ذلك مديرو الشركة)
                 $canDelete = $brand->belongsToCurrentCompany();
             } elseif ($authUser->hasPermissionTo(perm_key('brands.delete_children'))) {

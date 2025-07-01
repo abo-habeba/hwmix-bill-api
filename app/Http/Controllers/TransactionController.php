@@ -546,7 +546,7 @@ class TransactionController extends Controller
                 $canReverse = false;
                 if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
                     $canReverse = true; // المسؤول العام يمكنه عكس أي معاملة
-                } elseif ($authUser->hasAnyPermission([perm_key('transactions.update_any'), perm_key('admin.company')])) {
+                } elseif ($authUser->hasAnyPermission([perm_key('transactions.update_all'), perm_key('admin.company')])) {
                     // يستطيع عكس المعاملات داخل الشركة النشطة
                     $canReverse = $transaction->belongsToCurrentCompany();
                 } elseif ($authUser->hasPermissionTo(perm_key('transactions.update_children'))) {

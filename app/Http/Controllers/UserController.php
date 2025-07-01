@@ -309,7 +309,7 @@ class UserController extends Controller
 
         $canUpdate = $authUser->hasPermissionTo(perm_key('admin.super')) ||
             $authUser->hasPermissionTo(perm_key('admin.company')) ||
-            ($authUser->hasPermissionTo(perm_key('users.update_any')) && $authUser->belongsToCurrentCompany()) ||
+            ($authUser->hasPermissionTo(perm_key('users.update_all')) && $authUser->belongsToCurrentCompany()) ||
             ($authUser->hasPermissionTo(perm_key('users.update_children')) && $authUser->createdByUserOrChildren($user)) ||
             ($authUser->hasPermissionTo(perm_key('users.update_self')) && $authUser->createdByCurrentUser($user));
 
@@ -407,10 +407,10 @@ class UserController extends Controller
         try {
             $usersToDelete = User::whereIn('id', $userIds);
 
-            if ($authUser->hasPermissionTo(perm_key('admin.super')) || $authUser->hasPermissionTo(perm_key('users.delete_any'))) {
+            if ($authUser->hasPermissionTo(perm_key('admin.super')) || $authUser->hasPermissionTo(perm_key('users.delete_all'))) {
                 // المدير العام أو من لديه صلاحية الحذف الشامل يمكنه حذف أي مستخدم
-                // إذا كان users.delete_any فيجب أن يكون ضمن نطاق الشركة النشطة للمستخدم
-                if ($authUser->hasPermissionTo(perm_key('users.delete_any'))) {
+                // إذا كان users.delete_all فيجب أن يكون ضمن نطاق الشركة النشطة للمستخدم
+                if ($authUser->hasPermissionTo(perm_key('users.delete_all'))) {
                     if (!$authUser->company_id) {
                         DB::rollBack();
                         return response()->json(['error' => 'Forbidden', 'message' => 'Your active company is not set to delete users.'], 403);

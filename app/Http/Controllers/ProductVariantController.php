@@ -345,7 +345,7 @@ class ProductVariantController extends Controller
             $canUpdate = false;
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
                 $canUpdate = true; // المسؤول العام يمكنه تعديل أي متغير
-            } elseif ($authUser->hasAnyPermission([perm_key('product_variants.update_any'), perm_key('admin.company')])) {
+            } elseif ($authUser->hasAnyPermission([perm_key('product_variants.update_all'), perm_key('admin.company')])) {
                 // يمكنه تعديل أي متغير داخل الشركة النشطة (بما في ذلك مديرو الشركة)
                 $canUpdate = $productVariant->belongsToCurrentCompany();
             } elseif ($authUser->hasPermissionTo(perm_key('product_variants.update_children'))) {
@@ -522,7 +522,7 @@ class ProductVariantController extends Controller
             $canDelete = false;
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
                 $canDelete = true; // المسؤول العام يمكنه حذف أي متغير
-            } elseif ($authUser->hasAnyPermission([perm_key('product_variants.delete_any'), perm_key('admin.company')])) {
+            } elseif ($authUser->hasAnyPermission([perm_key('product_variants.delete_all'), perm_key('admin.company')])) {
                 // يمكنه حذف أي متغير داخل الشركة النشطة (بما في ذلك مديرو الشركة)
                 $canDelete = $productVariant->belongsToCurrentCompany();
             } elseif ($authUser->hasPermissionTo(perm_key('product_variants.delete_children'))) {

@@ -264,7 +264,7 @@ class InstallmentPlanController extends Controller
             $canUpdate = false;
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
                 $canUpdate = true; // المسؤول العام يمكنه تعديل أي خطة تقسيط
-            } elseif ($authUser->hasAnyPermission([perm_key('installment_plans.update_any'), perm_key('admin.company')])) {
+            } elseif ($authUser->hasAnyPermission([perm_key('installment_plans.update_all'), perm_key('admin.company')])) {
                 // يمكنه تعديل أي خطة تقسيط داخل الشركة النشطة (بما في ذلك مديرو الشركة)
                 $canUpdate = $plan->belongsToCurrentCompany();
             } elseif ($authUser->hasPermissionTo(perm_key('installment_plans.update_children'))) {
@@ -344,7 +344,7 @@ class InstallmentPlanController extends Controller
             $canDelete = false;
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
                 $canDelete = true; // المسؤول العام يمكنه حذف أي خطة تقسيط
-            } elseif ($authUser->hasAnyPermission([perm_key('installment_plans.delete_any'), perm_key('admin.company')])) {
+            } elseif ($authUser->hasAnyPermission([perm_key('installment_plans.delete_all'), perm_key('admin.company')])) {
                 // يمكنه حذف أي خطة تقسيط داخل الشركة النشطة (بما في ذلك مديرو الشركة)
                 $canDelete = $plan->belongsToCurrentCompany();
             } elseif ($authUser->hasPermissionTo(perm_key('installment_plans.delete_children'))) {

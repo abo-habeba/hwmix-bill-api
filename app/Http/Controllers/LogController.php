@@ -123,7 +123,7 @@ class LogController extends Controller
             $canUndo = false;
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
                 $canUndo = true;  // المسؤول العام يمكنه التراجع عن أي شيء
-            } elseif ($authUser->hasPermissionTo(perm_key('activity_logs.delete_any'))) {
+            } elseif ($authUser->hasPermissionTo(perm_key('activity_logs.delete_all'))) {
                 // يمكنه التراجع عن أي سجل ضمن الشركة النشطة
                 $canUndo = true;  // تم التحقق من company_id أعلاه
             } elseif ($authUser->hasPermissionTo(perm_key('activity_logs.delete_children'))) {
