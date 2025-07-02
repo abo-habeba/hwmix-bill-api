@@ -8,19 +8,12 @@ use App\Http\Requests\AttributeValue\UpdateAttributeValueRequest;
 use App\Http\Resources\AttributeValue\AttributeValueResource;
 use App\Models\AttributeValue;
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse; // للتأكد من استيراد JsonResponse
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use Throwable;
 
-// دالة مساعدة لضمان الاتساق في مفاتيح الأذونات (إذا لم تكن معرفة عالميا)
-// if (!function_exists('perm_key')) {
-//     function perm_key(string $permission): string
-//     {
-//         return $permission;
-//     }
-// }
 
 /**
  * Class AttributeValueController
@@ -46,19 +39,18 @@ class AttributeValueController extends Controller
      * عرض جميع قيم السمات.
      *
      * @param Request $request
-     * @return \Illuminate\Http\Resources\Json\AnonymousResourceCollection|\Illuminate\Http\JsonResponse
+     * @return \Illuminate\Http\JsonResponse
      */
-    public function index(Request $request)
+    public function index(Request $request): JsonResponse
     {
         try {
             /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
             $query = AttributeValue::with($this->relations);
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
-            // التحقق الأساسي: إذا لم يكن المستخدم مرتبطًا بشركة وليس سوبر أدمن
             if (!$companyId && !$authUser->hasPermissionTo(perm_key('admin.super'))) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'User is not associated with a company.'], 403);
+                return api_unauthorized('يجب أن تكون مرتبطًا بشركة أو لديك صلاحية مدير عام.');
             }
 
             // تطبيق منطق الصلاحيات
@@ -74,7 +66,7 @@ class AttributeValueController extends Controller
                 // يرى قيم السمات التي أنشأها المستخدم فقط، ومرتبطة بالشركة النشطة
                 $query->whereCompanyIsCurrent()->whereCreatedByUser();
             } else {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to view attribute values.'], 403);
+                return api_forbidden('ليس لديك صلاحية لعرض قيم السمات.');
             }
 
             // تطبيق فلاتر البحث
@@ -97,32 +89,14 @@ class AttributeValueController extends Controller
             }
 
             // الفرز والتصفح
-            $sortBy = $request->input('sort_by', 'created_at');
-            $sortOrder = $request->input('sort_order', 'desc');
-            $query->orderBy($sortBy, $sortOrder);
-
             $perPage = max(1, (int) $request->get('per_page', 10));
-            $attributeValues = $query->paginate($perPage);
+            $sortField = $request->input('sort_by', 'created_at');
+            $sortOrder = $request->input('sort_order', 'desc');
+            $attributeValues = $query->orderBy($sortField, $sortOrder)->paginate($perPage);
 
-            return AttributeValueResource::collection($attributeValues)->additional([
-                'total' => $attributeValues->total(),
-                'current_page' => $attributeValues->currentPage(),
-                'last_page' => $attributeValues->lastPage(),
-            ]);
+            return api_success($attributeValues, 'تم جلب قيم السمات بنجاح');
         } catch (Throwable $e) {
-            Log::error('AttributeValue index failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            return response()->json([
-                'error' => 'Error retrieving attribute values.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e);
         }
     }
 
@@ -130,100 +104,53 @@ class AttributeValueController extends Controller
      * إضافة قيمة سمة جديدة.
      *
      * @param StoreAttributeValueRequest $request
-     * @return \Illuminate\Http\JsonResponse|\App\Http\Resources\AttributeValue\AttributeValueResource
+     * @return \Illuminate\Http\JsonResponse
      */
-    public function store(StoreAttributeValueRequest $request)
+    public function store(StoreAttributeValueRequest $request): JsonResponse
     {
         try {
             /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
             if (!$authUser || !$companyId) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'Authentication or company association required.'], 403);
+                return api_unauthorized('يجب تسجيل الدخول ووجود شركة نشطة.');
             }
 
-            // صلاحيات إنشاء قيمة سمة
             if (!$authUser->hasPermissionTo(perm_key('admin.super')) && !$authUser->hasPermissionTo(perm_key('attribute_values.create')) && !$authUser->hasPermissionTo(perm_key('admin.company'))) {
-                return response()->json([
-                    'error' => 'Unauthorized',
-                    'message' => 'You are not authorized to create attribute values.'
-                ], 403);
+                return api_forbidden('ليس لديك صلاحية لإنشاء قيم السمات.');
             }
 
             DB::beginTransaction();
             try {
                 $validatedData = $request->validated();
-
-                // التحقق من أن السمة الأم موجودة وتابعة لشركة المستخدم أو أن المستخدم super_admin
                 $attribute = \App\Models\Attribute::with('company')->find($validatedData['attribute_id']);
                 if (!$attribute || (!$authUser->hasPermissionTo(perm_key('admin.super')) && $attribute->company_id !== $companyId)) {
                     DB::rollBack();
-                    return response()->json(['error' => 'Forbidden', 'message' => 'Parent attribute not found or not accessible within your company.'], 403);
+                    return api_forbidden('السمة الأم غير موجودة أو غير تابعة لشركتك.');
                 }
-
-                // إذا كان المستخدم super_admin ويحدد company_id، يسمح بذلك. وإلا، استخدم company_id للسمة الأم.
                 $valueCompanyId = ($authUser->hasPermissionTo(perm_key('admin.super')) && isset($validatedData['company_id']))
                     ? $validatedData['company_id']
                     : $attribute->company_id;
-
-                // التأكد من أن المستخدم مصرح له بإنشاء قيمة سمة لهذه الشركة
                 if ($valueCompanyId != $companyId && !$authUser->hasPermissionTo(perm_key('admin.super'))) {
                     DB::rollBack();
-                    return response()->json(['error' => 'Unauthorized', 'message' => 'You can only create attribute values for your current company unless you are a Super Admin.'], 403);
+                    return api_forbidden('يمكنك فقط إنشاء قيم سمات لشركتك النشطة.');
                 }
-
                 $validatedData['company_id'] = $valueCompanyId;
                 $validatedData['created_by'] = $authUser->id;
-
                 $attributeValue = AttributeValue::create($validatedData);
                 $attributeValue->load($this->relations);
                 DB::commit();
-                Log::info('Attribute value created successfully.', ['attribute_value_id' => $attributeValue->id, 'attribute_id' => $attribute->id, 'user_id' => $authUser->id, 'company_id' => $companyId]);
-                return new AttributeValueResource($attributeValue);
+                return api_success(new AttributeValueResource($attributeValue), 'تم إنشاء قيمة السمة بنجاح');
             } catch (ValidationException $e) {
                 DB::rollBack();
-                Log::error('AttributeValue store validation failed: ' . $e->getMessage(), [
-                    'errors' => $e->errors(),
-                    'user_id' => Auth::id(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ]);
-                return response()->json([
-                    'status' => 'error',
-                    'message' => $e->getMessage(),
-                    'errors' => $e->errors(),
-                ], 422);
+                return api_error($e->getMessage(), $e->errors(), 422);
             } catch (Throwable $e) {
                 DB::rollBack();
-                Log::error('AttributeValue store failed in transaction: ' . $e->getMessage(), [
-                    'exception' => $e,
-                    'user_id' => Auth::id(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                    'trace' => $e->getTraceAsString(),
-                ]);
-                return response()->json([
-                    'error' => 'Error saving attribute value.',
-                    'details' => $e->getMessage(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ], 500);
+                return api_error('حدث خطأ أثناء حفظ قيمة السمة.', [], 500);
             }
         } catch (Throwable $e) {
-            Log::error('AttributeValue store failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            return response()->json([
-                'error' => 'Error saving attribute value.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e);
         }
     }
 
@@ -231,58 +158,39 @@ class AttributeValueController extends Controller
      * عرض قيمة سمة محددة.
      *
      * @param string $id
-     * @return \Illuminate\Http\JsonResponse|\App\Http\Resources\AttributeValue\AttributeValueResource
+     * @return \Illuminate\Http\JsonResponse
      */
-    public function show(string $id)
+    public function show(string $id): JsonResponse
     {
         try {
             /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
             if (!$authUser || !$companyId) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'Authentication or company association required.'], 403);
+                return api_unauthorized('يجب تسجيل الدخول ووجود شركة نشطة.');
             }
 
             $attributeValue = AttributeValue::with($this->relations)->findOrFail($id);
 
-            // التحقق من صلاحيات العرض
             $canView = false;
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
-                $canView = true; // المسؤول العام يرى أي قيمة سمة
+                $canView = true;
             } elseif ($authUser->hasAnyPermission([perm_key('attribute_values.view_all'), perm_key('admin.company')])) {
-                // يرى إذا كانت قيمة السمة تنتمي للشركة النشطة (بما في ذلك مديرو الشركة)
                 $canView = $attributeValue->belongsToCurrentCompany();
             } elseif ($authUser->hasPermissionTo(perm_key('attribute_values.view_children'))) {
-                // يرى إذا كانت قيمة السمة أنشأها هو أو أحد التابعين له وتابعة للشركة النشطة
                 $canView = $attributeValue->belongsToCurrentCompany() && $attributeValue->createdByUserOrChildren();
             } elseif ($authUser->hasPermissionTo(perm_key('attribute_values.view_self'))) {
-                // يرى إذا كانت قيمة السمة أنشأها هو وتابعة للشركة النشطة
                 $canView = $attributeValue->belongsToCurrentCompany() && $attributeValue->createdByCurrentUser();
-            } else {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to view this attribute value.'], 403);
             }
 
             if ($canView) {
-                return new AttributeValueResource($attributeValue);
+                return api_success(new AttributeValueResource($attributeValue), 'تم جلب قيمة السمة بنجاح');
             }
 
-            return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to view this attribute value.'], 403);
+            return api_forbidden('ليس لديك صلاحية لعرض هذه القيمة.');
         } catch (Throwable $e) {
-            Log::error('AttributeValue show failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'attribute_value_id' => $id,
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            return response()->json([
-                'error' => 'Error retrieving attribute value.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e);
         }
     }
 
@@ -291,122 +199,69 @@ class AttributeValueController extends Controller
      *
      * @param UpdateAttributeValueRequest $request
      * @param string $id
-     * @return \Illuminate\Http\JsonResponse|\App\Http\Resources\AttributeValue\AttributeValueResource
+     * @return \Illuminate\Http\JsonResponse
      */
-    public function update(UpdateAttributeValueRequest $request, string $id)
+    public function update(UpdateAttributeValueRequest $request, string $id): JsonResponse
     {
         try {
             /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
             if (!$authUser || !$companyId) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'Authentication or company association required.'], 403);
+                return api_unauthorized('يجب تسجيل الدخول ووجود شركة نشطة.');
             }
 
-            // يجب تحميل العلاقات الضرورية للتحقق من الصلاحيات (مثل الشركة والمنشئ والسمة الأم)
             $attributeValue = AttributeValue::with(['company', 'creator', 'attribute'])->findOrFail($id);
 
-            // التحقق من صلاحيات التحديث
             $canUpdate = false;
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
-                $canUpdate = true; // المسؤول العام يمكنه تعديل أي قيمة سمة
+                $canUpdate = true;
             } elseif ($authUser->hasAnyPermission([perm_key('attribute_values.update_all'), perm_key('admin.company')])) {
-                // يمكنه تعديل أي قيمة سمة داخل الشركة النشطة (بما في ذلك مديرو الشركة)
                 $canUpdate = $attributeValue->belongsToCurrentCompany();
             } elseif ($authUser->hasPermissionTo(perm_key('attribute_values.update_children'))) {
-                // يمكنه تعديل قيم السمات التي أنشأها هو أو أحد التابعين له وتابعة للشركة النشطة
                 $canUpdate = $attributeValue->belongsToCurrentCompany() && $attributeValue->createdByUserOrChildren();
             } elseif ($authUser->hasPermissionTo(perm_key('attribute_values.update_self'))) {
-                // يمكنه تعديل قيمة سمته الخاصة التي أنشأها وتابعة للشركة النشطة
                 $canUpdate = $attributeValue->belongsToCurrentCompany() && $attributeValue->createdByCurrentUser();
-            } else {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to update this attribute value.'], 403);
             }
 
             if (!$canUpdate) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to update this attribute value.'], 403);
+                return api_forbidden('ليس لديك صلاحية لتحديث هذه القيمة.');
             }
 
             DB::beginTransaction();
             try {
                 $validatedData = $request->validated();
                 $updatedBy = $authUser->id;
-
-                // التحقق من أن السمة الأم الجديدة (إذا تم إرسالها) موجودة وتابعة لشركة المستخدم أو super_admin
                 if (isset($validatedData['attribute_id']) && $validatedData['attribute_id'] != $attributeValue->attribute_id) {
                     $newAttribute = \App\Models\Attribute::with('company')->find($validatedData['attribute_id']);
                     if (!$newAttribute || (!$authUser->hasPermissionTo(perm_key('admin.super')) && $newAttribute->company_id !== $companyId)) {
                         DB::rollBack();
-                        return response()->json(['error' => 'Forbidden', 'message' => 'New parent attribute not found or not accessible within your company.'], 403);
+                        return api_forbidden('السمة الأم الجديدة غير موجودة أو غير تابعة لشركتك.');
                     }
                 }
-
-                // إذا كان المستخدم سوبر ادمن ويحدد معرف الشركه، يسمح بذلك. وإلا، استخدم معرف الشركه لقيمة السمة.
                 $valueCompanyId = ($authUser->hasPermissionTo(perm_key('admin.super')) && isset($validatedData['company_id']))
                     ? $validatedData['company_id']
                     : $attributeValue->company_id;
-
-                // التأكد من أن المستخدم مصرح له بتعديل قيمة سمة لشركة أخرى (فقط سوبر أدمن)
                 if ($valueCompanyId != $attributeValue->company_id && !$authUser->hasPermissionTo(perm_key('admin.super'))) {
                     DB::rollBack();
-                    return response()->json(['error' => 'Unauthorized', 'message' => 'You cannot change an attribute value\'s company unless you are a Super Admin.'], 403);
+                    return api_forbidden('لا يمكنك تغيير شركة قيمة السمة إلا إذا كنت مدير عام.');
                 }
-
-                $validatedData['company_id'] = $valueCompanyId; // تحديث company_id في البيانات المصدقة
-                $validatedData['updated_by'] = $updatedBy; // من قام بالتعديل
-
+                $validatedData['company_id'] = $valueCompanyId;
+                $validatedData['updated_by'] = $updatedBy;
                 $attributeValue->update($validatedData);
                 $attributeValue->load($this->relations);
                 DB::commit();
-                Log::info('Attribute value updated successfully.', ['attribute_value_id' => $attributeValue->id, 'user_id' => $authUser->id, 'company_id' => $companyId]);
-                return new AttributeValueResource($attributeValue);
+                return api_success(new AttributeValueResource($attributeValue), 'تم تحديث قيمة السمة بنجاح');
             } catch (ValidationException $e) {
                 DB::rollBack();
-                Log::error('AttributeValue update validation failed: ' . $e->getMessage(), [
-                    'errors' => $e->errors(),
-                    'user_id' => Auth::id(),
-                    'attribute_value_id' => $id,
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ]);
-                return response()->json([
-                    'status' => 'error',
-                    'message' => $e->getMessage(),
-                    'errors' => $e->errors(),
-                ], 422);
+                return api_error($e->getMessage(), $e->errors(), 422);
             } catch (Throwable $e) {
                 DB::rollBack();
-                Log::error('AttributeValue update failed in transaction: ' . $e->getMessage(), [
-                    'exception' => $e,
-                    'user_id' => Auth::id(),
-                    'attribute_value_id' => $id,
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                    'trace' => $e->getTraceAsString(),
-                ]);
-                return response()->json([
-                    'error' => 'Error updating attribute value.',
-                    'details' => $e->getMessage(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ], 500);
+                return api_error('حدث خطأ أثناء تحديث قيمة السمة.', [], 500);
             }
         } catch (Throwable $e) {
-            Log::error('AttributeValue update failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'attribute_value_id' => $id,
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            return response()->json([
-                'error' => 'Error updating attribute value.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e);
         }
     }
 
@@ -416,90 +271,54 @@ class AttributeValueController extends Controller
      * @param string $id
      * @return \Illuminate\Http\JsonResponse
      */
-    public function destroy(string $id)
+    public function destroy(string $id): JsonResponse
     {
         try {
             /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
             if (!$authUser || !$companyId) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'Authentication or company association required.'], 403);
+                return api_unauthorized('يجب تسجيل الدخول ووجود شركة نشطة.');
             }
 
-            // يجب تحميل العلاقات الضرورية للتحقق من الصلاحيات (مثل الشركة والمنشئ)
             $attributeValue = AttributeValue::with(['company', 'creator'])->findOrFail($id);
 
-            // التحقق من صلاحيات الحذف
             $canDelete = false;
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
-                $canDelete = true; // المسؤول العام يمكنه حذف أي قيمة سمة
+                $canDelete = true;
             } elseif ($authUser->hasAnyPermission([perm_key('attribute_values.delete_all'), perm_key('admin.company')])) {
-                // يمكنه حذف أي قيمة سمة داخل الشركة النشطة (بما في ذلك مديرو الشركة)
                 $canDelete = $attributeValue->belongsToCurrentCompany();
             } elseif ($authUser->hasPermissionTo(perm_key('attribute_values.delete_children'))) {
-                // يمكنه حذف قيم السمات التي أنشأها هو أو أحد التابعين له وتابعة للشركة النشطة
                 $canDelete = $attributeValue->belongsToCurrentCompany() && $attributeValue->createdByUserOrChildren();
             } elseif ($authUser->hasPermissionTo(perm_key('attribute_values.delete_self'))) {
-                // يمكنه حذف قيمة سمته الخاصة التي أنشأها وتابعة للشركة النشطة
                 $canDelete = $attributeValue->belongsToCurrentCompany() && $attributeValue->createdByCurrentUser();
-            } else {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to delete this attribute value.'], 403);
             }
 
             if (!$canDelete) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to delete this attribute value.'], 403);
+                return api_forbidden('ليس لديك صلاحية لحذف هذه القيمة.');
             }
 
             DB::beginTransaction();
             try {
-                // تحقق مما إذا كانت قيمة السمة مرتبطة بأي متغيرات منتج (عبر جدول وسيط)
-                // افترض أن لديك علاقة productVariants في نموذج AttributeValue
-                // ProductVariantAttribute هو جدول وسيط يربط ProductVariant بـ AttributeValue
                 if (\App\Models\ProductVariantAttribute::where('attribute_value_id', $attributeValue->id)->exists()) {
                     DB::rollBack();
-                    return response()->json([
-                        'error' => 'Conflict',
-                        'message' => 'Cannot delete attribute value. It is associated with one or more product variants.',
-                    ], 409);
+                    return api_error('لا يمكن حذف قيمة السمة لأنها مرتبطة بمتغيرات منتجات.', [], 409);
                 }
+
+                // حفظ نسخة من العنصر قبل حذفه لإرجاعه في الاستجابة
+                $deletedAttributeValue = $attributeValue->replicate();
+                $deletedAttributeValue->setRelations($attributeValue->getRelations()); // نسخ العلاقات المحملة
 
                 $attributeValue->delete();
                 DB::commit();
-                Log::info('Attribute value deleted successfully.', ['attribute_value_id' => $id, 'user_id' => $authUser->id, 'company_id' => $companyId]);
-                return response()->json(['message' => 'Attribute value deleted successfully'], 200);
+                return api_success(new AttributeValueResource($deletedAttributeValue), 'تم حذف قيمة السمة بنجاح');
             } catch (Throwable $e) {
                 DB::rollBack();
-                Log::error('AttributeValue deletion failed: ' . $e->getMessage(), [
-                    'exception' => $e,
-                    'user_id' => Auth::id(),
-                    'attribute_value_id' => $id,
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                    'trace' => $e->getTraceAsString(),
-                ]);
-                return response()->json([
-                    'error' => 'Error deleting attribute value.',
-                    'details' => $e->getMessage(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ], 500);
+                return api_error('حدث خطأ أثناء حذف قيمة السمة.', [], 500);
             }
         } catch (Throwable $e) {
-            Log::error('AttributeValue deletion failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'attribute_value_id' => $id,
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            return response()->json([
-                'error' => 'Error deleting attribute value.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e);
         }
     }
 }

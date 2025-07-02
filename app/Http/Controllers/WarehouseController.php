@@ -46,30 +46,24 @@ class WarehouseController extends Controller
         try {
             $authUser = Auth::user();
             $query = Warehouse::with($this->relations);
-            $companyId = $authUser->company_id; // معرف الشركة النشطة للمستخدم
+            $companyId = $authUser->company_id;
 
-            // التحقق الأساسي: إذا لم يكن المستخدم مرتبطًا بشركة وليس سوبر أدمن
             if (!$companyId && !$authUser->hasPermissionTo(perm_key('admin.super'))) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'User is not associated with a company.'], 403);
+                return api_unauthorized('يجب أن تكون مرتبطًا بشركة.');
             }
 
-            // تطبيق فلترة الصلاحيات بناءً على صلاحيات العرض
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
-                // المسؤول العام يرى جميع المستودعات (لا توجد قيود إضافية على الاستعلام)
+                // المسؤول العام يرى جميع المستودعات
             } elseif ($authUser->hasAnyPermission([perm_key('warehouses.view_all'), perm_key('admin.company')])) {
-                // يرى جميع المستودعات الخاصة بالشركة النشطة (بما في ذلك مديرو الشركة)
                 $query->whereCompanyIsCurrent();
             } elseif ($authUser->hasPermissionTo(perm_key('warehouses.view_children'))) {
-                // يرى المستودعات التي أنشأها المستخدم أو المستخدمون التابعون له، ضمن الشركة النشطة
                 $query->whereCompanyIsCurrent()->whereCreatedByUserOrChildren();
             } elseif ($authUser->hasPermissionTo(perm_key('warehouses.view_self'))) {
-                // يرى المستودعات التي أنشأها المستخدم فقط، ومرتبطة بالشركة النشطة
                 $query->whereCompanyIsCurrent()->whereCreatedByUser();
             } else {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to view warehouses.'], 403);
+                return api_forbidden('ليس لديك صلاحية لعرض المستودعات.');
             }
 
-            // تطبيق فلاتر البحث
             if ($request->filled('search')) {
                 $search = $request->input('search');
                 $query->where(function ($q) use ($search) {
@@ -82,32 +76,14 @@ class WarehouseController extends Controller
                 $query->where('active', (bool) $request->input('active'));
             }
 
-            // الفرز والتصفح
-            $sortBy = $request->input('sort_by', 'created_at');
+            $perPage = max(1, $request->input('per_page', 10));
+            $sortField = $request->input('sort_by', 'created_at');
             $sortOrder = $request->input('sort_order', 'desc');
-            $query->orderBy($sortBy, $sortOrder);
+            $warehouses = $query->orderBy($sortField, $sortOrder)->paginate($perPage);
 
-            $perPage = $request->input('per_page', 10);
-            $warehouses = $query->paginate($perPage);
-
-            return WarehouseResource::collection($warehouses)->additional([
-                'total' => $warehouses->total(),
-                'current_page' => $warehouses->currentPage(),
-                'last_page' => $warehouses->lastPage(),
-            ]);
+            return api_success(WarehouseResource::collection($warehouses), 'تم جلب المستودعات بنجاح');
         } catch (Throwable $e) {
-            Log::error('Warehouse index failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ]);
-            return response()->json([
-                'error' => 'Error retrieving warehouses.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e);
         }
     }
 

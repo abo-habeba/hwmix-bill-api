@@ -4,55 +4,70 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Invoice\StoreInvoiceRequest;
-use App\Http\Requests\Invoice\UpdateInvoiceRequest;  // تم تصحيح الخطأ هنا
+use App\Http\Requests\Invoice\UpdateInvoiceRequest;
 use App\Http\Resources\Invoice\InvoiceResource;
 use App\Models\Invoice;
 use App\Models\InvoiceType;
 use App\Services\ServiceResolver;
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;  // تم تصحيح الخطأ هنا
 use Illuminate\Validation\ValidationException;
-use Throwable;  // استخدام Throwable لشمولية أكبر في التقاط الأخطاء
+use Throwable;
 
 class InvoiceController extends Controller
 {
+    private array $relations;
+
+    public function __construct()
+    {
+        $this->relations = [
+            'user',
+            'company',
+            'invoiceType',
+            'items',
+            'installmentPlan',
+            'creator', // للمصادقة على createdByUser/OrChildren
+        ];
+    }
+
     /**
      * عرض قائمة بالفواتير.
      *
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
-    public function index(Request $request)
+    public function index(Request $request): JsonResponse
     {
         try {
+            /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $query = Invoice::query();
-            $companyId = $authUser->company_id;  // معرف الشركة النشطة للمستخدم
 
-            // التحقق الأساسي: إذا لم يكن المستخدم مرتبطًا بشركة وليس سوبر أدمن
-            if (!$companyId && !$authUser->hasPermissionTo(perm_key('admin.super'))) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'User is not associated with a company.'], 403);
+            if (!$authUser) {
+                return api_unauthorized('يتطلب المصادقة.');
             }
 
-            // تطبيق فلترة الصلاحيات بناءً على صلاحيات العرض
+            $query = Invoice::query()->with($this->relations);
+            $companyId = $authUser->company_id ?? null;
+
+            if (!$companyId && !$authUser->hasPermissionTo(perm_key('admin.super'))) {
+                return api_unauthorized('يجب أن تكون مرتبطًا بشركة أو لديك صلاحية مدير عام.');
+            }
+
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
                 // المسؤول العام يرى جميع الفواتير (لا توجد قيود إضافية على الاستعلام)
             } elseif ($authUser->hasAnyPermission([perm_key('invoices.view_all'), perm_key('admin.company')])) {
-                // يرى جميع الفواتير الخاصة بالشركة النشطة (بما في ذلك مديرو الشركة)
                 $query->whereCompanyIsCurrent();
             } elseif ($authUser->hasPermissionTo(perm_key('invoices.view_children'))) {
-                // يرى الفواتير التي أنشأها المستخدم أو المستخدمون التابعون له، ضمن الشركة النشطة
                 $query->whereCompanyIsCurrent()->whereCreatedByUserOrChildren();
             } elseif ($authUser->hasPermissionTo(perm_key('invoices.view_self'))) {
-                // يرى الفواتير التي أنشأها المستخدم فقط، ومرتبطة بالشركة النشطة
                 $query->whereCompanyIsCurrent()->whereCreatedByUser();
             } else {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to access this resource.'], 403);
+                return api_forbidden('ليس لديك صلاحية لعرض الفواتير.');
             }
 
-            // فلاتر الطلب الإضافية (يمكن إضافة المزيد هنا)
+            // فلاتر الطلب الإضافية
             if ($request->filled('invoice_type_id')) {
                 $query->where('invoice_type_id', $request->input('invoice_type_id'));
             }
@@ -68,28 +83,17 @@ class InvoiceController extends Controller
             }
 
             // تحديد عدد العناصر في الصفحة والفرز
-            $perPage = max(1, $request->input('per_page', 20));
+            $perPage = max(1, (int) $request->input('per_page', 20));
             $sortField = $request->input('sort_by', 'id');
-            $sortOrder = $request->input('sort_order', 'desc');  // الفواتير عادة ما تكون بترتيب تنازلي
+            $sortOrder = $request->input('sort_order', 'desc');
 
             $invoices = $query
-                ->with(['user', 'company', 'invoiceType', 'items', 'installmentPlan'])
                 ->orderBy($sortField, $sortOrder)
                 ->paginate($perPage);
 
-            return InvoiceResource::collection($invoices)->additional([
-                'total' => $invoices->total(),
-                'current_page' => $invoices->currentPage(),
-                'last_page' => $invoices->lastPage(),
-            ]);
+            return api_success($invoices, 'تم جلب الفواتير بنجاح');
         } catch (Throwable $e) {
-            Log::error('Invoice index failed: ' . $e->getMessage(), ['exception' => $e, 'trace' => $e->getTraceAsString()]);
-            return response()->json([
-                'error' => 'Error retrieving invoices.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e);
         }
     }
 
@@ -99,70 +103,47 @@ class InvoiceController extends Controller
      * @param StoreInvoiceRequest $request
      * @return \Illuminate\Http\JsonResponse
      */
-    public function store(StoreInvoiceRequest $request)
+    public function store(StoreInvoiceRequest $request): JsonResponse
     {
         try {
+            /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
-            // التحقق من صلاحية إنشاء الفواتير
-            if (!$authUser->hasPermissionTo(perm_key('admin.super')) && !$authUser->hasPermissionTo(perm_key('invoices.create')) && !$authUser->hasPermissionTo(perm_key('admin.company'))) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to create invoices.'], 403);
+            if (!$authUser || !$companyId) {
+                return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
-            // التأكد من أن المستخدم لديه شركة نشطة لربط الفاتورة بها
-            if (!$companyId) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'User is not associated with a company to create invoices.'], 403);
+            if (!$authUser->hasPermissionTo(perm_key('admin.super')) && !$authUser->hasPermissionTo(perm_key('invoices.create')) && !$authUser->hasPermissionTo(perm_key('admin.company'))) {
+                return api_forbidden('ليس لديك صلاحية لإنشاء الفواتير.');
             }
 
             $validated = $request->validated();
-
-            // التأكد من أن الفاتورة تُنشأ للشركة الحالية للمستخدم
-            // إذا كان company_id مُرسلاً في الطلب، فيجب أن يتطابق مع company_id للمستخدم
-            // if (isset($validated['company_id']) && $validated['company_id'] != $companyId) {
-            //     return response()->json(['error' => 'Unauthorized', 'message' => 'You can only create invoices for your current company.'], 403);
-            // }
-            // إسناد company_id للمستخدم إذا لم يكن موجودًا في الطلب
             $validated['company_id'] = $companyId;
-            $validated['created_by'] = $authUser->id;  // تسجيل من قام بإنشاء الفاتورة
+            $validated['created_by'] = $authUser->id;
 
-            $invoiceType = InvoiceType::findOrFail($validated['invoice_type_id']);
-            $invoiceTypeCode = $validated['invoice_type_code'] ?? $invoiceType->code;
+            DB::beginTransaction();
+            try {
+                $invoiceType = InvoiceType::findOrFail($validated['invoice_type_id']);
+                $invoiceTypeCode = $validated['invoice_type_code'] ?? $invoiceType->code;
 
-            $serviceResolver = new ServiceResolver();
-            $service = $serviceResolver->resolve($invoiceTypeCode);
+                $serviceResolver = new ServiceResolver();
+                $service = $serviceResolver->resolve($invoiceTypeCode);
 
-            $responseDTO = DB::transaction(function () use ($service, $validated) {
-                return $service->create($validated);
-            });
+                $responseDTO = $service->create($validated); // الخدمة يجب أن ترجع كائن Invoice
 
-            Log::info('Invoice created successfully.', ['invoice_id' => $responseDTO->id ?? null, 'user_id' => $authUser->id, 'company_id' => $companyId]);
-
-            return response()->json([
-                'status' => 'success',
-                'message' => 'تم إنشاء المستند بنجاح',
-                'data' => new InvoiceResource($responseDTO),  // استخدم Resource هنا
-            ], 201);
+                $responseDTO->load($this->relations); // تحميل العلاقات بعد الإنشاء
+                DB::commit();
+                return api_success(new InvoiceResource($responseDTO), 'تم إنشاء المستند بنجاح', 201);
+            } catch (ValidationException $e) {
+                DB::rollBack();
+                return api_error('فشل التحقق من صحة البيانات أثناء إنشاء المستند.', $e->errors(), 422);
+            } catch (Throwable $e) {
+                DB::rollBack();
+                return api_error('حدث خطأ أثناء إنشاء المستند.', [], 500);
+            }
         } catch (Throwable $e) {
-
-            return response()->json([
-                'status' => 'error',
-                'message' => 'حدث خطأ أثناء إنشاء المستند',
-                'error' => [
-                    'message' => $e->getMessage(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                    'exception_class' => get_class($e),
-                    'trace' => $e->getTraceAsString(),
-                    'previous' => $e->getPrevious() ? [
-                        'message' => $e->getPrevious()->getMessage(),
-                        'file' => $e->getPrevious()->getFile(),
-                        'line' => $e->getPrevious()->getLine(),
-                        'exception_class' => get_class($e->getPrevious()),
-                        'trace' => $e->getPrevious()->getTraceAsString(),
-                    ] : null,
-                ],
-            ], 500);
+            return api_exception($e);
         }
     }
 
@@ -170,52 +151,39 @@ class InvoiceController extends Controller
      * عرض الفاتورة المحددة.
      *
      * @param int $id
-     * @return \Illuminate\Http\JsonResponse|\App\Http\Resources\Invoice\InvoiceResource
+     * @return \Illuminate\Http\JsonResponse
      */
-    public function show($id)
+    public function show(string $id): JsonResponse
     {
         try {
+            /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
-            // التحقق الأساسي: إذا لم يكن المستخدم مرتبطًا بشركة
-            if (!$companyId) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'User is not associated with a company.'], 403);
+            if (!$authUser || !$companyId) {
+                return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
-            $invoice = Invoice::with(['user', 'company', 'invoiceType', 'items', 'installmentPlan'])->findOrFail($id);
+            $invoice = Invoice::with($this->relations)->findOrFail($id);
 
-            // التحقق من صلاحيات العرض
             $canView = false;
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
-                $canView = true;  // المسؤول العام يرى أي فاتورة
+                $canView = true;
             } elseif ($authUser->hasAnyPermission([perm_key('invoices.view_all'), perm_key('admin.company')])) {
-                // يرى إذا كانت الفاتورة تنتمي للشركة النشطة (بما في ذلك مديرو الشركة)
                 $canView = $invoice->belongsToCurrentCompany();
             } elseif ($authUser->hasPermissionTo(perm_key('invoices.view_children'))) {
-                // يرى إذا كانت الفاتورة أنشأها هو أو أحد التابعين له وتابعة للشركة النشطة
                 $canView = $invoice->belongsToCurrentCompany() && $invoice->createdByUserOrChildren();
             } elseif ($authUser->hasPermissionTo(perm_key('invoices.view_self'))) {
-                // يرى إذا كانت الفاتورة أنشأها هو وتابعة للشركة النشطة
                 $canView = $invoice->belongsToCurrentCompany() && $invoice->createdByCurrentUser();
-            } else {
-                // لا توجد صلاحية عرض
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to view this invoice.'], 403);
             }
 
             if ($canView) {
-                return new InvoiceResource($invoice);
+                return api_success(new InvoiceResource($invoice), 'تم جلب بيانات الفاتورة بنجاح');
             }
 
-            return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to view this invoice.'], 403);
+            return api_forbidden('ليس لديك صلاحية لعرض هذه الفاتورة.');
         } catch (Throwable $e) {
-            Log::error('Invoice show failed: ' . $e->getMessage(), ['exception' => $e, 'trace' => $e->getTraceAsString(), 'invoice_id' => $id, 'user_id' => Auth::id()]);
-            return response()->json([
-                'error' => 'Error retrieving invoice.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e);
         }
     }
 
@@ -224,72 +192,54 @@ class InvoiceController extends Controller
      *
      * @param UpdateInvoiceRequest $request
      * @param int $id
-     * @return \Illuminate\Http\JsonResponse|\App\Http\Resources\Invoice\InvoiceResource
+     * @return \Illuminate\Http\JsonResponse
      */
-    public function update(UpdateInvoiceRequest $request, $id)
+    public function update(UpdateInvoiceRequest $request, string $id): JsonResponse
     {
         try {
+            /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
-            if (!$companyId) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'User is not associated with a company.'], 403);
+            if (!$authUser || !$companyId) {
+                return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
-            $invoice = Invoice::with(['company'])->findOrFail($id);  // جلب الشركة للتحقق منها
+            $invoice = Invoice::with(['company', 'creator'])->findOrFail($id);
 
-            // التحقق من صلاحيات التحديث
             $canUpdate = false;
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
-                $canUpdate = true;  // المسؤول العام يمكنه تعديل أي فاتورة
+                $canUpdate = true;
             } elseif ($authUser->hasAnyPermission([perm_key('invoices.update_all'), perm_key('admin.company')])) {
-                // يمكنه تعديل أي فاتورة داخل الشركة النشطة (بما في ذلك مديرو الشركة)
                 $canUpdate = $invoice->belongsToCurrentCompany();
             } elseif ($authUser->hasPermissionTo(perm_key('invoices.update_children'))) {
-                // يمكنه تعديل الفواتير التي أنشأها هو أو أحد التابعين له وتابعة للشركة النشطة
                 $canUpdate = $invoice->belongsToCurrentCompany() && $invoice->createdByUserOrChildren();
             } elseif ($authUser->hasPermissionTo(perm_key('invoices.update_self'))) {
-                // يمكنه تعديل فاتورته الخاصة التي أنشأها وتابعة للشركة النشطة
                 $canUpdate = $invoice->belongsToCurrentCompany() && $invoice->createdByCurrentUser();
-            } else {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to update this invoice.'], 403);
             }
 
             if (!$canUpdate) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to update this invoice.'], 403);
+                return api_forbidden('ليس لديك صلاحية لتحديث هذه الفاتورة.');
             }
 
             DB::beginTransaction();
             try {
-                $invoice->update($request->validated());
-                $invoice->load(['user', 'company', 'invoiceType', 'items', 'installmentPlan']);  // إعادة تحميل العلاقات بعد التحديث
+                $validatedData = $request->validated();
+                $validatedData['updated_by'] = $authUser->id; // تعيين من قام بالتعديل
+
+                $invoice->update($validatedData);
+                $invoice->load($this->relations); // إعادة تحميل العلاقات بعد التحديث
                 DB::commit();
-                Log::info('Invoice updated successfully.', ['invoice_id' => $invoice->id, 'user_id' => $authUser->id, 'company_id' => $companyId]);
-                return new InvoiceResource($invoice);
+                return api_success(new InvoiceResource($invoice), 'تم تحديث الفاتورة بنجاح');
+            } catch (ValidationException $e) {
+                DB::rollBack();
+                return api_error('فشل التحقق من صحة البيانات أثناء تحديث المستند.', $e->errors(), 422);
             } catch (Throwable $e) {
                 DB::rollBack();
-                Log::error('Invoice update failed in transaction: ' . $e->getMessage(), ['exception' => $e, 'trace' => $e->getTraceAsString(), 'invoice_id' => $id, 'user_id' => Auth::id()]);
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'حدث خطأ أثناء تحديث المستند',
-                    'error' => [
-                        'message' => $e->getMessage(),
-                        'file' => $e->getFile(),
-                        'line' => $e->getLine(),
-                    ],
-                ], 500);
+                return api_error('حدث خطأ أثناء تحديث المستند.', [], 500);
             }
         } catch (Throwable $e) {
-            Log::error('Invoice update failed: ' . $e->getMessage(), ['exception' => $e, 'trace' => $e->getTraceAsString(), 'invoice_id' => $id, 'user_id' => Auth::id()]);
-            return response()->json([
-                'status' => 'error',
-                'message' => 'حدث خطأ أثناء تحديث المستند',
-                'error' => [
-                    'message' => $e->getMessage(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ],
-            ], 500);
+            return api_exception($e);
         }
     }
 
@@ -299,69 +249,49 @@ class InvoiceController extends Controller
      * @param int $id
      * @return \Illuminate\Http\JsonResponse
      */
-    public function destroy($id)
+    public function destroy(string $id): JsonResponse
     {
         try {
+            /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
-            if (!$companyId) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'User is not associated with a company.'], 403);
+            if (!$authUser || !$companyId) {
+                return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
-            $invoice = Invoice::with(['company'])->findOrFail($id);
+            $invoice = Invoice::with(['company', 'creator'])->findOrFail($id);
 
-            // التحقق من صلاحيات الحذف
             $canDelete = false;
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
-                $canDelete = true;  // المسؤول العام يمكنه حذف أي فاتورة
+                $canDelete = true;
             } elseif ($authUser->hasAnyPermission([perm_key('invoices.delete_all'), perm_key('admin.company')])) {
-                // يمكنه حذف أي فاتورة داخل الشركة النشطة (بما في ذلك مديرو الشركة)
                 $canDelete = $invoice->belongsToCurrentCompany();
             } elseif ($authUser->hasPermissionTo(perm_key('invoices.delete_children'))) {
-                // يمكنه حذف الفواتير التي أنشأها هو أو أحد التابعين له وتابعة للشركة النشطة
                 $canDelete = $invoice->belongsToCurrentCompany() && $invoice->createdByUserOrChildren();
             } elseif ($authUser->hasPermissionTo(perm_key('invoices.delete_self'))) {
-                // يمكنه حذف فاتورته الخاصة التي أنشأها وتابعة للشركة النشطة
                 $canDelete = $invoice->belongsToCurrentCompany() && $invoice->createdByCurrentUser();
-            } else {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to delete this invoice.'], 403);
             }
 
             if (!$canDelete) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to delete this invoice.'], 403);
+                return api_forbidden('ليس لديك صلاحية لحذف هذه الفاتورة.');
             }
 
             DB::beginTransaction();
             try {
+                // حفظ نسخة من الفاتورة قبل حذفها لإرجاعها في الاستجابة
+                $deletedInvoice = $invoice->replicate();
+                $deletedInvoice->setRelations($invoice->getRelations());
+
                 $invoice->delete();
                 DB::commit();
-                Log::info('Invoice deleted successfully.', ['invoice_id' => $id, 'user_id' => $authUser->id, 'company_id' => $companyId]);
-                return response()->json(['message' => 'Deleted successfully'], 200);
+                return api_success(new InvoiceResource($deletedInvoice), 'تم حذف الفاتورة بنجاح');
             } catch (Throwable $e) {
                 DB::rollBack();
-                Log::error('Invoice deletion failed in transaction: ' . $e->getMessage(), ['exception' => $e, 'trace' => $e->getTraceAsString(), 'invoice_id' => $id, 'user_id' => Auth::id()]);
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'حدث خطأ أثناء حذف المستند',
-                    'error' => [
-                        'message' => $e->getMessage(),
-                        'file' => $e->getFile(),
-                        'line' => $e->getLine(),
-                    ],
-                ], 500);
+                return api_error('حدث خطأ أثناء حذف المستند.', [], 500);
             }
         } catch (Throwable $e) {
-            Log::error('Invoice deletion failed: ' . $e->getMessage(), ['exception' => $e, 'trace' => $e->getTraceAsString(), 'invoice_id' => $id, 'user_id' => Auth::id()]);
-            return response()->json([
-                'status' => 'error',
-                'message' => 'حدث خطأ أثناء حذف المستند',
-                'error' => [
-                    'message' => $e->getMessage(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ],
-            ], 500);
+            return api_exception($e);
         }
     }
 }

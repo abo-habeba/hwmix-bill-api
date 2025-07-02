@@ -8,13 +8,11 @@ use App\Http\Requests\Brand\UpdateBrandRequest;
 use App\Http\Resources\Brand\BrandResource;
 use App\Models\Brand;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth; // تم تصحيح الخطأ هنا
-use Illuminate\Support\Facades\DB; // تم تصحيح الخطأ هنا
-use Illuminate\Support\Facades\Log; // تم تصحيح الخطأ هنا
-use Illuminate\Validation\ValidationException; // تم تصحيح الخطأ هنا
-use Throwable; // تم إضافة هذا الاستيراد
-
-
+use Illuminate\Http\JsonResponse; // للتأكد من استيراد JsonResponse
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
+use Throwable;
 
 /**
  * Class BrandController
@@ -40,19 +38,19 @@ class BrandController extends Controller
      * عرض جميع العلامات التجارية.
      *
      * @param Request $request
-     * @return \Illuminate\Http\Resources\Json\AnonymousResourceCollection|\Illuminate\Http\JsonResponse
+     * @return \Illuminate\Http\JsonResponse
      */
-    public function index(Request $request)
+    public function index(Request $request): JsonResponse
     {
         try {
             /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
             $query = Brand::with($this->relations);
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
             // التحقق الأساسي: إذا لم يكن المستخدم مرتبطًا بشركة وليس سوبر أدمن
             if (!$companyId && !$authUser->hasPermissionTo(perm_key('admin.super'))) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'User is not associated with a company.'], 403);
+                return api_unauthorized('المستخدم غير مرتبط بشركة.');
             }
 
             // تطبيق منطق الصلاحيات
@@ -68,7 +66,7 @@ class BrandController extends Controller
                 // يرى الماركات التي أنشأها المستخدم فقط، ومرتبطة بالشركة النشطة
                 $query->whereCompanyIsCurrent()->whereCreatedByUser();
             } else {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to view brands.'], 403);
+                return api_forbidden('ليس لديك إذن لعرض العلامات التجارية.');
             }
 
             // تطبيق فلاتر البحث
@@ -92,25 +90,9 @@ class BrandController extends Controller
             $perPage = max(1, (int) $request->get('per_page', 10));
             $brands = $query->paginate($perPage);
 
-            return BrandResource::collection($brands)->additional([
-                'total' => $brands->total(),
-                'current_page' => $brands->currentPage(),
-                'last_page' => $brands->lastPage(),
-            ]);
+            return api_success($brands, 'تم استرداد العلامات التجارية بنجاح.');
         } catch (Throwable $e) {
-            Log::error('Brand index failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            return response()->json([
-                'error' => 'Error retrieving brands.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e, 500);
         }
     }
 
@@ -118,25 +100,22 @@ class BrandController extends Controller
      * إضافة علامة تجارية جديدة.
      *
      * @param StoreBrandRequest $request
-     * @return \Illuminate\Http\JsonResponse|\App\Http\Resources\Brand\BrandResource
+     * @return \Illuminate\Http\JsonResponse
      */
-    public function store(StoreBrandRequest $request)
+    public function store(StoreBrandRequest $request): JsonResponse
     {
         try {
             /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
             if (!$authUser || !$companyId) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'Authentication or company association required.'], 403);
+                return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
             // صلاحيات إنشاء ماركة
             if (!$authUser->hasPermissionTo(perm_key('admin.super')) && !$authUser->hasPermissionTo(perm_key('brands.create')) && !$authUser->hasPermissionTo(perm_key('admin.company'))) {
-                return response()->json([
-                    'error' => 'Unauthorized',
-                    'message' => 'You are not authorized to create brands.'
-                ], 403);
+                return api_forbidden('ليس لديك إذن لإنشاء علامات تجارية.');
             }
 
             DB::beginTransaction();
@@ -151,7 +130,7 @@ class BrandController extends Controller
                 // التأكد من أن المستخدم مصرح له بإنشاء ماركة لهذه الشركة
                 if ($brandCompanyId != $companyId && !$authUser->hasPermissionTo(perm_key('admin.super'))) {
                     DB::rollBack();
-                    return response()->json(['error' => 'Unauthorized', 'message' => 'You can only create brands for your current company unless you are a Super Admin.'], 403);
+                    return api_forbidden('يمكنك فقط إنشاء علامات تجارية لشركتك الحالية ما لم تكن مسؤولاً عامًا.');
                 }
 
                 $validatedData['company_id'] = $brandCompanyId;
@@ -160,51 +139,16 @@ class BrandController extends Controller
                 $brand = Brand::create($validatedData);
                 $brand->load($this->relations);
                 DB::commit();
-                Log::info('Brand created successfully.', ['brand_id' => $brand->id, 'user_id' => $authUser->id, 'company_id' => $companyId]);
-                return new BrandResource($brand);
+                return api_success(new BrandResource($brand), 'تم إنشاء العلامة التجارية بنجاح.');
             } catch (ValidationException $e) {
                 DB::rollBack();
-                Log::error('Brand store validation failed: ' . $e->getMessage(), [
-                    'errors' => $e->errors(),
-                    'user_id' => Auth::id(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ]);
-                return response()->json([
-                    'status' => 'error',
-                    'message' => $e->getMessage(),
-                    'errors' => $e->errors(),
-                ], 422);
+                return api_error('فشل التحقق من صحة البيانات أثناء تخزين العلامة التجارية.', $e->errors(), 422);
             } catch (Throwable $e) {
                 DB::rollBack();
-                Log::error('Brand store failed in transaction: ' . $e->getMessage(), [
-                    'exception' => $e,
-                    'user_id' => Auth::id(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                    'trace' => $e->getTraceAsString(),
-                ]);
-                return response()->json([
-                    'error' => 'Error saving brand.',
-                    'details' => $e->getMessage(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ], 500);
+                return api_error('حدث خطأ أثناء حفظ العلامة التجارية.', [], 500);
             }
         } catch (Throwable $e) {
-            Log::error('Brand store failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            return response()->json([
-                'error' => 'Error saving brand.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e, 500);
         }
     }
 
@@ -212,17 +156,17 @@ class BrandController extends Controller
      * عرض علامة تجارية محددة.
      *
      * @param string $id
-     * @return \Illuminate\Http\JsonResponse|\App\Http\Resources\Brand\BrandResource
+     * @return \Illuminate\Http\JsonResponse
      */
-    public function show(string $id)
+    public function show(string $id): JsonResponse
     {
         try {
             /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
             if (!$authUser || !$companyId) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'Authentication or company association required.'], 403);
+                return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
             $brand = Brand::with($this->relations)->findOrFail($id);
@@ -230,40 +174,22 @@ class BrandController extends Controller
             // التحقق من صلاحيات العرض
             $canView = false;
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
-                $canView = true; // المسؤول العام يرى أي ماركة
+                $canView = true;
             } elseif ($authUser->hasAnyPermission([perm_key('brands.view_all'), perm_key('admin.company')])) {
-                // يرى إذا كانت الماركة تنتمي للشركة النشطة (بما في ذلك مديرو الشركة)
                 $canView = $brand->belongsToCurrentCompany();
             } elseif ($authUser->hasPermissionTo(perm_key('brands.view_children'))) {
-                // يرى إذا كانت الماركة أنشأها هو أو أحد التابعين له وتابعة للشركة النشطة
                 $canView = $brand->belongsToCurrentCompany() && $brand->createdByUserOrChildren();
             } elseif ($authUser->hasPermissionTo(perm_key('brands.view_self'))) {
-                // يرى إذا كانت الماركة أنشأها هو وتابعة للشركة النشطة
                 $canView = $brand->belongsToCurrentCompany() && $brand->createdByCurrentUser();
-            } else {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to view this brand.'], 403);
             }
 
             if ($canView) {
-                return new BrandResource($brand);
+                return api_success(new BrandResource($brand), 'تم استرداد العلامة التجارية بنجاح.');
             }
 
-            return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to view this brand.'], 403);
+            return api_forbidden('ليس لديك إذن لعرض هذه العلامة التجارية.');
         } catch (Throwable $e) {
-            Log::error('Brand show failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'brand_id' => $id,
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            return response()->json([
-                'error' => 'Error retrieving brand.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e, 500);
         }
     }
 
@@ -272,17 +198,17 @@ class BrandController extends Controller
      *
      * @param UpdateBrandRequest $request
      * @param string $id
-     * @return \Illuminate\Http\JsonResponse|\App\Http\Resources\Brand\BrandResource
+     * @return \Illuminate\Http\JsonResponse
      */
-    public function update(UpdateBrandRequest $request, string $id)
+    public function update(UpdateBrandRequest $request, string $id): JsonResponse
     {
         try {
             /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
             if (!$authUser || !$companyId) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'Authentication or company association required.'], 403);
+                return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
             // يجب تحميل العلاقات الضرورية للتحقق من الصلاحيات (مثل الشركة والمنشئ)
@@ -291,22 +217,17 @@ class BrandController extends Controller
             // التحقق من صلاحيات التحديث
             $canUpdate = false;
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
-                $canUpdate = true; // المسؤول العام يمكنه تعديل أي ماركة
+                $canUpdate = true;
             } elseif ($authUser->hasAnyPermission([perm_key('brands.update_all'), perm_key('admin.company')])) {
-                // يمكنه تعديل أي ماركة داخل الشركة النشطة (بما في ذلك مديرو الشركة)
                 $canUpdate = $brand->belongsToCurrentCompany();
             } elseif ($authUser->hasPermissionTo(perm_key('brands.update_children'))) {
-                // يمكنه تعديل الماركات التي أنشأها هو أو أحد التابعين له وتابعة للشركة النشطة
                 $canUpdate = $brand->belongsToCurrentCompany() && $brand->createdByUserOrChildren();
             } elseif ($authUser->hasPermissionTo(perm_key('brands.update_self'))) {
-                // يمكنه تعديل ماركته الخاصة التي أنشأها وتابعة للشركة النشطة
                 $canUpdate = $brand->belongsToCurrentCompany() && $brand->createdByCurrentUser();
-            } else {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to update this brand.'], 403);
             }
 
             if (!$canUpdate) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to update this brand.'], 403);
+                return api_forbidden('ليس لديك إذن لتحديث هذه العلامة التجارية.');
             }
 
             DB::beginTransaction();
@@ -322,7 +243,7 @@ class BrandController extends Controller
                 // التأكد من أن المستخدم مصرح له بتعديل ماركة لشركة أخرى (فقط سوبر أدمن)
                 if ($brandCompanyId != $brand->company_id && !$authUser->hasPermissionTo(perm_key('admin.super'))) {
                     DB::rollBack();
-                    return response()->json(['error' => 'Unauthorized', 'message' => 'You cannot change a brand\'s company unless you are a Super Admin.'], 403);
+                    return api_forbidden('لا يمكنك تغيير شركة العلامة التجارية ما لم تكن مسؤولاً عامًا.');
                 }
 
                 $validatedData['company_id'] = $brandCompanyId; // تحديث company_id في البيانات المصدقة
@@ -331,54 +252,16 @@ class BrandController extends Controller
                 $brand->update($validatedData);
                 $brand->load($this->relations);
                 DB::commit();
-                Log::info('Brand updated successfully.', ['brand_id' => $brand->id, 'user_id' => $authUser->id, 'company_id' => $companyId]);
-                return new BrandResource($brand);
+                return api_success(new BrandResource($brand), 'تم تحديث العلامة التجارية بنجاح.');
             } catch (ValidationException $e) {
                 DB::rollBack();
-                Log::error('Brand update validation failed: ' . $e->getMessage(), [
-                    'errors' => $e->errors(),
-                    'user_id' => Auth::id(),
-                    'brand_id' => $id,
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ]);
-                return response()->json([
-                    'status' => 'error',
-                    'message' => $e->getMessage(),
-                    'errors' => $e->errors(),
-                ], 422);
+                return api_error('فشل التحقق من صحة البيانات أثناء تحديث العلامة التجارية.', $e->errors(), 422);
             } catch (Throwable $e) {
                 DB::rollBack();
-                Log::error('Brand update failed in transaction: ' . $e->getMessage(), [
-                    'exception' => $e,
-                    'user_id' => Auth::id(),
-                    'brand_id' => $id,
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                    'trace' => $e->getTraceAsString(),
-                ]);
-                return response()->json([
-                    'error' => 'Error updating brand.',
-                    'details' => $e->getMessage(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ], 500);
+                return api_error('حدث خطأ أثناء تحديث العلامة التجارية.', [], 500);
             }
         } catch (Throwable $e) {
-            Log::error('Brand update failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'brand_id' => $id,
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            return response()->json([
-                'error' => 'Error updating brand.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e, 500);
         }
     }
 
@@ -388,15 +271,15 @@ class BrandController extends Controller
      * @param Brand $brand
      * @return \Illuminate\Http\JsonResponse
      */
-    public function destroy(Brand $brand)
+    public function destroy(Brand $brand): JsonResponse
     {
         try {
             /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
             if (!$authUser || !$companyId) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'Authentication or company association required.'], 403);
+                return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
             // يجب تحميل العلاقات الضرورية للتحقق من الصلاحيات (مثل الشركة والمنشئ)
@@ -405,22 +288,17 @@ class BrandController extends Controller
             // التحقق من صلاحيات الحذف
             $canDelete = false;
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
-                $canDelete = true; // المسؤول العام يمكنه حذف أي ماركة
+                $canDelete = true;
             } elseif ($authUser->hasAnyPermission([perm_key('brands.delete_all'), perm_key('admin.company')])) {
-                // يمكنه حذف أي ماركة داخل الشركة النشطة (بما في ذلك مديرو الشركة)
                 $canDelete = $brand->belongsToCurrentCompany();
             } elseif ($authUser->hasPermissionTo(perm_key('brands.delete_children'))) {
-                // يمكنه حذف الماركات التي أنشأها هو أو أحد التابعين له وتابعة للشركة النشطة
                 $canDelete = $brand->belongsToCurrentCompany() && $brand->createdByUserOrChildren();
             } elseif ($authUser->hasPermissionTo(perm_key('brands.delete_self'))) {
-                // يمكنه حذف ماركته الخاصة التي أنشأها وتابعة للشركة النشطة
                 $canDelete = $brand->belongsToCurrentCompany() && $brand->createdByCurrentUser();
-            } else {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to delete this brand.'], 403);
             }
 
             if (!$canDelete) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to delete this brand.'], 403);
+                return api_forbidden('ليس لديك إذن لحذف هذه العلامة التجارية.');
             }
 
             DB::beginTransaction();
@@ -428,48 +306,22 @@ class BrandController extends Controller
                 // تحقق من وجود منتجات مرتبطة
                 if ($brand->products()->exists()) {
                     DB::rollBack();
-                    return response()->json([
-                        'error' => 'Conflict',
-                        'message' => 'Cannot delete brand. It is associated with one or more products.',
-                    ], 409);
+                    return api_error('لا يمكن حذف العلامة التجارية. إنها مرتبطة بمنتج واحد أو أكثر.', [], 409);
                 }
+
+                // حفظ نسخة من العلامة التجارية قبل حذفها لإرجاعها في الاستجابة
+                $deletedBrand = $brand->replicate();
+                $deletedBrand->setRelations($brand->getRelations()); // نسخ العلاقات المحملة
 
                 $brand->delete();
                 DB::commit();
-                Log::info('Brand deleted successfully.', ['brand_id' => $brand->id, 'user_id' => $authUser->id, 'company_id' => $companyId]);
-                return response()->json(['message' => 'Brand deleted successfully'], 200); // 200 OK for successful deletion
+                return api_success(new BrandResource($deletedBrand), 'تم حذف العلامة التجارية بنجاح.');
             } catch (Throwable $e) {
                 DB::rollBack();
-                Log::error('Brand deletion failed: ' . $e->getMessage(), [
-                    'exception' => $e,
-                    'user_id' => Auth::id(),
-                    'brand_id' => $brand->id,
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                    'trace' => $e->getTraceAsString(),
-                ]);
-                return response()->json([
-                    'error' => 'Error deleting brand.',
-                    'details' => $e->getMessage(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ], 500);
+                return api_error('حدث خطأ أثناء حذف العلامة التجارية.', [], 500);
             }
         } catch (Throwable $e) {
-            Log::error('Brand deletion failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'brand_id' => $brand->id,
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            return response()->json([
-                'error' => 'Error deleting brand.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e, 500);
         }
     }
 }

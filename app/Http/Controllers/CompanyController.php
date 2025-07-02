@@ -30,7 +30,7 @@ class CompanyController extends Controller
             ])) {
                 $query->whereIn('id', $authUser->companies->pluck('id')->toArray());
             } else {
-                return response()->json(['error' => 'Unauthorized'], 403);
+                return api_forbidden('ليس لديك صلاحية لعرض الشركات.');
             }
 
             if (!empty($request->get('created_at_from'))) {
@@ -40,27 +40,14 @@ class CompanyController extends Controller
                 $query->where('created_at', '<=', $request->get('created_at_to') . ' 23:59:59');
             }
 
-            $query->orderBy(
-                $request->get('sort_by', 'id'),
-                $request->get('sort_order', 'asc')
-            );
-
             $perPage = max(1, $request->get('per_page', 10));
-            $companies = $query->paginate($perPage);
+            $sortField = $request->get('sort_by', 'id');
+            $sortOrder = $request->get('sort_order', 'asc');
+            $companies = $query->orderBy($sortField, $sortOrder)->paginate($perPage);
 
-            return response()->json([
-                'data' => CompanyResource::collection($companies->items()),
-                'total' => $companies->total(),
-                'current_page' => $companies->currentPage(),
-                'last_page' => $companies->lastPage(),
-            ]);
+            return api_success(CompanyResource::collection($companies), 'تم جلب الشركات بنجاح');
         } catch (\Exception $e) {
-            return response()->json([
-                'error' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString()
-            ], 500);
+            return api_exception($e);
         }
     }
 
@@ -72,7 +59,7 @@ class CompanyController extends Controller
             perm_key('companies.create'),
             perm_key('admin.company')
         ])) {
-            return response()->json(['error' => 'Unauthorized'], 403);
+            return api_forbidden('ليس لديك صلاحية لإنشاء شركة.');
         }
 
         $validatedData = $request->validated();
@@ -90,7 +77,6 @@ class CompanyController extends Controller
             $company->users()->attach($authUser->id, ['created_by' => $authUser->id]);
             $company->saveImage('logo', $file);
 
-            // إنشاء المخزن الرئيسي تلقائياً عند إنشاء الشركة
             Warehouse::create([
                 'name' => 'المخزن الرئيسي',
                 'company_id' => $company->id,
@@ -100,10 +86,10 @@ class CompanyController extends Controller
 
             $company->logCreated("بإنشاء شركة باسم {$company->name}");
             DB::commit();
-            return new CompanyResource($company);
+            return api_success(new CompanyResource($company), 'تم إنشاء الشركة بنجاح');
         } catch (\Exception $e) {
             DB::rollback();
-            throw $e;
+            return api_exception($e);
         }
     }
 
@@ -112,7 +98,7 @@ class CompanyController extends Controller
         $authUser = Auth::user();
 
         if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
-            return new CompanyResource(Company::withoutGlobalScope(CompanyScope::class)->findOrFail($company->id));
+            return api_success(new CompanyResource(Company::withoutGlobalScope(CompanyScope::class)->findOrFail($company->id)), 'تم جلب بيانات الشركة بنجاح');
         }
 
         if (
@@ -121,10 +107,10 @@ class CompanyController extends Controller
             ($authUser->hasPermissionTo(perm_key('companies.view_self')) && $company->isSelf()) ||
             ($authUser->hasPermissionTo(perm_key('admin.company')) && $authUser->company_id === $company->company_id)
         ) {
-            return new CompanyResource($company);
+            return api_success(new CompanyResource($company), 'تم جلب بيانات الشركة بنجاح');
         }
 
-        return response()->json(['error' => 'Unauthorized'], 403);
+        return api_forbidden('ليس لديك صلاحية لعرض هذه الشركة.');
     }
 
     public function update(CompanyUpdateRequest $request, Company $company)
@@ -152,14 +138,14 @@ class CompanyController extends Controller
 
                 $company->logUpdated('الشركة ' . $company->name);
                 DB::commit();
-                return new CompanyResource($company);
+                return api_success(new CompanyResource($company), 'تم تحديث الشركة بنجاح');
             } catch (\Exception $e) {
                 DB::rollback();
-                throw $e;
+                return api_exception($e);
             }
         }
 
-        return response()->json(['error' => 'Unauthorized'], 403);
+        return api_forbidden('ليس لديك صلاحية لتحديث هذه الشركة.');
     }
 
     public function destroy(Request $request)
@@ -168,7 +154,7 @@ class CompanyController extends Controller
         $companyIds = $request->input('item_ids');
 
         if (!$companyIds || !is_array($companyIds)) {
-            return response()->json(['error' => 'Invalid company IDs provided'], 400);
+            return api_error('لم يتم تحديد معرفات الشركات بشكل صحيح', [], 400);
         }
 
         $companiesToDelete = Company::whereIn('id', $companyIds)->get();
@@ -181,7 +167,7 @@ class CompanyController extends Controller
                 ($authUser->hasPermissionTo(perm_key('companies.delete_self')) && $company->created_by == $authUser->id) ||
                 ($authUser->hasPermissionTo(perm_key('admin.company')) && $authUser->company_id === $company->company_id)
             )) {
-                return response()->json(['error' => 'You do not have permission to delete company with ID: ' . $company->id], 403);
+                return api_forbidden('ليس لديك صلاحية لحذف الشركة ذات المعرف: ' . $company->id);
             }
         }
 
@@ -195,10 +181,10 @@ class CompanyController extends Controller
                 $company->logForceDeleted('الشركة ' . $company->name);
             }
             DB::commit();
-            return response()->json(['message' => 'Company deleted successfully'], 200);
+            return api_success([], 'تم حذف الشركات بنجاح');
         } catch (\Exception $e) {
             DB::rollback();
-            throw $e;
+            return api_exception($e);
         }
     }
 }

@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 use Exception;
 
-class DatabaseBackupService
+class DatabaseBackupServiceCopy
 {
     protected string $backupBasePath;
     protected string $jsonBackupPath;

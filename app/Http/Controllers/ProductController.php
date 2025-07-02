@@ -3,17 +3,18 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Product\StoreProductRequest; // تم تصحيح الخطأ هنا
-use App\Http\Requests\Product\UpdateProductRequest; // تم تصحيح الخطأ هنا
-use App\Http\Resources\Product\ProductResource; // تم تصحيح الخطأ هنا
+use App\Http\Requests\Product\StoreProductRequest;
+use App\Http\Requests\Product\UpdateProductRequest;
+use App\Http\Resources\Product\ProductResource;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\Stock;
-use Illuminate\Http\Request; // تم تصحيح الخطأ هنا
+use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
-use Throwable; // استخدم Throwable للتعامل الشامل مع الأخطاء والاستثناءات
+use Illuminate\Validation\ValidationException;
+use Throwable;
 
 /**
  * Class ProductController
@@ -43,19 +44,24 @@ class ProductController extends Controller
      * عرض قائمة المنتجات مع الفلاتر والصلاحيات.
      *
      * @param Request $request
-     * @return \Illuminate\Http\JsonResponse|\Illuminate\Http\Resources\Json\AnonymousResourceCollection
+     * @return \Illuminate\Http\JsonResponse
      */
-    public function index(Request $request)
+    public function index(Request $request): JsonResponse
     {
-        /** @var \App\Models\User $authUser */
         try {
+            /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
+
+            if (!$authUser) {
+                return api_unauthorized('يتطلب المصادقة.');
+            }
+
             $query = Product::with($this->relations);
-            $companyId = $authUser->company_id; // معرف الشركة النشطة للمستخدم
+            $companyId = $authUser->company_id ?? null; // معرف الشركة النشطة للمستخدم
 
             // التحقق الأساسي: إذا لم يكن المستخدم مرتبطًا بشركة وليس سوبر أدمن
             if (!$companyId && !$authUser->hasPermissionTo(perm_key('admin.super'))) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'User is not associated with a company.'], 403);
+                return api_unauthorized('يجب أن تكون مرتبطًا بشركة أو لديك صلاحية مدير عام.');
             }
 
             // تطبيق منطق الصلاحيات
@@ -71,8 +77,8 @@ class ProductController extends Controller
                 // يرى المنتجات التي أنشأها المستخدم فقط، ومرتبطة بالشركة النشطة
                 $query->whereCompanyIsCurrent()->whereCreatedByUser();
             } else {
-                // إذا لم يكن لديه أي صلاحية رؤية عامة، ارجع خطأ Unauthorized
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to view products.'], 403);
+                // إذا لم يكن لديه أي صلاحية رؤية عامة، ارجع خطأ Forbidden
+                return api_forbidden('ليس لديك صلاحية لعرض المنتجات.');
             }
 
             // تطبيق فلاتر البحث
@@ -114,29 +120,12 @@ class ProductController extends Controller
             $sortOrder = $request->input('sort_order', 'desc');
             $query->orderBy($sortBy, $sortOrder);
 
-            $perPage = $request->input('per_page', 10);
+            $perPage = max(1, (int) $request->input('per_page', 10));
             $products = $query->paginate($perPage);
 
-            return ProductResource::collection($products)->additional([
-                'total' => $products->total(),
-                'current_page' => $products->currentPage(),
-                'last_page' => $products->lastPage(),
-            ]);
+            return api_success($products, 'تم جلب المنتجات بنجاح');
         } catch (Throwable $e) {
-            // تسجيل الخطأ وتفاصيله
-            Log::error('Product index failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'trace' => $e->getTraceAsString(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'user_id' => Auth::id(), // استخدام Auth::id() بدلاً من $authUser->id مباشرة هنا
-            ]);
-            return response()->json([
-                'error' => 'Error retrieving products.',
-                'details' => $e->getMessage(), // يمكن إخفاء هذه التفاصيل في بيئة الإنتاج
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e);
         }
     }
 
@@ -146,23 +135,20 @@ class ProductController extends Controller
      * @param StoreProductRequest $request
      * @return \Illuminate\Http\JsonResponse
      */
-    public function store(StoreProductRequest $request)
+    public function store(StoreProductRequest $request): JsonResponse
     {
-        /** @var \App\Models\User $authUser */
         try {
+            /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
-            if (!$companyId) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'User is not associated with a company.'], 403);
+            if (!$authUser || !$companyId) {
+                return api_unauthorized('يجب أن تكون مرتبطًا بشركة.');
             }
 
             // صلاحيات إنشاء منتج
             if (!$authUser->hasPermissionTo(perm_key('admin.super')) && !$authUser->hasPermissionTo(perm_key('products.create')) && !$authUser->hasPermissionTo(perm_key('admin.company'))) {
-                return response()->json([
-                    'error' => 'Unauthorized',
-                    'message' => 'You are not authorized to create products.'
-                ], 403);
+                return api_forbidden('ليس لديك صلاحية لإنشاء المنتجات.');
             }
 
             DB::beginTransaction();
@@ -176,7 +162,8 @@ class ProductController extends Controller
 
                 // التأكد من أن المستخدم مصرح له بإنشاء منتج لهذه الشركة
                 if ($validatedData['company_id'] != $companyId && !$authUser->hasPermissionTo(perm_key('admin.super'))) {
-                    return response()->json(['error' => 'Unauthorized', 'message' => 'You can only create products for your current company unless you are a Super Admin.'], 403);
+                    DB::rollBack();
+                    return api_forbidden('يمكنك فقط إنشاء منتجات لشركتك النشطة.');
                 }
 
                 $validatedData['created_by'] = $authUser->id;
@@ -232,38 +219,16 @@ class ProductController extends Controller
 
                 DB::commit();
 
-                Log::info('Product created successfully.', ['product_id' => $product->id, 'user_id' => $authUser->id, 'company_id' => $companyId]);
-                return ProductResource::make($product->load($this->relations));
+                return api_success(ProductResource::make($product->load($this->relations)), 'تم إنشاء المنتج بنجاح');
+            } catch (ValidationException $e) {
+                DB::rollBack();
+                return api_error('فشل التحقق من صحة البيانات أثناء تخزين المنتج.', $e->errors(), 422);
             } catch (Throwable $e) {
                 DB::rollBack();
-                Log::error('Product store failed in transaction: ' . $e->getMessage(), [
-                    'exception' => $e,
-                    'trace' => $e->getTraceAsString(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                    'user_id' => Auth::id(),
-                ]);
-                return response()->json([
-                    'error' => 'Error saving product.',
-                    'details' => $e->getMessage(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ], 500);
+                return api_error('حدث خطأ أثناء حفظ المنتج.', [], 500);
             }
         } catch (Throwable $e) {
-            Log::error('Product store failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'trace' => $e->getTraceAsString(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'user_id' => Auth::id(),
-            ]);
-            return response()->json([
-                'error' => 'Error saving product.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e);
         }
     }
 
@@ -271,16 +236,17 @@ class ProductController extends Controller
      * Display the specified resource.
      *
      * @param Product $product
-     * @return \Illuminate\Http\JsonResponse|\App\Http\Resources\Product\ProductResource
+     * @return \Illuminate\Http\JsonResponse
      */
-    public function show(Product $product)
+    public function show(Product $product): JsonResponse
     {
         try {
+            /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
-            if (!$companyId) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'User is not associated with a company.'], 403);
+            if (!$authUser || !$companyId) {
+                return api_unauthorized('يجب أن تكون مرتبطًا بشركة.');
             }
 
             // التحقق من صلاحيات العرض
@@ -296,31 +262,16 @@ class ProductController extends Controller
             } elseif ($authUser->hasPermissionTo(perm_key('products.view_self'))) {
                 // يرى إذا كان المنتج أنشأه هو وتابع للشركة النشطة
                 $canView = $product->belongsToCurrentCompany() && $product->createdByCurrentUser();
-            } else {
-                // لا توجد صلاحية عرض
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to view this product.'], 403);
             }
 
             if ($canView) {
                 $product->load($this->relations); // تحميل العلاقات فقط إذا كان مصرحًا له
-                return ProductResource::make($product);
+                return api_success(ProductResource::make($product), 'تم جلب بيانات المنتج بنجاح');
             }
 
-            return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to view this product.'], 403);
+            return api_forbidden('ليس لديك صلاحية لعرض هذا المنتج.');
         } catch (Throwable $e) {
-            Log::error('Product show failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'product_id' => $product->id,
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ]);
-            return response()->json([
-                'error' => 'Error retrieving product.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e);
         }
     }
 
@@ -329,16 +280,17 @@ class ProductController extends Controller
      *
      * @param UpdateProductRequest $request
      * @param Product $product
-     * @return \Illuminate\Http\JsonResponse|\App\Http\Resources\Product\ProductResource
+     * @return \Illuminate\Http\JsonResponse
      */
-    public function update(UpdateProductRequest $request, Product $product)
+    public function update(UpdateProductRequest $request, Product $product): JsonResponse
     {
         try {
+            /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
-            if (!$companyId) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'User is not associated with a company.'], 403);
+            if (!$authUser || !$companyId) {
+                return api_unauthorized('يجب أن تكون مرتبطًا بشركة.');
             }
 
             // التحقق من صلاحيات التحديث
@@ -354,12 +306,10 @@ class ProductController extends Controller
             } elseif ($authUser->hasPermissionTo(perm_key('products.update_self'))) {
                 // يمكنه تعديل منتجه الخاص الذي أنشأه وتابع للشركة النشطة
                 $canUpdate = $product->belongsToCurrentCompany() && $product->createdByCurrentUser();
-            } else {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to update this product.'], 403);
             }
 
             if (!$canUpdate) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to update this product.'], 403);
+                return api_forbidden('ليس لديك صلاحية لتحديث هذا المنتج.');
             }
 
             DB::beginTransaction();
@@ -374,7 +324,8 @@ class ProductController extends Controller
 
                 // التأكد من أن المستخدم مصرح له بتعديل منتج لهذه الشركة
                 if ($validatedData['company_id'] != $product->company_id && !$authUser->hasPermissionTo(perm_key('admin.super'))) {
-                    return response()->json(['error' => 'Unauthorized', 'message' => 'You cannot change a product\'s company unless you are a Super Admin.'], 403);
+                    DB::rollBack();
+                    return api_forbidden('لا يمكنك تغيير شركة المنتج إلا إذا كنت مدير عام.');
                 }
 
                 $validatedData['active'] = (bool) ($validatedData['active'] ?? $product->active); // احتفظ بالقيمة الحالية إذا لم ترسل
@@ -478,38 +429,16 @@ class ProductController extends Controller
 
                 DB::commit();
 
-                Log::info('Product updated successfully.', ['product_id' => $product->id, 'user_id' => $authUser->id, 'company_id' => $companyId]);
-                return ProductResource::make($product->load($this->relations));
+                return api_success(ProductResource::make($product->load($this->relations)), 'تم تحديث المنتج بنجاح');
+            } catch (ValidationException $e) {
+                DB::rollBack();
+                return api_error('فشل التحقق من صحة البيانات أثناء تحديث المنتج.', $e->errors(), 422);
             } catch (Throwable $e) {
                 DB::rollBack();
-                Log::error('Product update failed: ' . $e->getMessage(), [
-                    'exception' => $e,
-                    'trace' => $e->getTraceAsString(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                    'user_id' => Auth::id(),
-                ]);
-                return response()->json([
-                    'error' => 'Error updating product.',
-                    'details' => $e->getMessage(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ], 500);
+                return api_error('حدث خطأ أثناء تحديث المنتج.', [], 500);
             }
         } catch (Throwable $e) {
-            Log::error('Product update failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'trace' => $e->getTraceAsString(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'user_id' => Auth::id(),
-            ]);
-            return response()->json([
-                'error' => 'Error updating product.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e);
         }
     }
 
@@ -519,14 +448,15 @@ class ProductController extends Controller
      * @param Product $product
      * @return \Illuminate\Http\JsonResponse
      */
-    public function destroy(Product $product)
+    public function destroy(Product $product): JsonResponse
     {
         try {
+            /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
-            if (!$companyId) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'User is not associated with a company.'], 403);
+            if (!$authUser || !$companyId) {
+                return api_unauthorized('يجب أن تكون مرتبطًا بشركة.');
             }
 
             // التحقق من صلاحيات الحذف
@@ -542,16 +472,18 @@ class ProductController extends Controller
             } elseif ($authUser->hasPermissionTo(perm_key('products.delete_self'))) {
                 // يمكنه حذف منتجه الخاص الذي أنشأه وتابع للشركة النشطة
                 $canDelete = $product->belongsToCurrentCompany() && $product->createdByCurrentUser();
-            } else {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to delete this product.'], 403);
             }
 
             if (!$canDelete) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to delete this product.'], 403);
+                return api_forbidden('ليس لديك صلاحية لحذف هذا المنتج.');
             }
 
             DB::beginTransaction();
             try {
+                // حفظ نسخة من المنتج قبل حذفه لإرجاعها في الاستجابة
+                $deletedProduct = $product->replicate();
+                $deletedProduct->setRelations($product->getRelations()); // نسخ العلاقات المحملة
+
                 // حذف المتغيرات المتعلقة، والتي بدورها ستحذف سجلات المخزون والخصائص
                 // يجب التأكد من ضبط cascade deletes في قاعدة البيانات أو حذفها يدوياً بترتيب صحيح
                 foreach ($product->variants as $variant) {
@@ -562,38 +494,13 @@ class ProductController extends Controller
                 $product->delete();
 
                 DB::commit();
-                Log::info('Product deleted successfully.', ['product_id' => $product->id, 'user_id' => $authUser->id, 'company_id' => $companyId]);
-                return response()->json(['message' => 'Product deleted successfully'], 200); // 204 No Content for successful deletion
+                return api_success(ProductResource::make($deletedProduct), 'تم حذف المنتج بنجاح');
             } catch (Throwable $e) {
                 DB::rollBack();
-                Log::error('Product deletion failed: ' . $e->getMessage(), [
-                    'exception' => $e,
-                    'trace' => $e->getTraceAsString(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                    'user_id' => Auth::id(),
-                ]);
-                return response()->json([
-                    'error' => 'Error deleting product.',
-                    'details' => $e->getMessage(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ], 500);
+                return api_error('حدث خطأ أثناء حذف المنتج.', [], 500);
             }
         } catch (Throwable $e) {
-            Log::error('Product deletion failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'trace' => $e->getTraceAsString(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'user_id' => Auth::id(),
-            ]);
-            return response()->json([
-                'error' => 'Error deleting product.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e);
         }
     }
 }

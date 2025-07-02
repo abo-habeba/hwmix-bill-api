@@ -8,18 +8,11 @@ use App\Http\Requests\Installment\UpdateInstallmentRequest;
 use App\Http\Resources\Installment\InstallmentResource;
 use App\Models\Installment;
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 use Throwable;
-
-// دالة مساعدة لضمان الاتساق في مفاتيح الأذونات (إذا لم تكن معرفة عالميا)
-// if (!function_exists('perm_key')) {
-//     function perm_key(string $permission): string
-//     {
-//         return $permission;
-//     }
-// }
 
 class InstallmentController extends Controller
 {
@@ -29,10 +22,10 @@ class InstallmentController extends Controller
     {
         $this->relations = [
             'installmentPlan',
-            'user',  // المستخدم الذي يخصه القسط
-            'creator',  // المستخدم الذي أنشأ القسط
+            'user',      // المستخدم الذي يخصه القسط
+            'creator',   // المستخدم الذي أنشأ القسط
             'payments',
-            'company',  // يجب تحميل الشركة للتحقق من belongsToCurrentCompany
+            'company',   // يجب تحميل الشركة للتحقق من belongsToCurrentCompany
         ];
     }
 
@@ -42,16 +35,17 @@ class InstallmentController extends Controller
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
-    public function index(Request $request)
+    public function index(Request $request): JsonResponse
     {
         try {
+            /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
             $query = Installment::with($this->relations);
-            $companyId = $authUser->company_id;  // معرف الشركة النشطة للمستخدم
+            $companyId = $authUser->company_id ?? null; // معرف الشركة النشطة للمستخدم
 
             // التحقق الأساسي: إذا لم يكن المستخدم مرتبطًا بشركة وليس سوبر أدمن
             if (!$companyId && !$authUser->hasPermissionTo(perm_key('admin.super'))) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'User is not associated with a company.'], 403);
+                return api_unauthorized('المستخدم غير مرتبط بشركة.');
             }
 
             // تطبيق فلترة الصلاحيات بناءً على صلاحيات العرض
@@ -67,7 +61,7 @@ class InstallmentController extends Controller
                 // يرى الأقساط التي أنشأها المستخدم فقط، ومرتبطة بالشركة النشطة
                 $query->whereCompanyIsCurrent()->whereCreatedByUser();
             } else {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to view installments.'], 403);
+                return api_forbidden('ليس لديك إذن لعرض الأقساط.');
             }
 
             // التصفية بناءً على طلب المستخدم
@@ -97,24 +91,9 @@ class InstallmentController extends Controller
             $perPage = (int) $request->get('limit', 20);
             $installments = $query->paginate($perPage);
 
-            return InstallmentResource::collection($installments)->additional([
-                'total' => $installments->total(),
-                'current_page' => $installments->currentPage(),
-                'last_page' => $installments->lastPage(),
-            ]);
+            return api_success($installments, 'تم استرداد الأقساط بنجاح.');
         } catch (Throwable $e) {
-            Log::error('Installment index failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),  // استخدام Auth::id() بدلا من $authUser->id مباشرة هنا تحسبا لحالة الخطأ قبل تعيين $authUser
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ]);
-            return response()->json([
-                'error' => 'Error retrieving installments.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),  // تم تصحيح هذا الخطأ
-            ], 500);
+            return api_exception($e, 500);
         }
     }
 
@@ -124,23 +103,21 @@ class InstallmentController extends Controller
      * @param StoreInstallmentRequest $request
      * @return \Illuminate\Http\JsonResponse
      */
-    public function store(StoreInstallmentRequest $request)
+    public function store(StoreInstallmentRequest $request): JsonResponse
     {
         try {
+            /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
             // التحقق الأساسي: إذا لم يكن المستخدم مرتبطًا بشركة
-            if (!$companyId) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'User is not associated with a company.'], 403);
+            if (!$authUser || !$companyId) {
+                return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
             // صلاحيات إنشاء قسط
             if (!$authUser->hasPermissionTo(perm_key('admin.super')) && !$authUser->hasPermissionTo(perm_key('installments.create')) && !$authUser->hasPermissionTo(perm_key('admin.company'))) {
-                return response()->json([
-                    'error' => 'Unauthorized',
-                    'message' => 'You are not authorized to create installments.'
-                ], 403);
+                return api_forbidden('ليس لديك إذن لإنشاء أقساط.');
             }
 
             DB::beginTransaction();
@@ -151,43 +128,24 @@ class InstallmentController extends Controller
                 $validatedData['created_by'] = $authUser->id;
                 // التأكد من أن القسط تابع لشركة المستخدم الحالي
                 if (isset($validatedData['company_id']) && $validatedData['company_id'] != $companyId) {
-                    return response()->json(['error' => 'Unauthorized', 'message' => 'You can only create installments for your current company.'], 403);
+                    DB::rollBack();
+                    return api_forbidden('يمكنك فقط إنشاء أقساط لشركتك الحالية.');
                 }
-                $validatedData['company_id'] = $companyId;  // التأكد من ربط القسط بالشركة النشطة
+                $validatedData['company_id'] = $companyId; // التأكد من ربط القسط بالشركة النشطة
 
                 $installment = Installment::create($validatedData);
                 $installment->load($this->relations);
                 DB::commit();
-                Log::info('Installment created successfully.', ['installment_id' => $installment->id, 'user_id' => $authUser->id, 'company_id' => $companyId]);
-                return new InstallmentResource($installment);
+                return api_success(new InstallmentResource($installment), 'تم إنشاء القسط بنجاح.', 201);
+            } catch (ValidationException $e) {
+                DB::rollBack();
+                return api_error('فشل التحقق من صحة البيانات أثناء تخزين القسط.', $e->errors(), 422);
             } catch (Throwable $e) {
                 DB::rollBack();
-                Log::error('Installment store failed in transaction: ' . $e->getMessage(), [
-                    'exception' => $e,
-                    'user_id' => Auth::id(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ]);
-                return response()->json([
-                    'error' => 'Error saving installment.',
-                    'details' => $e->getMessage(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),  // تم تصحيح هذا الخطأ
-                ], 500);
+                return api_error('حدث خطأ أثناء حفظ القسط.', [], 500);
             }
         } catch (Throwable $e) {
-            Log::error('Installment store failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ]);
-            return response()->json([
-                'error' => 'Error saving installment.',
-                'details' => $e->getMessage(),  // تم تصحيح هذا الخطأ
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),  // تم تصحيح هذا الخطأ
-            ], 500);
+            return api_exception($e, 500);
         }
     }
 
@@ -195,16 +153,17 @@ class InstallmentController extends Controller
      * Display the specified resource.
      *
      * @param int $id
-     * @return \Illuminate\Http\JsonResponse|\App\Http\Resources\Installment\InstallmentResource
+     * @return \Illuminate\Http\JsonResponse
      */
-    public function show($id)
+    public function show(string $id): JsonResponse
     {
         try {
+            /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
-            if (!$companyId) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'User is not associated with a company.'], 403);
+            if (!$authUser || !$companyId) {
+                return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
             $installment = Installment::with($this->relations)->findOrFail($id);
@@ -212,7 +171,7 @@ class InstallmentController extends Controller
             // التحقق من صلاحيات العرض
             $canView = false;
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
-                $canView = true;  // المسؤول العام يرى أي قسط
+                $canView = true; // المسؤول العام يرى أي قسط
             } elseif ($authUser->hasAnyPermission([perm_key('installments.view_all'), perm_key('admin.company')])) {
                 // يرى إذا كان القسط ينتمي للشركة النشطة (بما في ذلك مديرو الشركة)
                 $canView = $installment->belongsToCurrentCompany();
@@ -222,30 +181,15 @@ class InstallmentController extends Controller
             } elseif ($authUser->hasPermissionTo(perm_key('installments.view_self'))) {
                 // يرى إذا كان القسط أنشأه هو وتابع للشركة النشطة
                 $canView = $installment->belongsToCurrentCompany() && $installment->createdByCurrentUser();
-            } else {
-                // لا توجد صلاحية عرض
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to view this installment.'], 403);
             }
 
             if ($canView) {
-                return new InstallmentResource($installment);
+                return api_success(new InstallmentResource($installment), 'تم استرداد القسط بنجاح.');
             }
 
-            return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to view this installment.'], 403);
+            return api_forbidden('ليس لديك إذن لعرض هذا القسط.');
         } catch (Throwable $e) {
-            Log::error('Installment show failed: ' . $e->getMessage(), [
-                'exception' => $e,  // تم تصحيح هذا الخطأ
-                'user_id' => Auth::id(),
-                'installment_id' => $id,
-                'file' => $e->getFile(),  // تم تصحيح هذا الخطأ
-                'line' => $e->getLine(),  // تم تصحيح هذا الخطأ
-            ]);
-            return response()->json([
-                'error' => 'Error retrieving installment.',
-                'details' => $e->getMessage(),  // تم تصحيح هذا الخطأ
-                'file' => $e->getFile(),  // تم تصحيح هذا الخطأ
-                'line' => $e->getLine(),  // تم تصحيح هذا الخطأ
-            ], 500);
+            return api_exception($e, 500);
         }
     }
 
@@ -254,16 +198,17 @@ class InstallmentController extends Controller
      *
      * @param UpdateInstallmentRequest $request
      * @param int $id
-     * @return \Illuminate\Http\JsonResponse|\App\Http\Resources\Installment\InstallmentResource
+     * @return \Illuminate\Http\JsonResponse
      */
-    public function update(UpdateInstallmentRequest $request, $id)
+    public function update(UpdateInstallmentRequest $request, string $id): JsonResponse
     {
         try {
+            /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
-            if (!$companyId) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'User is not associated with a company.'], 403);
+            if (!$authUser || !$companyId) {
+                return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
             // يجب تحميل العلاقات الضرورية للتحقق من الصلاحيات (مثل الشركة والمنشئ)
@@ -272,7 +217,7 @@ class InstallmentController extends Controller
             // التحقق من صلاحيات التحديث
             $canUpdate = false;
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
-                $canUpdate = true;  // المسؤول العام يمكنه تعديل أي قسط
+                $canUpdate = true; // المسؤول العام يمكنه تعديل أي قسط
             } elseif ($authUser->hasAnyPermission([perm_key('installments.update_all'), perm_key('admin.company')])) {
                 // يمكنه تعديل أي قسط داخل الشركة النشطة (بما في ذلك مديرو الشركة)
                 $canUpdate = $installment->belongsToCurrentCompany();
@@ -282,51 +227,30 @@ class InstallmentController extends Controller
             } elseif ($authUser->hasPermissionTo(perm_key('installments.update_self'))) {
                 // يمكنه تعديل قسطه الخاص الذي أنشأه وتابع للشركة النشطة
                 $canUpdate = $installment->belongsToCurrentCompany() && $installment->createdByCurrentUser();
-            } else {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to update this installment.'], 403);
             }
 
             if (!$canUpdate) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to update this installment.'], 403);
+                return api_forbidden('ليس لديك إذن لتحديث هذا القسط.');
             }
 
             DB::beginTransaction();
             try {
-                $installment->update($request->validated());
-                $installment->load($this->relations);  // إعادة تحميل العلاقات بعد التحديث
+                $validatedData = $request->validated();
+                $validatedData['updated_by'] = $authUser->id;
+
+                $installment->update($validatedData);
+                $installment->load($this->relations); // إعادة تحميل العلاقات بعد التحديث
                 DB::commit();
-                Log::info('Installment updated successfully.', ['installment_id' => $installment->id, 'user_id' => $authUser->id, 'company_id' => $companyId]);
-                return new InstallmentResource($installment);
+                return api_success(new InstallmentResource($installment), 'تم تحديث القسط بنجاح.');
+            } catch (ValidationException $e) {
+                DB::rollBack();
+                return api_error('فشل التحقق من صحة البيانات أثناء تحديث القسط.', $e->errors(), 422);
             } catch (Throwable $e) {
                 DB::rollBack();
-                Log::error('Installment update failed in transaction: ' . $e->getMessage(), [
-                    'exception' => $e,
-                    'user_id' => Auth::id(),
-                    'installment_id' => $id,
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ]);
-                return response()->json([
-                    'error' => 'Error updating installment.',
-                    'details' => $e->getMessage(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ], 500);
+                return api_error('حدث خطأ أثناء تحديث القسط.', [], 500);
             }
         } catch (Throwable $e) {
-            Log::error('Installment update failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'installment_id' => $id,
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ]);
-            return response()->json([
-                'error' => 'Error updating installment.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e, 500);
         }
     }
 
@@ -336,14 +260,15 @@ class InstallmentController extends Controller
      * @param int $id
      * @return \Illuminate\Http\JsonResponse
      */
-    public function destroy($id)
+    public function destroy(string $id): JsonResponse
     {
         try {
+            /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
-            if (!$companyId) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'User is not associated with a company.'], 403);
+            if (!$authUser || !$companyId) {
+                return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
             // يجب تحميل العلاقات الضرورية للتحقق من الصلاحيات (مثل الشركة والمنشئ)
@@ -352,7 +277,7 @@ class InstallmentController extends Controller
             // التحقق من صلاحيات الحذف
             $canDelete = false;
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
-                $canDelete = true;  // المسؤول العام يمكنه حذف أي قسط
+                $canDelete = true;
             } elseif ($authUser->hasAnyPermission([perm_key('installments.delete_all'), perm_key('admin.company')])) {
                 // يمكنه حذف أي قسط داخل الشركة النشطة (بما في ذلك مديرو الشركة)
                 $canDelete = $installment->belongsToCurrentCompany();
@@ -362,50 +287,27 @@ class InstallmentController extends Controller
             } elseif ($authUser->hasPermissionTo(perm_key('installments.delete_self'))) {
                 // يمكنه حذف قسطه الخاص الذي أنشأه وتابع للشركة النشطة
                 $canDelete = $installment->belongsToCurrentCompany() && $installment->createdByCurrentUser();
-            } else {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to delete this installment.'], 403);
             }
 
             if (!$canDelete) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to delete this installment.'], 403);
+                return api_forbidden('ليس لديك إذن لحذف هذا القسط.');
             }
 
             DB::beginTransaction();
             try {
+                // حفظ نسخة من القسط قبل حذفه لإرجاعها في الاستجابة
+                $deletedInstallment = $installment->replicate();
+                $deletedInstallment->setRelations($installment->getRelations()); // نسخ العلاقات المحملة
+
                 $installment->delete();
                 DB::commit();
-                Log::info('Installment deleted successfully.', ['installment_id' => $id, 'user_id' => $authUser->id, 'company_id' => $companyId]);
-                return response()->json(['message' => 'Deleted successfully'], 200);
+                return api_success(new InstallmentResource($deletedInstallment), 'تم حذف القسط بنجاح.');
             } catch (Throwable $e) {
                 DB::rollBack();
-                Log::error('Installment deletion failed in transaction: ' . $e->getMessage(), [
-                    'exception' => $e,
-                    'user_id' => Auth::id(),
-                    'installment_id' => $id,
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ]);
-                return response()->json([
-                    'error' => 'Error deleting installment.',
-                    'details' => $e->getMessage(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ], 500);
+                return api_error('حدث خطأ أثناء حذف القسط.', [], 500);
             }
         } catch (Throwable $e) {
-            Log::error('Installment deletion failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'installment_id' => $id,
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ]);
-            return response()->json([
-                'error' => 'Error deleting installment.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),  // تم تصحيح هذا الخطأ
-            ], 500);
+            return api_exception($e, 500);
         }
     }
 }

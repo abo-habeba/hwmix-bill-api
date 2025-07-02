@@ -10,19 +10,11 @@ use App\Models\CashBox;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse; // للتأكد من استيراد JsonResponse
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Validation\ValidationException; // تم إضافة هذا الاستيراد
-use Throwable; // تم إضافة هذا الاستيراد
-
-// دالة مساعدة لضمان الاتساق في مفاتيح الأذونات (إذا لم تكن معرفة عالميا)
-// if (!function_exists('perm_key')) {
-//     function perm_key(string $permission): string
-//     {
-//         return $permission;
-//     }
-// }
+use Illuminate\Validation\ValidationException;
+use Throwable;
 
 /**
  * Class CashBoxController
@@ -51,25 +43,22 @@ class CashBoxController extends Controller
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
-    public function index(Request $request)
+    public function index(Request $request): JsonResponse
     {
         try {
             /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
 
             if (!$authUser) {
-                return response()->json([
-                    'error' => 'Unauthorized',
-                    'message' => 'Authentication required.'
-                ], 401);
+                return api_unauthorized('يتطلب المصادقة.');
             }
 
             $cashBoxQuery = CashBox::query()->with($this->relations);
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
             // التحقق الأساسي: إذا لم يكن المستخدم مرتبطًا بشركة وليس سوبر أدمن
             if (!$companyId && !$authUser->hasPermissionTo(perm_key('admin.super'))) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'User is not associated with a company.'], 403);
+                return api_unauthorized('المستخدم غير مرتبط بشركة.');
             }
 
             // منطق خاص لعرض صناديق المستخدم الحالي فقط
@@ -94,7 +83,7 @@ class CashBoxController extends Controller
                     // يرى الصناديق التي أنشأها المستخدم فقط، ومرتبطة بالشركة النشطة
                     $cashBoxQuery->whereCompanyIsCurrent()->whereCreatedByUser();
                 } else {
-                    return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to view cash boxes.'], 403);
+                    return api_forbidden('ليس لديك إذن لعرض الخزن.');
                 }
             }
 
@@ -128,25 +117,9 @@ class CashBoxController extends Controller
             // جلب البيانات مع التصفية والصفحات
             $cashBoxes = $cashBoxQuery->paginate($perPage);
 
-            return CashBoxResource::collection($cashBoxes)->additional([
-                'total' => $cashBoxes->total(),
-                'current_page' => $cashBoxes->currentPage(),
-                'last_page' => $cashBoxes->lastPage(),
-            ]);
+            return api_success($cashBoxes, 'تم استرداد الخزن بنجاح.');
         } catch (Throwable $e) {
-            Log::error('CashBox index failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            return response()->json([
-                'error' => 'Error retrieving cash boxes.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e, 500);
         }
     }
 
@@ -156,23 +129,20 @@ class CashBoxController extends Controller
      * @param StoreCashBoxRequest $request
      * @return \Illuminate\Http\JsonResponse
      */
-    public function store(StoreCashBoxRequest $request)
+    public function store(StoreCashBoxRequest $request): JsonResponse
     {
         try {
             /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
             if (!$authUser || !$companyId) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'Authentication or company association required.'], 403);
+                return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
             // صلاحيات إنشاء صندوق نقدي
             if (!$authUser->hasPermissionTo(perm_key('admin.super')) && !$authUser->hasPermissionTo(perm_key('cash_boxes.create')) && !$authUser->hasPermissionTo(perm_key('admin.company'))) {
-                return response()->json([
-                    'error' => 'Unauthorized',
-                    'message' => 'You are not authorized to create cash boxes.'
-                ], 403);
+                return api_forbidden('ليس لديك إذن لإنشاء خزن.');
             }
 
             DB::beginTransaction();
@@ -186,7 +156,8 @@ class CashBoxController extends Controller
 
                 // التأكد من أن المستخدم مصرح له بإنشاء صندوق لهذه الشركة
                 if ($validatedData['company_id'] != $companyId && !$authUser->hasPermissionTo(perm_key('admin.super'))) {
-                    return response()->json(['error' => 'Unauthorized', 'message' => 'You can only create cash boxes for your current company unless you are a Super Admin.'], 403);
+                    DB::rollBack();
+                    return api_forbidden('يمكنك فقط إنشاء خزن لشركتك الحالية ما لم تكن مسؤولاً عامًا.');
                 }
 
                 $validatedData['created_by'] = $authUser->id;
@@ -196,51 +167,16 @@ class CashBoxController extends Controller
                 $cashBox = CashBox::create($validatedData);
                 $cashBox->load($this->relations);
                 DB::commit();
-                Log::info('Cash Box created successfully.', ['cash_box_id' => $cashBox->id, 'user_id' => $authUser->id, 'company_id' => $companyId]);
-                return response()->json(new CashBoxResource($cashBox), 201);
+                return api_success(new CashBoxResource($cashBox), 'تم إنشاء الخزنة بنجاح.', 201);
             } catch (ValidationException $e) {
                 DB::rollback();
-                Log::error('CashBox store validation failed: ' . $e->getMessage(), [
-                    'errors' => $e->errors(),
-                    'user_id' => Auth::id(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ]);
-                return response()->json([
-                    'status' => 'error',
-                    'message' => $e->getMessage(),
-                    'errors' => $e->errors(),
-                ], 422);
+                return api_error('فشل التحقق من صحة البيانات أثناء تخزين الخزنة.', $e->errors(), 422);
             } catch (Throwable $e) {
                 DB::rollback();
-                Log::error('CashBox store failed in transaction: ' . $e->getMessage(), [
-                    'exception' => $e,
-                    'user_id' => Auth::id(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                    'trace' => $e->getTraceAsString(),
-                ]);
-                return response()->json([
-                    'error' => 'Error saving cash box.',
-                    'details' => $e->getMessage(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ], 500);
+                return api_error('حدث خطأ أثناء حفظ الخزنة.', [], 500);
             }
         } catch (Throwable $e) {
-            Log::error('CashBox store failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            return response()->json([
-                'error' => 'Error saving cash box.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e, 500);
         }
     }
 
@@ -250,15 +186,15 @@ class CashBoxController extends Controller
      * @param CashBox $cashBox
      * @return \Illuminate\Http\JsonResponse
      */
-    public function show(CashBox $cashBox)
+    public function show(CashBox $cashBox): JsonResponse
     {
         try {
             /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
             if (!$authUser || !$companyId) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'Authentication or company association required.'], 403);
+                return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
             // التحقق من صلاحيات العرض
@@ -274,31 +210,16 @@ class CashBoxController extends Controller
             } elseif ($authUser->hasPermissionTo(perm_key('cash_boxes.view_self'))) {
                 // يرى إذا كان الصندوق أنشأه هو وتابع للشركة النشطة
                 $canView = $cashBox->belongsToCurrentCompany() && $cashBox->createdByCurrentUser();
-            } else {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to view this cash box.'], 403);
             }
 
             if ($canView) {
                 $cashBox->load($this->relations); // تحميل العلاقات
-                return response()->json(new CashBoxResource($cashBox));
+                return api_success(new CashBoxResource($cashBox), 'تم استرداد تفاصيل الخزنة بنجاح.');
             }
 
-            return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to view this cash box.'], 403);
+            return api_forbidden('ليس لديك إذن لعرض هذه الخزنة.');
         } catch (Throwable $e) {
-            Log::error('CashBox show failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'cash_box_id' => $cashBox->id,
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            return response()->json([
-                'error' => 'Error retrieving cash box.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e, 500);
         }
     }
 
@@ -309,15 +230,15 @@ class CashBoxController extends Controller
      * @param CashBox $cashBox
      * @return \Illuminate\Http\JsonResponse
      */
-    public function update(UpdateCashBoxRequest $request, CashBox $cashBox)
+    public function update(UpdateCashBoxRequest $request, CashBox $cashBox): JsonResponse
     {
         try {
             /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
             if (!$authUser || !$companyId) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'Authentication or company association required.'], 403);
+                return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
             // التحقق من صلاحيات التحديث
@@ -333,12 +254,10 @@ class CashBoxController extends Controller
             } elseif ($authUser->hasPermissionTo(perm_key('cash_boxes.update_self'))) {
                 // يمكنه تعديل صندوقه الخاص الذي أنشأه وتابع للشركة النشطة
                 $canUpdate = $cashBox->belongsToCurrentCompany() && $cashBox->createdByCurrentUser();
-            } else {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to update this cash box.'], 403);
             }
 
             if (!$canUpdate) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to update this cash box.'], 403);
+                return api_forbidden('ليس لديك إذن لتحديث هذه الخزنة.');
             }
 
             DB::beginTransaction();
@@ -352,7 +271,8 @@ class CashBoxController extends Controller
 
                 // التأكد من أن المستخدم مصرح له بتعديل صندوق لهذه الشركة
                 if ($validatedData['company_id'] != $cashBox->company_id && !$authUser->hasPermissionTo(perm_key('admin.super'))) {
-                    return response()->json(['error' => 'Unauthorized', 'message' => 'You cannot change a cash box\'s company unless you are a Super Admin.'], 403);
+                    DB::rollBack();
+                    return api_forbidden('لا يمكنك تغيير شركة الخزنة ما لم تكن مسؤولاً عامًا.');
                 }
 
                 // $validatedData['active'] = (bool) ($validatedData['active'] ?? $cashBox->active); // إذا كان هناك حقل نشط
@@ -360,54 +280,16 @@ class CashBoxController extends Controller
                 $cashBox->update($validatedData);
                 $cashBox->load($this->relations);
                 DB::commit();
-                Log::info('Cash Box updated successfully.', ['cash_box_id' => $cashBox->id, 'user_id' => $authUser->id, 'company_id' => $companyId]);
-                return response()->json(new CashBoxResource($cashBox), 200); // 200 OK for successful update
+                return api_success(new CashBoxResource($cashBox), 'تم تحديث الخزنة بنجاح.');
             } catch (ValidationException $e) {
                 DB::rollback();
-                Log::error('CashBox update validation failed: ' . $e->getMessage(), [
-                    'errors' => $e->errors(),
-                    'user_id' => Auth::id(),
-                    'cash_box_id' => $cashBox->id,
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ]);
-                return response()->json([
-                    'status' => 'error',
-                    'message' => $e->getMessage(),
-                    'errors' => $e->errors(),
-                ], 422);
+                return api_error('فشل التحقق من صحة البيانات أثناء تحديث الخزنة.', $e->errors(), 422);
             } catch (Throwable $e) {
                 DB::rollback();
-                Log::error('CashBox update failed in transaction: ' . $e->getMessage(), [
-                    'exception' => $e,
-                    'user_id' => Auth::id(),
-                    'cash_box_id' => $cashBox->id,
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                    'trace' => $e->getTraceAsString(),
-                ]);
-                return response()->json([
-                    'error' => 'Error updating cash box.',
-                    'details' => $e->getMessage(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ], 500);
+                return api_error('حدث خطأ أثناء تحديث الخزنة.', [], 500);
             }
         } catch (Throwable $e) {
-            Log::error('CashBox update failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'cash_box_id' => $cashBox->id,
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            return response()->json([
-                'error' => 'Error updating cash box.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e, 500);
         }
     }
 
@@ -417,21 +299,21 @@ class CashBoxController extends Controller
      * @param CashBox $cashBox
      * @return \Illuminate\Http\JsonResponse
      */
-    public function destroy(CashBox $cashBox)
+    public function destroy(CashBox $cashBox): JsonResponse
     {
         try {
             /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
             if (!$authUser || !$companyId) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'Authentication or company association required.'], 403);
+                return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
             // التحقق من صلاحيات الحذف
             $canDelete = false;
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
-                $canDelete = true; // المسؤول العام يمكنه حذف أي صندوق
+                $canDelete = true;
             } elseif ($authUser->hasAnyPermission([perm_key('cash_boxes.delete_all'), perm_key('admin.company')])) {
                 // يمكنه حذف أي صندوق داخل الشركة النشطة (بما في ذلك مديرو الشركة)
                 $canDelete = $cashBox->belongsToCurrentCompany();
@@ -441,12 +323,10 @@ class CashBoxController extends Controller
             } elseif ($authUser->hasPermissionTo(perm_key('cash_boxes.delete_self'))) {
                 // يمكنه حذف صندوقه الخاص الذي أنشأه وتابع للشركة النشطة
                 $canDelete = $cashBox->belongsToCurrentCompany() && $cashBox->createdByCurrentUser();
-            } else {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to delete this cash box.'], 403);
             }
 
             if (!$canDelete) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to delete this cash box.'], 403);
+                return api_forbidden('ليس لديك إذن لحذف هذه الخزنة.');
             }
 
             DB::beginTransaction();
@@ -454,48 +334,22 @@ class CashBoxController extends Controller
                 // تحقق مما إذا كان الصندوق مرتبطًا بأي معاملات قبل الحذف
                 if (Transaction::where('cashbox_id', $cashBox->id)->exists() || Transaction::where('target_cashbox_id', $cashBox->id)->exists()) {
                     DB::rollback();
-                    return response()->json([
-                        'error' => 'Conflict',
-                        'message' => 'Cannot delete cash box. It contains associated transactions.',
-                    ], 409);
+                    return api_error('لا يمكن حذف الخزنة. إنها تحتوي على معاملات مرتبطة.', [], 409);
                 }
+
+                // حفظ نسخة من الخزنة قبل حذفها لإرجاعها في الاستجابة
+                $deletedCashBox = $cashBox->replicate();
+                $deletedCashBox->setRelations($cashBox->getRelations()); // نسخ العلاقات المحملة
 
                 $cashBox->delete();
                 DB::commit();
-                Log::info('Cash Box deleted successfully.', ['cash_box_id' => $cashBox->id, 'user_id' => $authUser->id, 'company_id' => $companyId]);
-                return response()->json(['message' => 'Cash box deleted successfully'], 200);
+                return api_success(new CashBoxResource($deletedCashBox), 'تم حذف الخزنة بنجاح.');
             } catch (Throwable $e) {
                 DB::rollback();
-                Log::error('CashBox deletion failed: ' . $e->getMessage(), [
-                    'exception' => $e,
-                    'user_id' => Auth::id(),
-                    'cash_box_id' => $cashBox->id,
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                    'trace' => $e->getTraceAsString(),
-                ]);
-                return response()->json([
-                    'error' => 'Error deleting cash box.',
-                    'details' => $e->getMessage(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ], 500);
+                return api_error('حدث خطأ أثناء حذف الخزنة.', [], 500);
             }
         } catch (Throwable $e) {
-            Log::error('CashBox deletion failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'cash_box_id' => $cashBox->id,
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            return response()->json([
-                'error' => 'Error deleting cash box.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e, 500);
         }
     }
 
@@ -505,66 +359,66 @@ class CashBoxController extends Controller
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
-    public function transferFunds(Request $request)
+    public function transferFunds(Request $request): JsonResponse
     {
         try {
             /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
             if (!$authUser || !$companyId) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'Authentication or company association required.'], 403);
+                return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
             // صلاحية خاصة لتحويل الأموال
             if (!$authUser->hasPermissionTo(perm_key('admin.super')) && !$authUser->hasPermissionTo(perm_key('cash_boxes.transfer_funds')) && !$authUser->hasPermissionTo(perm_key('admin.company'))) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You do not have permission to transfer funds.'], 403);
+                return api_forbidden('ليس لديك إذن لتحويل الأموال.');
             }
 
-            $request->validate([
+            $validated = $request->validate([
                 'to_user_id' => 'required|exists:users,id',
                 'amount' => 'required|numeric|min:0.01',
                 'cash_box_id' => ['required', 'exists:cash_boxes,id', function ($attribute, $value, $fail) use ($authUser, $companyId) {
                     // تأكد أن الصندوق ينتمي لشركة المستخدم أو أن المستخدم super_admin
                     $cashBox = CashBox::with(['company', 'creator'])->find($value);
                     if (!$cashBox || (!$authUser->hasPermissionTo(perm_key('admin.super')) && $cashBox->company_id !== $companyId)) {
-                        $fail('The selected cash box is invalid or not accessible.');
+                        $fail('صندوق النقد المحدد غير صالح أو غير متاح.');
                     }
                 }],
                 'to_cash_box_id' => ['required', 'exists:cash_boxes,id', 'different:cash_box_id', function ($attribute, $value, $fail) use ($authUser, $companyId) {
                     // تأكد أن الصندوق الهدف ينتمي لشركة المستخدم أو أن المستخدم super_admin
                     $toCashBox = CashBox::with(['company', 'creator'])->find($value);
                     if (!$toCashBox || (!$authUser->hasPermissionTo(perm_key('admin.super')) && $toCashBox->company_id !== $companyId)) {
-                        $fail('The target cash box is invalid or not accessible.');
+                        $fail('صندوق النقد المستهدف غير صالح أو غير متاح.');
                     }
                 }],
                 'description' => 'nullable|string',
             ]);
 
-            $toUser = User::findOrFail($request->to_user_id);
-            $amount = $request->amount;
-            $fromCashBoxId = $request->cash_box_id; // تم تغيير المتغير ليكون أكثر وضوحًا
-            $toCashBoxId = $request->to_cash_box_id; // تم تغيير المتغير ليكون أكثر وضوحًا
+            $toUser = User::findOrFail($validated['to_user_id']);
+            $amount = $validated['amount'];
+            $fromCashBoxId = $validated['cash_box_id'];
+            $toCashBoxId = $validated['to_cash_box_id'];
 
-            $fromCashBox = CashBox::with(['company'])->findOrFail($fromCashBoxId); // تحميل الشركة هنا للتحقق منها
+            $fromCashBox = CashBox::with(['company'])->findOrFail($fromCashBoxId);
             $toCashBox = CashBox::with(['company'])->findOrFail($toCashBoxId);
 
             // التحقق من أن الصناديق ضمن الشركة التي يمكن للمستخدم الوصول إليها (خاصة لغير الـ super_admin)
             if (!$authUser->hasPermissionTo(perm_key('admin.super'))) {
                 if (!$fromCashBox->belongsToCurrentCompany() || !$toCashBox->belongsToCurrentCompany()) {
-                    return response()->json(['error' => 'Unauthorized', 'message' => 'You can only transfer funds between cash boxes within your company.'], 403);
+                    return api_forbidden('يمكنك فقط تحويل الأموال بين الخزن داخل شركتك.');
                 }
             }
 
             // تحقق من رصيد الصندوق المصدر
             $authUserBalance = $authUser->balanceBox($fromCashBoxId);
             if ($authUserBalance < $amount) {
-                return response()->json(['error' => 'Insufficient funds', 'message' => 'The source cash box does not have enough balance for this transfer.'], 422);
+                return api_error('الرصيد غير كافٍ في صندوق النقد المصدر لهذا التحويل.', [], 422);
             }
 
             // وصف التحويل
-            $description = $request->description;
-            if (blank($description)) {
+            $description = $validated['description'];
+            if (empty($description)) { // استخدام empty بدلاً من blank
                 if ($authUser->id == $toUser->id) {
                     $description = "تحويل داخلي بين {$fromCashBox->name} إلى {$toCashBox->name}";
                 } else {
@@ -615,57 +469,16 @@ class CashBoxController extends Controller
                 $toUser->deposit($amount, $toCashBoxId); // إيداع في الصندوق الهدف
 
                 DB::commit();
-                Log::info('Funds transferred successfully.', [
-                    'from_cash_box' => $fromCashBoxId,
-                    'to_cash_box' => $toCashBoxId,
-                    'amount' => $amount,
-                    'user_id' => $authUser->id,
-                    'company_id' => $companyId,
-                ]);
-
-                return response()->json(['message' => 'Funds transferred successfully!'], 200);
+                // يمكن إرجاع تفاصيل التحويل أو المعاملات الجديدة إذا لزم الأمر
+                return api_success([], 'تم تحويل الأموال بنجاح!');
             } catch (Throwable $e) {
                 DB::rollback();
-                Log::error('Funds transfer failed in transaction: ' . $e->getMessage(), [
-                    'exception' => $e,
-                    'user_id' => Auth::id(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                    'trace' => $e->getTraceAsString(),
-                ]);
-                return response()->json([
-                    'message' => 'Transfer failed. Please try again.',
-                    'error' => $e->getMessage(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ], 500);
+                return api_error('فشل التحويل. يرجى المحاولة مرة أخرى.', [], 500);
             }
         } catch (ValidationException $e) {
-            Log::error('Funds transfer validation failed: ' . $e->getMessage(), [
-                'errors' => $e->errors(),
-                'user_id' => Auth::id(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ]);
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Validation failed during fund transfer.',
-                'errors' => $e->errors(),
-            ], 422);
+            return api_error('فشل التحقق من صحة البيانات أثناء تحويل الأموال.', $e->errors(), 422);
         } catch (Throwable $e) {
-            Log::error('Funds transfer failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            return response()->json([
-                'message' => 'Transfer failed. An unexpected error occurred.',
-                'error' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e, 500);
         }
     }
 

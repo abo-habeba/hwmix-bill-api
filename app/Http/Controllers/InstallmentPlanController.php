@@ -2,17 +2,17 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-use App\Models\InstallmentPlan;
-use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
-use Illuminate\Support\Facades\Auth;
-use Throwable; // تم إضافة هذا الاستيراد
-use Illuminate\Support\Facades\Log; // تم إضافة هذا الاستيراد
-use App\Http\Resources\InstallmentPlan\InstallmentPlanResource;
 use App\Http\Requests\InstallmentPlan\StoreInstallmentPlanRequest;
 use App\Http\Requests\InstallmentPlan\UpdateInstallmentPlanRequest;
-
+use App\Http\Resources\InstallmentPlan\InstallmentPlanResource;
+use App\Models\InstallmentPlan;
+use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
+use Throwable;
 
 class InstallmentPlanController extends Controller
 {
@@ -30,25 +30,27 @@ class InstallmentPlanController extends Controller
     }
 
     /**
-     * Display a listing of the resource.
+     * عرض قائمة خطط التقسيط.
      *
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
-    public function index(Request $request)
+    public function index(Request $request): JsonResponse
     {
         try {
+            /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            // $authUser = $request->user();
-            if (!$authUser) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'User is not authenticated.'], 401);
-            }
-            $query = InstallmentPlan::with($this->relations);
 
-            $companyId = $authUser->company_id; // معرف الشركة النشطة للمستخدم
+            if (!$authUser) {
+                return api_unauthorized('يتطلب المصادقة.');
+            }
+
+            $query = InstallmentPlan::with($this->relations);
+            $companyId = $authUser->company_id ?? null; // معرف الشركة النشطة للمستخدم
+
             // التحقق الأساسي: إذا لم يكن المستخدم مرتبطًا بشركة وليس سوبر أدمن
             if (!$companyId && !$authUser->hasPermissionTo(perm_key('admin.super'))) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'User is not associated with a company.'], 403);
+                return api_unauthorized('المستخدم غير مرتبط بشركة.');
             }
 
             // تطبيق فلترة الصلاحيات بناءً على صلاحيات العرض
@@ -64,7 +66,7 @@ class InstallmentPlanController extends Controller
                 // يرى خطط التقسيط التي أنشأها المستخدم فقط، ومرتبطة بالشركة النشطة
                 $query->whereCompanyIsCurrent()->whereCreatedByUser();
             } else {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to view installment plans.'], 403);
+                return api_forbidden('ليس لديك إذن لعرض خطط التقسيط.');
             }
 
             // التصفية بناءً على طلب المستخدم
@@ -81,57 +83,40 @@ class InstallmentPlanController extends Controller
 
             // الترتيب
             $sortBy = $request->get('sort_by', 'created_at');
-            $sortOrder = $request->get('sort_order', 'desc'); // عادة ما يكون الأحدث أولاً
+            $sortOrder = $request->get('sort_order', 'desc');
             $query->orderBy($sortBy, $sortOrder === 'desc' ? 'desc' : 'asc');
 
             // التصفحة
             $perPage = (int) $request->get('limit', 20);
             $plans = $query->paginate($perPage);
 
-            return InstallmentPlanResource::collection($plans)->additional([
-                'total' => $plans->total(),
-                'current_page' => $plans->currentPage(),
-                'last_page' => $plans->lastPage(),
-            ]);
+            return api_success($plans, 'تم استرداد خطط التقسيط بنجاح.');
         } catch (Throwable $e) {
-            Log::error('Installment Plan index failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ]);
-            return response()->json([
-                'error' => 'Error retrieving installment plans.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e, 500);
         }
     }
 
     /**
-     * Store a newly created resource in storage.
+     * تخزين خطة تقسيط جديدة.
      *
      * @param StoreInstallmentPlanRequest $request
      * @return \Illuminate\Http\JsonResponse
      */
-    public function store(StoreInstallmentPlanRequest $request)
+    public function store(StoreInstallmentPlanRequest $request): JsonResponse
     {
         try {
+            /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
             // التحقق الأساسي: إذا لم يكن المستخدم مرتبطًا بشركة
-            if (!$companyId) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'User is not associated with a company.'], 403);
+            if (!$authUser || !$companyId) {
+                return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
             // صلاحيات إنشاء خطة تقسيط
             if (!$authUser->hasPermissionTo(perm_key('admin.super')) && !$authUser->hasPermissionTo(perm_key('installment_plans.create')) && !$authUser->hasPermissionTo(perm_key('admin.company'))) {
-                return response()->json([
-                    'error' => 'Unauthorized',
-                    'message' => 'You are not authorized to create installment plans.'
-                ], 403);
+                return api_forbidden('ليس لديك إذن لإنشاء خطط تقسيط.');
             }
 
             DB::beginTransaction();
@@ -142,60 +127,42 @@ class InstallmentPlanController extends Controller
                 $validatedData['created_by'] = $authUser->id;
                 // التأكد من أن خطة التقسيط تابعة لشركة المستخدم الحالي
                 if (isset($validatedData['company_id']) && $validatedData['company_id'] != $companyId) {
-                    return response()->json(['error' => 'Unauthorized', 'message' => 'You can only create installment plans for your current company.'], 403);
+                    DB::rollBack();
+                    return api_forbidden('يمكنك فقط إنشاء خطط تقسيط لشركتك الحالية.');
                 }
                 $validatedData['company_id'] = $companyId; // التأكد من ربط خطة التقسيط بالشركة النشطة
 
                 $plan = InstallmentPlan::create($validatedData);
                 $plan->load($this->relations);
                 DB::commit();
-                Log::info('Installment Plan created successfully.', ['plan_id' => $plan->id, 'user_id' => $authUser->id, 'company_id' => $companyId]);
-                return new InstallmentPlanResource($plan);
+                return api_success(new InstallmentPlanResource($plan), 'تم إنشاء خطة التقسيط بنجاح.', 201);
+            } catch (ValidationException $e) {
+                DB::rollBack();
+                return api_error('فشل التحقق من صحة البيانات أثناء تخزين خطة التقسيط.', $e->errors(), 422);
             } catch (Throwable $e) {
                 DB::rollBack();
-                Log::error('Installment Plan store failed in transaction: ' . $e->getMessage(), [
-                    'exception' => $e,
-                    'user_id' => Auth::id(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ]);
-                return response()->json([
-                    'error' => 'Error saving installment plan.',
-                    'details' => $e->getMessage(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ], 500);
+                return api_error('حدث خطأ أثناء حفظ خطة التقسيط.', [], 500);
             }
         } catch (Throwable $e) {
-            Log::error('Installment Plan store failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ]);
-            return response()->json([
-                'error' => 'Error saving installment plan.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e, 500);
         }
     }
 
     /**
-     * Display the specified resource.
+     * عرض خطة تقسيط محددة.
      *
-     * @param int $id
-     * @return \Illuminate\Http\JsonResponse|\App\Http\Resources\InstallmentPlan\InstallmentPlanResource
+     * @param string $id
+     * @return \Illuminate\Http\JsonResponse
      */
-    public function show($id)
+    public function show(string $id): JsonResponse
     {
         try {
+            /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
-            if (!$companyId) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'User is not associated with a company.'], 403);
+            if (!$authUser || !$companyId) {
+                return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
             $plan = InstallmentPlan::with($this->relations)->findOrFail($id);
@@ -213,48 +180,34 @@ class InstallmentPlanController extends Controller
             } elseif ($authUser->hasPermissionTo(perm_key('installment_plans.view_self'))) {
                 // يرى إذا كانت خطة التقسيط أنشأها هو وتابعة للشركة النشطة
                 $canView = $plan->belongsToCurrentCompany() && $plan->createdByCurrentUser();
-            } else {
-                // لا توجد صلاحية عرض
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to view this installment plan.'], 403);
             }
 
             if ($canView) {
-                return new InstallmentPlanResource($plan);
+                return api_success(new InstallmentPlanResource($plan), 'تم استرداد خطة التقسيط بنجاح.');
             }
 
-            return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to view this installment plan.'], 403);
+            return api_forbidden('ليس لديك إذن لعرض خطة التقسيط هذه.');
         } catch (Throwable $e) {
-            Log::error('Installment Plan show failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'plan_id' => $id,
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ]);
-            return response()->json([
-                'error' => 'Error retrieving installment plan.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e, 500);
         }
     }
 
     /**
-     * Update the specified resource in storage.
+     * تحديث خطة تقسيط محددة.
      *
      * @param UpdateInstallmentPlanRequest $request
-     * @param int $id
-     * @return \Illuminate\Http\JsonResponse|\App\Http\Resources\InstallmentPlan\InstallmentPlanResource
+     * @param string $id
+     * @return \Illuminate\Http\JsonResponse
      */
-    public function update(UpdateInstallmentPlanRequest $request, $id)
+    public function update(UpdateInstallmentPlanRequest $request, string $id): JsonResponse
     {
         try {
+            /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
-            if (!$companyId) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'User is not associated with a company.'], 403);
+            if (!$authUser || !$companyId) {
+                return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
             // يجب تحميل العلاقات الضرورية للتحقق من الصلاحيات (مثل الشركة والمنشئ)
@@ -273,77 +226,57 @@ class InstallmentPlanController extends Controller
             } elseif ($authUser->hasPermissionTo(perm_key('installment_plans.update_self'))) {
                 // يمكنه تعديل خطة تقسيطه الخاصة التي أنشأها وتابعة للشركة النشطة
                 $canUpdate = $plan->belongsToCurrentCompany() && $plan->createdByCurrentUser();
-            } else {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to update this installment plan.'], 403);
             }
 
             if (!$canUpdate) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to update this installment plan.'], 403);
+                return api_forbidden('ليس لديك إذن لتحديث خطة التقسيط هذه.');
             }
 
             DB::beginTransaction();
             try {
-                $plan->update($request->validated());
+                $validatedData = $request->validated();
+                $validatedData['updated_by'] = $authUser->id;
+
+                $plan->update($validatedData);
                 $plan->load($this->relations); // إعادة تحميل العلاقات بعد التحديث
                 DB::commit();
-                Log::info('Installment Plan updated successfully.', ['plan_id' => $plan->id, 'user_id' => $authUser->id, 'company_id' => $companyId]);
-                return new InstallmentPlanResource($plan);
+                return api_success(new InstallmentPlanResource($plan), 'تم تحديث خطة التقسيط بنجاح.');
+            } catch (ValidationException $e) {
+                DB::rollBack();
+                return api_error('فشل التحقق من صحة البيانات أثناء تحديث خطة التقسيط.', $e->errors(), 422);
             } catch (Throwable $e) {
                 DB::rollBack();
-                Log::error('Installment Plan update failed in transaction: ' . $e->getMessage(), [
-                    'exception' => $e,
-                    'user_id' => Auth::id(),
-                    'plan_id' => $id,
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ]);
-                return response()->json([
-                    'error' => 'Error updating installment plan.',
-                    'details' => $e->getMessage(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ], 500);
+                return api_error('حدث خطأ أثناء تحديث خطة التقسيط.', [], 500);
             }
         } catch (Throwable $e) {
-            Log::error('Installment Plan update failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'plan_id' => $id,
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ]);
-            return response()->json([
-                'error' => 'Error updating installment plan.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e, 500);
         }
     }
 
     /**
-     * Remove the specified resource from storage.
+     * حذف خطة تقسيط محددة.
      *
-     * @param int $id
+     * @param string $id
      * @return \Illuminate\Http\JsonResponse
      */
-    public function destroy($id)
+    public function destroy(string $id): JsonResponse
     {
         try {
+            /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
-            if (!$companyId) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'User is not associated with a company.'], 403);
+            if (!$authUser || !$companyId) {
+                return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
             // يجب تحميل العلاقات الضرورية للتحقق من الصلاحيات (مثل الشركة والمنشئ)
-            $plan = InstallmentPlan::with(['company', 'creator'])->findOrFail($id);
+            $plan = InstallmentPlan::with(['company', 'creator', 'installments'])->findOrFail($id);
 
             // التحقق من صلاحيات الحذف
             $canDelete = false;
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
-                $canDelete = true; // المسؤول العام يمكنه حذف أي خطة تقسيط
+                $canDelete = true;
             } elseif ($authUser->hasAnyPermission([perm_key('installment_plans.delete_all'), perm_key('admin.company')])) {
                 // يمكنه حذف أي خطة تقسيط داخل الشركة النشطة (بما في ذلك مديرو الشركة)
                 $canDelete = $plan->belongsToCurrentCompany();
@@ -353,50 +286,32 @@ class InstallmentPlanController extends Controller
             } elseif ($authUser->hasPermissionTo(perm_key('installment_plans.delete_self'))) {
                 // يمكنه حذف خطة تقسيطه الخاصة التي أنشأها وتابعة للشركة النشطة
                 $canDelete = $plan->belongsToCurrentCompany() && $plan->createdByCurrentUser();
-            } else {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to delete this installment plan.'], 403);
             }
 
             if (!$canDelete) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to delete this installment plan.'], 403);
+                return api_forbidden('ليس لديك إذن لحذف خطة التقسيط هذه.');
             }
 
             DB::beginTransaction();
             try {
+                // تحقق مما إذا كانت خطة التقسيط مرتبطة بأي أقساط
+                if ($plan->installments()->exists()) {
+                    DB::rollBack();
+                    return api_error('لا يمكن حذف خطة التقسيط. إنها مرتبطة بأقساط موجودة.', [], 409);
+                }
+
+                $deletedPlan = $plan->replicate(); // نسخ الكائن قبل الحذف
+                $deletedPlan->setRelations($plan->getRelations()); // نسخ العلاقات المحملة
+
                 $plan->delete();
                 DB::commit();
-                Log::info('Installment Plan deleted successfully.', ['plan_id' => $id, 'user_id' => $authUser->id, 'company_id' => $companyId]);
-                return response()->json(['message' => 'Deleted successfully'], 200);
+                return api_success(new InstallmentPlanResource($deletedPlan), 'تم حذف خطة التقسيط بنجاح.');
             } catch (Throwable $e) {
                 DB::rollBack();
-                Log::error('Installment Plan deletion failed in transaction: ' . $e->getMessage(), [
-                    'exception' => $e,
-                    'user_id' => Auth::id(),
-                    'plan_id' => $id,
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ]);
-                return response()->json([
-                    'error' => 'Error deleting installment plan.',
-                    'details' => $e->getMessage(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ], 500);
+                return api_error('حدث خطأ أثناء حذف خطة التقسيط.', [], 500);
             }
         } catch (Throwable $e) {
-            Log::error('Installment Plan deletion failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'plan_id' => $id,
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ]);
-            return response()->json([
-                'error' => 'Error deleting installment plan.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e, 500);
         }
     }
 }

@@ -5,112 +5,100 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Artisan;
+use Throwable;
 
 class ArtisanController extends Controller
 {
     /**
-     * Run composer dump-autoload.
+     * تشغيل أمر composer dump-autoload.
      * @return \Illuminate\Http\JsonResponse
      */
-    public function dumpAutoload()
+    public function runComposerDump(): JsonResponse
     {
         try {
-            $output = shell_exec('composer dump-autoload');
-            return response()->json([
-                'status' => '✅ dump-autoload تم بنجاح',
-                'output' => $output
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => '❌ حصل خطأ',
-                'message' => $e->getMessage()
-            ]);
+            $output = shell_exec('composer dump-autoload 2>&1');
+            return api_success(['output' => $output], 'تم تنفيذ أمر Composer dump-autoload بنجاح.');
+        } catch (Throwable $e) {
+            return api_error('حدث خطأ أثناء تشغيل أمر Composer dump-autoload.', [], 500);
         }
     }
 
     /**
-     * Run migrate:fresh and db:seed (for development only).
+     * تشغيل migrate:fresh و db:seed (للتطوير فقط).
      * @return \Illuminate\Http\JsonResponse
      */
-    public function migrateAndSeed()
+    public function migrateAndSeed(): JsonResponse
     {
         try {
             Artisan::call('migrate:fresh', ['--force' => true]);
+            $migrateOutput = Artisan::output(); // التقاط مخرجات الهجرة
             Artisan::call('db:seed', ['--force' => true]);
-            return response()->json([
-                'migrate' => Artisan::output(),
-                'seed' => 'Seeders executed successfully',
-            ]);
-        } catch (\Throwable $e) {
-            return response()->json([
-                'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ], 500);
+            $seedOutput = Artisan::output(); // التقاط مخرجات التغذية
+
+            return api_success([
+                'migrate_output' => $migrateOutput,
+                'seed_output' => 'تم تنفيذ Seeders بنجاح.',
+            ], 'تم ترحيل قاعدة البيانات وتغذيتها بنجاح.');
+        } catch (Throwable $e) {
+            return api_error('حدث خطأ أثناء ترحيل قاعدة البيانات وتغذيتها.', [], 500);
         }
     }
 
     /**
-     * Run PermissionsSeeder.
+     * تشغيل PermissionsSeeder.
      * @return \Illuminate\Http\JsonResponse
      */
-    public function seedPermissions()
+    public function seedPermissions(): JsonResponse
     {
         try {
             Artisan::call('db:seed', [
                 '--class' => 'Database\Seeders\PermissionsSeeder',
                 '--force' => true
             ]);
-            return response()->json([
-                'seed' => 'PermissionsSeeder executed successfully',
-            ]);
-        } catch (\Throwable $e) {
-            return response()->json([
-                'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ], 500);
+            return api_success([], 'تم تنفيذ PermissionsSeeder بنجاح.');
+        } catch (Throwable $e) {
+            return api_error('حدث خطأ أثناء تنفيذ PermissionsSeeder.', [], 500);
         }
     }
 
     /**
-     * Run RolesAndPermissionsSeeder.
+     * تشغيل RolesAndPermissionsSeeder.
      * @return \Illuminate\Http\JsonResponse
      */
-    public function seedRolesAndPermissions()
+    public function seedRolesAndPermissions(): JsonResponse
     {
         try {
             Artisan::call('db:seed', [
                 '--class' => 'Database\Seeders\RolesAndPermissionsSeeder',
                 '--force' => true
             ]);
-            return response()->json([
-                'seed' => 'RolesAndPermissionsSeeder executed successfully',
-            ]);
-        } catch (\Throwable $e) {
-            return response()->json([
-                'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ], 500);
+            return api_success([], 'تم تنفيذ RolesAndPermissionsSeeder بنجاح.');
+        } catch (Throwable $e) {
+            return api_error('حدث خطأ أثناء تنفيذ RolesAndPermissionsSeeder.', [], 500);
         }
     }
 
-    public function PermissionsSeeder()
+    /**
+     * تشغيل PermissionsSeeder (دالة مكررة، تم توحيدها).
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function PermissionsSeeder(): JsonResponse
     {
         try {
             Artisan::call('db:seed', [
                 '--class' => 'Database\Seeders\PermissionsSeeder',
                 '--force' => true
             ]);
-            return response()->json([
-                'seed' => 'PermissionsSeeder executed successfully',
-            ]);
-        } catch (\Throwable $e) {
-            return response()->json([
-                'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ], 500);
+            return api_success([], 'تم تنفيذ PermissionsSeeder بنجاح.');
+        } catch (Throwable $e) {
+            return api_error('حدث خطأ أثناء تنفيذ PermissionsSeeder.', [], 500);
         }
     }
 
+    /**
+     * مسح جميع الكاشات وإعادة بنائها.
+     * @return \Illuminate\Http\JsonResponse
+     */
     public function clearAllCache(): JsonResponse
     {
         try {
@@ -130,24 +118,16 @@ class ArtisanController extends Controller
             Artisan::call('config:cache');
             Artisan::call('route:cache');
 
-            return response()->json([
-                'status' => '✅ All caches cleared and rebuilt successfully',
-                'details' => [
-                    'cache' => 'cleared',
-                    'config' => 'cleared + cached',
-                    'route' => 'cleared + cached',
-                    'view' => 'cleared',
-                    'compiled' => 'cleared',
-                    'permissions' => 'spatie permissions cache cleared (if exists)',
-                ]
-            ]);
-        } catch (\Throwable $e) {
-            return response()->json([
-                'error' => '❌ Failed to clear and rebuild caches',
-                'message' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_success([
+                'cache' => 'تم مسح الكاش',
+                'config' => 'تم مسح وإعادة بناء كاش الإعدادات',
+                'route' => 'تم مسح وإعادة بناء كاش المسارات',
+                'view' => 'تم مسح كاش العروض',
+                'compiled' => 'تم مسح الملفات المترجمة',
+                'permissions' => 'تم مسح كاش صلاحيات Spatie (إذا كان موجودًا)',
+            ], 'تم مسح جميع الكاشات وإعادة بنائها بنجاح.');
+        } catch (Throwable $e) {
+            return api_error('فشل مسح وإعادة بناء الكاشات.', [], 500);
         }
     }
 }

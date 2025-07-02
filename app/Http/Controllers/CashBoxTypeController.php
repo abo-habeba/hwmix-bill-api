@@ -2,23 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Controller;
 use App\Models\CashBox;
 use App\Models\CashBoxType;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
-use App\Http\Controllers\Controller;
+use Illuminate\Http\JsonResponse; // للتأكد من استيراد JsonResponse
 use Illuminate\Support\Facades\Auth;
-use Throwable; // تم إضافة هذا الاستيراد
-use Illuminate\Validation\ValidationException; // تم إضافة هذا الاستيراد
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
+use Throwable;
 
-// دالة مساعدة لضمان الاتساق في مفاتيح الأذونات
-if (!function_exists('perm_key')) {
-    function perm_key(string $permission): string
-    {
-        return $permission;
-    }
-}
 
 /**
  * Class CashBoxTypeController
@@ -35,17 +28,14 @@ class CashBoxTypeController extends Controller
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
-    public function index(Request $request)
+    public function index(Request $request): JsonResponse
     {
         try {
             /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
 
             if (!$authUser) {
-                return response()->json([
-                    'error' => 'Unauthorized',
-                    'message' => 'Authentication required.'
-                ], 401);
+                return api_unauthorized('يتطلب المصادقة.');
             }
 
             $cashBoxTypeQuery = CashBoxType::query();
@@ -55,7 +45,6 @@ class CashBoxTypeController extends Controller
                 // المسؤول العام يرى جميع الأنواع
             } elseif ($authUser->hasAnyPermission([perm_key('cash_box_types.view_all'), perm_key('admin.company')])) {
                 // مدير الشركة أو من لديه صلاحية 'view_all' يرى جميع أنواع شركته
-                // افتراض: CashBoxType يمكن أن ترتبط بشركة (إذا كان ليس لها شركة_id، فستكون عامة)
                 // يجب إضافة scopeWhereCompanyIsCurrent() في موديل CashBoxType
                 $cashBoxTypeQuery->whereCompanyIsCurrent();
             } elseif ($authUser->hasPermissionTo(perm_key('cash_box_types.view_children'))) {
@@ -65,7 +54,7 @@ class CashBoxTypeController extends Controller
                 // يرى الأنواع التي أنشأها المستخدم فقط، ومرتبطة بالشركة النشطة
                 $cashBoxTypeQuery->whereCreatedByUser()->whereCompanyIsCurrent();
             } else {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to view cash box types.'], 403);
+                return api_forbidden('ليس لديك صلاحية لعرض أنواع الخزن.');
             }
 
             // التصفية باستخدام الحقول المقدمة
@@ -82,7 +71,6 @@ class CashBoxTypeController extends Controller
                 $cashBoxTypeQuery->where('created_at', '<=', $request->get('created_at_to') . ' 23:59:59');
             }
 
-
             // تحديد عدد العناصر في الصفحة والفرز
             $perPage = max(1, (int) $request->get('per_page', 10));
             $sortField = $request->get('sort_by', 'id');
@@ -93,21 +81,9 @@ class CashBoxTypeController extends Controller
             // جلب البيانات مع التصفية والصفحات
             $cashBoxTypes = $cashBoxTypeQuery->paginate($perPage);
 
-            return response()->json([
-                'data' => $cashBoxTypes->items(),
-                'total' => $cashBoxTypes->total(),
-                'current_page' => $cashBoxTypes->currentPage(),
-                'last_page' => $cashBoxTypes->lastPage(),
-            ]);
+            return api_success($cashBoxTypes, 'تم استرداد أنواع الخزن بنجاح.');
         } catch (Throwable $e) {
-            Log::error('CashBoxType index failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            return response()->json(['error' => 'Error retrieving cash box types.', 'details' => $e->getMessage()], 500);
+            return api_exception($e, 500);
         }
     }
 
@@ -117,23 +93,20 @@ class CashBoxTypeController extends Controller
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
-    public function store(Request $request)
+    public function store(Request $request): JsonResponse
     {
         try {
             /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id; // افتراض أن أنواع الخزن يمكن أن ترتبط بالشركات
+            $companyId = $authUser->company_id ?? null; // افتراض أن أنواع الخزن يمكن أن ترتبط بالشركات
 
             if (!$authUser || (!$companyId && !$authUser->hasPermissionTo(perm_key('admin.super')))) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'Authentication or company association required.'], 403);
+                return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
             // صلاحيات إنشاء نوع صندوق نقدي
             if (!$authUser->hasPermissionTo(perm_key('admin.super')) && !$authUser->hasPermissionTo(perm_key('cash_box_types.create')) && !$authUser->hasPermissionTo(perm_key('admin.company'))) {
-                return response()->json([
-                    'error' => 'Unauthorized',
-                    'message' => 'You are not authorized to create cash box types.'
-                ], 403);
+                return api_forbidden('ليس لديك صلاحية لإنشاء أنواع الخزن.');
             }
 
             DB::beginTransaction();
@@ -162,41 +135,16 @@ class CashBoxTypeController extends Controller
                 $cashBoxType = CashBoxType::create($validatedData);
 
                 DB::commit();
-                Log::info('Cash Box Type created successfully.', ['cash_box_type_id' => $cashBoxType->id, 'user_id' => $authUser->id, 'company_id' => $companyId]);
-                return response()->json($cashBoxType, 201);
+                return api_success($cashBoxType, 'تم إنشاء نوع الخزنة بنجاح.', 201);
             } catch (ValidationException $e) {
                 DB::rollback();
-                Log::error('CashBoxType store validation failed: ' . $e->getMessage(), [
-                    'errors' => $e->errors(),
-                    'user_id' => Auth::id(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ]);
-                return response()->json([
-                    'status' => 'error',
-                    'message' => $e->getMessage(),
-                    'errors' => $e->errors(),
-                ], 422);
+                return api_error('فشل التحقق من صحة البيانات أثناء تخزين نوع الخزنة.', $e->errors(), 422);
             } catch (Throwable $e) {
                 DB::rollback();
-                Log::error('CashBoxType store failed in transaction: ' . $e->getMessage(), [
-                    'exception' => $e,
-                    'user_id' => Auth::id(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                    'trace' => $e->getTraceAsString(),
-                ]);
-                return response()->json(['error' => 'Failed to create CashBoxType.', 'details' => $e->getMessage()], 500);
+                return api_error('حدث خطأ أثناء حفظ نوع الخزنة.', [], 500);
             }
         } catch (Throwable $e) {
-            Log::error('CashBoxType store failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            return response()->json(['error' => 'Failed to create CashBoxType.', 'details' => $e->getMessage()], 500);
+            return api_exception($e, 500);
         }
     }
 
@@ -206,15 +154,15 @@ class CashBoxTypeController extends Controller
      * @param CashBoxType $cashBoxType
      * @return \Illuminate\Http\JsonResponse
      */
-    public function show(CashBoxType $cashBoxType)
+    public function show(CashBoxType $cashBoxType): JsonResponse
     {
         try {
             /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
             if (!$authUser || (!$companyId && !$authUser->hasPermissionTo(perm_key('admin.super')))) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'Authentication or company association required.'], 403);
+                return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
             // التحقق من صلاحيات العرض
@@ -230,25 +178,15 @@ class CashBoxTypeController extends Controller
             } elseif ($authUser->hasPermissionTo(perm_key('cash_box_types.view_self'))) {
                 // يرى إذا كان نوع الصندوق أنشأه هو وتابع للشركة النشطة
                 $canView = $cashBoxType->belongsToCurrentCompany() && $cashBoxType->createdByCurrentUser();
-            } else {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to view this cash box type.'], 403);
             }
 
             if ($canView) {
-                return response()->json($cashBoxType);
+                return api_success($cashBoxType, 'تم استرداد نوع الخزنة بنجاح.');
             }
 
-            return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to view this cash box type.'], 403);
+            return api_forbidden('ليس لديك صلاحية لعرض نوع الخزنة هذا.');
         } catch (Throwable $e) {
-            Log::error('CashBoxType show failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'cash_box_type_id' => $cashBoxType->id,
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            return response()->json(['error' => 'Error retrieving cash box type.', 'details' => $e->getMessage()], 500);
+            return api_exception($e, 500);
         }
     }
 
@@ -259,15 +197,15 @@ class CashBoxTypeController extends Controller
      * @param CashBoxType $cashBoxType
      * @return \Illuminate\Http\JsonResponse
      */
-    public function update(Request $request, CashBoxType $cashBoxType)
+    public function update(Request $request, CashBoxType $cashBoxType): JsonResponse
     {
         try {
             /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
             if (!$authUser || (!$companyId && !$authUser->hasPermissionTo(perm_key('admin.super')))) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'Authentication or company association required.'], 403);
+                return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
             // التحقق من صلاحيات التحديث
@@ -283,12 +221,10 @@ class CashBoxTypeController extends Controller
             } elseif ($authUser->hasPermissionTo(perm_key('cash_box_types.update_self'))) {
                 // يمكنه تعديل نوعه الخاص الذي أنشأه وتابع للشركة النشطة
                 $canUpdate = $cashBoxType->belongsToCurrentCompany() && $cashBoxType->createdByCurrentUser();
-            } else {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to update this cash box type.'], 403);
             }
 
             if (!$canUpdate) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to update this cash box type.'], 403);
+                return api_forbidden('ليس لديك صلاحية لتحديث نوع الخزنة هذا.');
             }
 
             DB::beginTransaction();
@@ -302,7 +238,7 @@ class CashBoxTypeController extends Controller
 
                 // التأكد من أن المستخدم مصرح له بتغيير company_id إذا كان سوبر أدمن
                 if (isset($validatedData['company_id']) && $validatedData['company_id'] != $cashBoxType->company_id && !$authUser->hasPermissionTo(perm_key('admin.super'))) {
-                    return response()->json(['error' => 'Unauthorized', 'message' => 'You cannot change a cash box type\'s company unless you are a Super Admin.'], 403);
+                    return api_forbidden('لا يمكنك تغيير شركة نوع الخزنة إلا إذا كنت مدير عام.');
                 }
                 // إذا لم يتم تحديد company_id في الطلب ولكن المستخدم سوبر أدمن، لا تغير company_id الخاصة بالصندوق الحالي
                 if (!$authUser->hasPermissionTo(perm_key('admin.super')) || !isset($validatedData['company_id'])) {
@@ -312,43 +248,16 @@ class CashBoxTypeController extends Controller
                 $cashBoxType->update($validatedData);
 
                 DB::commit();
-                Log::info('Cash Box Type updated successfully.', ['cash_box_type_id' => $cashBoxType->id, 'user_id' => $authUser->id, 'company_id' => $companyId]);
-                return response()->json($cashBoxType, 200);
+                return api_success($cashBoxType, 'تم تحديث نوع الخزنة بنجاح.');
             } catch (ValidationException $e) {
                 DB::rollback();
-                Log::error('CashBoxType update validation failed: ' . $e->getMessage(), [
-                    'errors' => $e->errors(),
-                    'user_id' => Auth::id(),
-                    'cash_box_type_id' => $cashBoxType->id,
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ]);
-                return response()->json([
-                    'status' => 'error',
-                    'message' => $e->getMessage(),
-                    'errors' => $e->errors(),
-                ], 422);
+                return api_error('فشل التحقق من صحة البيانات أثناء تحديث نوع الخزنة.', $e->errors(), 422);
             } catch (Throwable $e) {
                 DB::rollback();
-                Log::error('CashBoxType update failed in transaction: ' . $e->getMessage(), [
-                    'exception' => $e,
-                    'user_id' => Auth::id(),
-                    'cash_box_type_id' => $cashBoxType->id,
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                    'trace' => $e->getTraceAsString(),
-                ]);
-                return response()->json(['error' => 'Error updating cash box type.', 'details' => $e->getMessage()], 500);
+                return api_error('حدث خطأ أثناء تحديث نوع الخزنة.', [], 500);
             }
         } catch (Throwable $e) {
-            Log::error('CashBoxType update failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            return response()->json(['error' => 'Error updating cash box type.', 'details' => $e->getMessage()], 500);
+            return api_exception($e, 500);
         }
     }
 
@@ -358,27 +267,28 @@ class CashBoxTypeController extends Controller
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
-    public function destroy(Request $request)
+    public function destroy(Request $request): JsonResponse
     {
         try {
             /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
             if (!$authUser || (!$companyId && !$authUser->hasPermissionTo(perm_key('admin.super')))) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'Authentication or company association required.'], 403);
+                return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
             $cashBoxTypeIds = $request->input('item_ids');
 
             if (!$cashBoxTypeIds || !is_array($cashBoxTypeIds)) {
-                return response()->json(['error' => 'Invalid CashBoxType IDs provided'], 400);
+                return api_error('تم توفير معرفات أنواع الخزن غير صالحة.', [], 400);
             }
 
             $cashBoxTypesToDelete = CashBoxType::whereIn('id', $cashBoxTypeIds)->get();
 
             DB::beginTransaction();
             try {
+                $deletedTypes = [];
                 foreach ($cashBoxTypesToDelete as $cashBoxType) {
                     // التحقق من صلاحيات الحذف لكل عنصر
                     $canDelete = false;
@@ -394,45 +304,31 @@ class CashBoxTypeController extends Controller
 
                     if (!$canDelete) {
                         DB::rollback();
-                        return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to delete cash box type with ID: ' . $cashBoxType->id], 403);
+                        return api_forbidden('ليس لديك صلاحية لحذف نوع الخزنة بالمعرف: ' . $cashBoxType->id);
                     }
 
                     // تحقق مما إذا كان نوع الصندوق مرتبطًا بأي صندوق نقدي فعلي قبل الحذف
                     if (CashBox::where('type_box_id', $cashBoxType->id)->exists()) {
                         DB::rollback();
-                        return response()->json([
-                            'error' => 'Conflict',
-                            'message' => 'Cannot delete cash box type. It is associated with existing cash boxes (ID: ' . $cashBoxType->id . ').',
-                        ], 409);
+                        return api_error('لا يمكن حذف نوع الخزنة. إنه مرتبط بخزن نقدية موجودة (المعرف: ' . $cashBoxType->id . ').', [], 409);
                     }
+
+                    // حفظ نسخة من العنصر قبل حذفه لإرجاعه في الاستجابة
+                    $deletedType = $cashBoxType->replicate();
+                    $deletedType->setRelations($cashBoxType->getRelations()); // نسخ العلاقات المحملة
+                    $deletedTypes[] = $deletedType;
 
                     $cashBoxType->delete();
                 }
 
                 DB::commit();
-                Log::info('Cash Box Types deleted successfully.', ['cash_box_type_ids' => $cashBoxTypeIds, 'user_id' => $authUser->id, 'company_id' => $companyId]);
-                return response()->json(['message' => 'CashBoxTypes deleted successfully'], 200);
+                return api_success($deletedTypes, 'تم حذف أنواع الخزن بنجاح.');
             } catch (Throwable $e) {
                 DB::rollback();
-                Log::error('CashBoxType deletion failed in transaction: ' . $e->getMessage(), [
-                    'exception' => $e,
-                    'user_id' => Auth::id(),
-                    'cash_box_type_ids' => $cashBoxTypeIds,
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                    'trace' => $e->getTraceAsString(),
-                ]);
-                return response()->json(['error' => 'Failed to delete CashBoxTypes.', 'details' => $e->getMessage()], 500);
+                return api_error('حدث خطأ أثناء حذف أنواع الخزن.', [], 500);
             }
         } catch (Throwable $e) {
-            Log::error('CashBoxType deletion failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            return response()->json(['error' => 'Failed to delete CashBoxTypes.', 'details' => $e->getMessage()], 500);
+            return api_exception($e, 500);
         }
     }
 }

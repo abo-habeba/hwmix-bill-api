@@ -8,21 +8,13 @@ use App\Http\Requests\ProductVariant\UpdateProductVariantRequest;
 use App\Http\Resources\ProductVariant\ProductVariantResource;
 use App\Models\Product;
 use App\Models\ProductVariant;
-use App\Models\Stock; // تم إضافة هذا الاستيراد
+use App\Models\Stock;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth; // تم إضافة هذا الاستيراد
-use Illuminate\Support\Facades\DB;   // تم إضافة هذا الاستيراد
-use Illuminate\Support\Facades\Log;  // تم إضافة هذا الاستيراد
-use Illuminate\Validation\ValidationException; // تم إضافة هذا الاستيراد
-use Throwable; // تم إضافة هذا الاستيراد
-
-// دالة مساعدة لضمان الاتساق في مفاتيح الأذونات (إذا لم تكن معرفة عالميا)
-// if (!function_exists('perm_key')) {
-//     function perm_key(string $permission): string
-//     {
-//         return $permission;
-//     }
-// }
+use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
+use Throwable;
 
 class ProductVariantController extends Controller
 {
@@ -43,38 +35,37 @@ class ProductVariantController extends Controller
      * عرض قائمة بمتغيرات المنتجات مع الفلاتر والصلاحيات.
      *
      * @param Request $request
-     * @return \Illuminate\Http\JsonResponse|\Illuminate\Http\Resources\Json\AnonymousResourceCollection
+     * @return \Illuminate\Http\JsonResponse
      */
-    public function index(Request $request)
+    public function index(Request $request): JsonResponse
     {
         try {
             /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $query = ProductVariant::with($this->relations);
-            $companyId = $authUser->company_id;
 
-            // التحقق الأساسي: إذا لم يكن المستخدم مرتبطًا بشركة وليس سوبر أدمن
-            if (!$companyId && !$authUser->hasPermissionTo(perm_key('admin.super'))) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'User is not associated with a company.'], 403);
+            if (!$authUser) {
+                return api_unauthorized('يتطلب المصادقة.');
             }
 
-            // تطبيق منطق الصلاحيات
+            $query = ProductVariant::with($this->relations);
+            $companyId = $authUser->company_id ?? null;
+
+            if (!$companyId && !$authUser->hasPermissionTo(perm_key('admin.super'))) {
+                return api_unauthorized('يجب أن تكون مرتبطًا بشركة أو لديك صلاحية مدير عام.');
+            }
+
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
-                // المسؤول العام يرى جميع المتغيرات (لا قيود إضافية)
+                // المسؤول العام يرى جميع المتغيرات
             } elseif ($authUser->hasAnyPermission([perm_key('product_variants.view_all'), perm_key('admin.company')])) {
-                // يرى جميع المتغيرات الخاصة بالشركة النشطة (بما في ذلك مديرو الشركة)
                 $query->whereCompanyIsCurrent();
             } elseif ($authUser->hasPermissionTo(perm_key('product_variants.view_children'))) {
-                // يرى المتغيرات التي أنشأها المستخدم أو المستخدمون التابعون له، ضمن الشركة النشطة
                 $query->whereCompanyIsCurrent()->whereCreatedByUserOrChildren();
             } elseif ($authUser->hasPermissionTo(perm_key('product_variants.view_self'))) {
-                // يرى المتغيرات التي أنشأها المستخدم فقط، ومرتبطة بالشركة النشطة
                 $query->whereCompanyIsCurrent()->whereCreatedByUser();
             } else {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to view product variants.'], 403);
+                return api_forbidden('ليس لديك صلاحية لعرض متغيرات المنتجات.');
             }
 
-            // تطبيق فلاتر البحث
             if ($request->filled('search')) {
                 $search = $request->input('search');
                 $query->where(function ($q) use ($search) {
@@ -94,33 +85,14 @@ class ProductVariantController extends Controller
                 $query->where('status', $request->input('status'));
             }
 
-            // الفرز والتصفح
-            $sortBy = $request->input('sort_by', 'created_at');
-            $sortOrder = $request->input('sort_order', 'desc');
-            $query->orderBy($sortBy, $sortOrder);
-
             $perPage = max(1, (int) $request->get('per_page', 10));
-            $productVariants = $query->paginate($perPage);
+            $sortField = $request->input('sort_by', 'created_at');
+            $sortOrder = $request->input('sort_order', 'desc');
+            $productVariants = $query->orderBy($sortField, $sortOrder)->paginate($perPage);
 
-            return ProductVariantResource::collection($productVariants)->additional([
-                'total' => $productVariants->total(),
-                'current_page' => $productVariants->currentPage(),
-                'last_page' => $productVariants->lastPage(),
-            ]);
+            return api_success($productVariants, 'تم جلب متغيرات المنتجات بنجاح');
         } catch (Throwable $e) {
-            Log::error('ProductVariant index failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            return response()->json([
-                'error' => 'Error retrieving product variants.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e);
         }
     }
 
@@ -128,25 +100,22 @@ class ProductVariantController extends Controller
      * Store a newly created resource in storage.
      *
      * @param StoreProductVariantRequest $request
-     * @return \Illuminate\Http\JsonResponse|\App\Http\Resources\ProductVariant\ProductVariantResource
+     * @return \Illuminate\Http\JsonResponse
      */
-    public function store(StoreProductVariantRequest $request)
+    public function store(StoreProductVariantRequest $request): JsonResponse
     {
         try {
             /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
             if (!$authUser || !$companyId) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'Authentication or company association required.'], 403);
+                return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
             // صلاحيات إنشاء متغير منتج
             if (!$authUser->hasPermissionTo(perm_key('admin.super')) && !$authUser->hasPermissionTo(perm_key('product_variants.create')) && !$authUser->hasPermissionTo(perm_key('admin.company'))) {
-                return response()->json([
-                    'error' => 'Unauthorized',
-                    'message' => 'You are not authorized to create product variants.'
-                ], 403);
+                return api_forbidden('ليس لديك صلاحية لإنشاء متغيرات المنتجات.');
             }
 
             DB::beginTransaction();
@@ -157,7 +126,7 @@ class ProductVariantController extends Controller
                 $product = Product::with('company')->find($validated['product_id']);
                 if (!$product || (!$authUser->hasPermissionTo(perm_key('admin.super')) && $product->company_id !== $companyId)) {
                     DB::rollBack();
-                    return response()->json(['error' => 'Forbidden', 'message' => 'Product not found or not accessible within your company.'], 403);
+                    return api_forbidden('المنتج غير موجود أو غير متاح ضمن شركتك.');
                 }
 
                 // إذا كان المستخدم super_admin ويحدد company_id، يسمح بذلك. وإلا، استخدم company_id للمنتج الأم.
@@ -168,7 +137,7 @@ class ProductVariantController extends Controller
                 // التأكد من أن المستخدم مصرح له بإنشاء متغير لهذه الشركة
                 if ($variantCompanyId != $companyId && !$authUser->hasPermissionTo(perm_key('admin.super'))) {
                     DB::rollBack();
-                    return response()->json(['error' => 'Unauthorized', 'message' => 'You can only create product variants for your current company unless you are a Super Admin.'], 403);
+                    return api_forbidden('يمكنك فقط إنشاء متغيرات منتجات لشركتك الحالية ما لم تكن مسؤولاً عامًا.');
                 }
 
                 $validated['company_id'] = $variantCompanyId;
@@ -190,7 +159,7 @@ class ProductVariantController extends Controller
                     }
                 }
 
-                // حفظ المخزون (stocks) - لاحظ أن العلاقة هي 'stocks' وليس 'stock' إذا كان يمكن أن يكون هناك مخزون متعدد
+                // حفظ المخزون (stocks)
                 if ($request->has('stocks') && is_array($request->input('stocks'))) {
                     foreach ($request->input('stocks') as $stockData) {
                         if (!empty($stockData['warehouse_id'])) {
@@ -213,51 +182,16 @@ class ProductVariantController extends Controller
                 }
 
                 DB::commit();
-                Log::info('Product variant created successfully.', ['product_variant_id' => $productVariant->id, 'product_id' => $product->id, 'user_id' => $authUser->id, 'company_id' => $companyId]);
-                return new ProductVariantResource($productVariant->load($this->relations));
+                return api_success(new ProductVariantResource($productVariant->load($this->relations)), 'تم إنشاء متغير المنتج بنجاح.', 201);
             } catch (ValidationException $e) {
                 DB::rollBack();
-                Log::error('ProductVariant store validation failed: ' . $e->getMessage(), [
-                    'errors' => $e->errors(),
-                    'user_id' => Auth::id(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ]);
-                return response()->json([
-                    'status' => 'error',
-                    'message' => $e->getMessage(),
-                    'errors' => $e->errors(),
-                ], 422);
+                return api_error('فشل التحقق من صحة البيانات أثناء تخزين متغير المنتج.', $e->errors(), 422);
             } catch (Throwable $e) {
                 DB::rollBack();
-                Log::error('ProductVariant store failed in transaction: ' . $e->getMessage(), [
-                    'exception' => $e,
-                    'user_id' => Auth::id(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                    'trace' => $e->getTraceAsString(),
-                ]);
-                return response()->json([
-                    'error' => 'Error saving product variant.',
-                    'details' => $e->getMessage(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ], 500);
+                return api_error('حدث خطأ أثناء حفظ متغير المنتج.', [], 500);
             }
         } catch (Throwable $e) {
-            Log::error('ProductVariant store failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            return response()->json([
-                'error' => 'Error saving product variant.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e);
         }
     }
 
@@ -265,17 +199,17 @@ class ProductVariantController extends Controller
      * Display the specified resource.
      *
      * @param string $id
-     * @return \Illuminate\Http\JsonResponse|\App\Http\Resources\ProductVariant\ProductVariantResource
+     * @return \Illuminate\Http\JsonResponse
      */
-    public function show(string $id)
+    public function show(string $id): JsonResponse
     {
         try {
             /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
             if (!$authUser || !$companyId) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'Authentication or company association required.'], 403);
+                return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
             $productVariant = ProductVariant::with($this->relations)->findOrFail($id);
@@ -293,30 +227,15 @@ class ProductVariantController extends Controller
             } elseif ($authUser->hasPermissionTo(perm_key('product_variants.view_self'))) {
                 // يرى إذا كان المتغير أنشأه هو وتابع للشركة النشطة
                 $canView = $productVariant->belongsToCurrentCompany() && $productVariant->createdByCurrentUser();
-            } else {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to view this product variant.'], 403);
             }
 
             if ($canView) {
-                return new ProductVariantResource($productVariant);
+                return api_success(new ProductVariantResource($productVariant), 'تم استرداد متغير المنتج بنجاح.');
             }
 
-            return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to view this product variant.'], 403);
+            return api_forbidden('ليس لديك صلاحية لعرض متغير المنتج هذا.');
         } catch (Throwable $e) {
-            Log::error('ProductVariant show failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'product_variant_id' => $id,
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            return response()->json([
-                'error' => 'Error retrieving product variant.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e);
         }
     }
 
@@ -325,17 +244,17 @@ class ProductVariantController extends Controller
      *
      * @param UpdateProductVariantRequest $request
      * @param string $id
-     * @return \Illuminate\Http\JsonResponse|\App\Http\Resources\ProductVariant\ProductVariantResource
+     * @return \Illuminate\Http\JsonResponse
      */
-    public function update(UpdateProductVariantRequest $request, string $id)
+    public function update(UpdateProductVariantRequest $request, string $id): JsonResponse
     {
         try {
             /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
             if (!$authUser || !$companyId) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'Authentication or company association required.'], 403);
+                return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
             // يجب تحميل العلاقات الضرورية للتحقق من الصلاحيات (مثل الشركة والمنشئ)
@@ -354,12 +273,10 @@ class ProductVariantController extends Controller
             } elseif ($authUser->hasPermissionTo(perm_key('product_variants.update_self'))) {
                 // يمكنه تعديل متغيره الخاص الذي أنشأه وتابع للشركة النشطة
                 $canUpdate = $productVariant->belongsToCurrentCompany() && $productVariant->createdByCurrentUser();
-            } else {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to update this product variant.'], 403);
             }
 
             if (!$canUpdate) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to update this product variant.'], 403);
+                return api_forbidden('ليس لديك صلاحية لتحديث متغير المنتج هذا.');
             }
 
             DB::beginTransaction();
@@ -372,7 +289,7 @@ class ProductVariantController extends Controller
                     $newProduct = Product::with('company')->find($validated['product_id']);
                     if (!$newProduct || (!$authUser->hasPermissionTo(perm_key('admin.super')) && $newProduct->company_id !== $companyId)) {
                         DB::rollBack();
-                        return response()->json(['error' => 'Forbidden', 'message' => 'New product not found or not accessible within your company.'], 403);
+                        return api_forbidden('المنتج الجديد غير موجود أو غير متاح ضمن شركتك.');
                     }
                 }
 
@@ -384,7 +301,7 @@ class ProductVariantController extends Controller
                 // التأكد من أن المستخدم مصرح له بتعديل متغير لشركة أخرى (فقط سوبر أدمن)
                 if ($variantCompanyId != $productVariant->company_id && !$authUser->hasPermissionTo(perm_key('admin.super'))) {
                     DB::rollBack();
-                    return response()->json(['error' => 'Unauthorized', 'message' => 'You cannot change a product variant\'s company unless you are a Super Admin.'], 403);
+                    return api_forbidden('لا يمكنك تغيير شركة متغير المنتج إلا إذا كنت مدير عام.');
                 }
 
                 $validated['company_id'] = $variantCompanyId; // تحديث company_id في البيانات المصدقة
@@ -447,54 +364,16 @@ class ProductVariantController extends Controller
 
 
                 DB::commit();
-                Log::info('Product variant updated successfully.', ['product_variant_id' => $productVariant->id, 'user_id' => $authUser->id, 'company_id' => $companyId]);
-                return new ProductVariantResource($productVariant->load($this->relations));
+                return api_success(new ProductVariantResource($productVariant->load($this->relations)), 'تم تحديث متغير المنتج بنجاح.');
             } catch (ValidationException $e) {
                 DB::rollBack();
-                Log::error('ProductVariant update validation failed: ' . $e->getMessage(), [
-                    'errors' => $e->errors(),
-                    'user_id' => Auth::id(),
-                    'product_variant_id' => $id,
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ]);
-                return response()->json([
-                    'status' => 'error',
-                    'message' => $e->getMessage(),
-                    'errors' => $e->errors(),
-                ], 422);
+                return api_error('فشل التحقق من صحة البيانات أثناء تحديث متغير المنتج.', $e->errors(), 422);
             } catch (Throwable $e) {
                 DB::rollBack();
-                Log::error('ProductVariant update failed in transaction: ' . $e->getMessage(), [
-                    'exception' => $e,
-                    'user_id' => Auth::id(),
-                    'product_variant_id' => $id,
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                    'trace' => $e->getTraceAsString(),
-                ]);
-                return response()->json([
-                    'error' => 'Error updating product variant.',
-                    'details' => $e->getMessage(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ], 500);
+                return api_error('حدث خطأ أثناء تحديث متغير المنتج.', [], 500);
             }
         } catch (Throwable $e) {
-            Log::error('ProductVariant update failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'product_variant_id' => $id,
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            return response()->json([
-                'error' => 'Error updating product variant.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e);
         }
     }
 
@@ -504,19 +383,19 @@ class ProductVariantController extends Controller
      * @param string $id
      * @return \Illuminate\Http\JsonResponse
      */
-    public function destroy(string $id)
+    public function destroy(string $id): JsonResponse
     {
         try {
             /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
             if (!$authUser || !$companyId) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'Authentication or company association required.'], 403);
+                return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
             // يجب تحميل العلاقات الضرورية للتحقق من الصلاحيات (مثل الشركة والمنشئ)
-            $productVariant = ProductVariant::with(['company', 'creator'])->findOrFail($id);
+            $productVariant = ProductVariant::with(['company', 'creator', 'stocks', 'attributes'])->findOrFail($id);
 
             // التحقق من صلاحيات الحذف
             $canDelete = false;
@@ -531,56 +410,31 @@ class ProductVariantController extends Controller
             } elseif ($authUser->hasPermissionTo(perm_key('product_variants.delete_self'))) {
                 // يمكنه حذف متغيره الخاص الذي أنشأه وتابع للشركة النشطة
                 $canDelete = $productVariant->belongsToCurrentCompany() && $productVariant->createdByCurrentUser();
-            } else {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to delete this product variant.'], 403);
             }
 
             if (!$canDelete) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to delete this product variant.'], 403);
+                return api_forbidden('ليس لديك صلاحية لحذف متغير المنتج هذا.');
             }
 
             DB::beginTransaction();
             try {
+                // حفظ نسخة من المتغير قبل حذفه لإرجاعها في الاستجابة
+                $deletedProductVariant = $productVariant->replicate();
+                $deletedProductVariant->setRelations($productVariant->getRelations());
+
                 // حذف العلاقات التابعة لـ ProductVariant (Stocks, Attributes) أولاً
                 $productVariant->stocks()->delete();
                 $productVariant->attributes()->delete();
                 $productVariant->delete();
 
                 DB::commit();
-                Log::info('Product variant deleted successfully.', ['product_variant_id' => $id, 'user_id' => $authUser->id, 'company_id' => $companyId]);
-                return response()->json(['message' => 'Product variant deleted successfully'], 200);
+                return api_success(new ProductVariantResource($deletedProductVariant), 'تم حذف متغير المنتج بنجاح.');
             } catch (Throwable $e) {
                 DB::rollBack();
-                Log::error('ProductVariant deletion failed: ' . $e->getMessage(), [
-                    'exception' => $e,
-                    'user_id' => Auth::id(),
-                    'product_variant_id' => $id,
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                    'trace' => $e->getTraceAsString(),
-                ]);
-                return response()->json([
-                    'error' => 'Error deleting product variant.',
-                    'details' => $e->getMessage(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ], 500);
+                return api_error('حدث خطأ أثناء حذف متغير المنتج.', [], 500);
             }
         } catch (Throwable $e) {
-            Log::error('ProductVariant deletion failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'product_variant_id' => $id,
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            return response()->json([
-                'error' => 'Error deleting product variant.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e);
         }
     }
 
@@ -588,23 +442,23 @@ class ProductVariantController extends Controller
      * البحث عن متغيرات منتج باستخدام براميتر بحث وتطبيق الصلاحيات.
      *
      * @param Request $request
-     * @return \Illuminate\Http\JsonResponse|\Illuminate\Http\Resources\Json\AnonymousResourceCollection
+     * @return \Illuminate\Http\JsonResponse
      */
-    public function searchByProduct(Request $request)
+    public function searchByProduct(Request $request): JsonResponse
     {
         try {
             /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
             if (!$authUser || !$companyId) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'Authentication or company association required.'], 403);
+                return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
             $search = $request->get('search');
             // إذا كان البحث فارغًا أو قصيرًا جدًا، ارجع مجموعة فارغة
             if (empty($search) || mb_strlen($search) <= 2) {
-                return ProductVariantResource::collection(collect([]));
+                return api_success([], 'لا توجد نتائج بحث.');
             }
 
             $productQuery = Product::query();
@@ -620,7 +474,7 @@ class ProductVariantController extends Controller
                 $productQuery->whereCompanyIsCurrent()->whereCreatedByUser();
             } else {
                 // إذا لم يكن لديه صلاحية رؤية أي منتج أو متغير، ارجع مجموعة فارغة
-                return ProductVariantResource::collection(collect([]));
+                return api_forbidden('ليس لديك صلاحية لعرض المنتجات أو متغيراتها.');
             }
 
             $productQuery->where(function ($q) use ($search) {
@@ -631,32 +485,19 @@ class ProductVariantController extends Controller
 
             $perPage = max(1, (int) $request->get('per_page', 10));
 
-            $products = $productQuery->with(['variants' => function ($query) {
+            $productsWithVariants = $productQuery->with(['variants' => function ($query) {
                 // تحميل العلاقات المطلوبة للمتغيرات
                 $query->with($this->relations);
             }])->paginate($perPage);
 
             // استخلاص جميع المتغيرات من المنتجات المفلترة
-            $variants = collect($products->items())->flatMap(function ($product) {
+            $variants = collect($productsWithVariants->items())->flatMap(function ($product) {
                 return $product->variants;
             });
-
-            // إرجاع المتغيرات كـ ProductVariantResource
-            return ProductVariantResource::collection($variants);
+            // إذا لم توجد متغيرات، ارجع مجموعة فارغة
+            return api_success(ProductVariantResource::collection($variants), 'تم العثور على متغيرات المنتجات بنجاح.');
         } catch (Throwable $e) {
-            Log::error('ProductVariant searchByProduct failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            return response()->json([
-                'error' => 'Error searching product variants.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e);
         }
     }
 }

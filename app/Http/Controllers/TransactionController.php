@@ -10,17 +10,16 @@ use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
 use Illuminate\Validation\ValidationException;
 use App\Http\Resources\Transaction\TransactionResource;
-use Illuminate\Support\Facades\Log; // تم تصحيح هذا الخطأ
-use Illuminate\Support\Facades\Auth; // تم تصحيح هذا الخطأ
-use Throwable; // استخدام Throwable للتعامل الشامل مع الأخطاء والاستثناءات
+use Illuminate\Support\Facades\Auth;
+use Throwable;
 
-// دالة مساعدة لضمان الاتساق في مفاتيح الأذونات (إذا لم تكن معرفة عالميا)
-// if (!function_exists('perm_key')) {
-//     function perm_key(string $permission): string
-//     {
-//         return $permission;
-//     }
-// }
+// تأكد من أن هذه الدالة متاحة عالميًا أو داخل هذا النطاق
+if (!function_exists('perm_key')) {
+    function perm_key(string $permission): string
+    {
+        return $permission;
+    }
+}
 
 class TransactionController extends Controller
 {
@@ -33,8 +32,8 @@ class TransactionController extends Controller
             'targetUser',
             'cashbox',
             'targetCashbox',
-            'company',   // للتحقق من belongsToCurrentCompany
-            'creator',   // للتحقق من createdByCurrentUser/OrChildren
+            'company',
+            'creator',
         ];
     }
 
@@ -49,15 +48,15 @@ class TransactionController extends Controller
         try {
             /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
             if (!$authUser || !$companyId) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'Authentication or company association required.'], 403);
+                return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
             // صلاحية خاصة لتحويل الأموال (موازية لـ transactions.create)
             if (!$authUser->hasPermissionTo(perm_key('admin.super')) && !$authUser->hasPermissionTo(perm_key('transactions.create')) && !$authUser->hasPermissionTo(perm_key('admin.company'))) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You do not have permission to transfer funds.'], 403);
+                return api_forbidden('ليس لديك إذن لتحويل الأموال.');
             }
 
             $validated = $request->validate([
@@ -66,13 +65,13 @@ class TransactionController extends Controller
                 'from_cash_box_id' => ['required', 'exists:cash_boxes,id', function ($attribute, $value, $fail) use ($authUser, $companyId) {
                     $cashBox = CashBox::with(['company'])->find($value);
                     if (!$cashBox || (!$authUser->hasPermissionTo(perm_key('admin.super')) && $cashBox->company_id !== $companyId)) {
-                        $fail('The selected source cash box is invalid or not accessible.');
+                        $fail('صندوق النقد المصدر المحدد غير صالح أو غير متاح.');
                     }
                 }],
                 'to_cash_box_id' => ['required', 'exists:cash_boxes,id', 'different:from_cash_box_id', function ($attribute, $value, $fail) use ($authUser, $companyId) {
                     $toCashBox = CashBox::with(['company'])->find($value);
                     if (!$toCashBox || (!$authUser->hasPermissionTo(perm_key('admin.super')) && $toCashBox->company_id !== $companyId)) {
-                        $fail('The selected target cash box is invalid or not accessible.');
+                        $fail('صندوق النقد المستهدف المحدد غير صالح أو غير متاح.');
                     }
                 }],
                 'description' => 'nullable|string',
@@ -81,7 +80,7 @@ class TransactionController extends Controller
             $targetUser = User::where('id', $validated['target_user_id'])->first();
 
             if (!$targetUser) {
-                return response()->json(['error' => 'Not Found', 'message' => 'Target user not found.'], 404);
+                return api_not_found('المستخدم المستهدف غير موجود.');
             }
 
             $fromCashBox = CashBox::findOrFail($validated['from_cash_box_id']);
@@ -90,7 +89,7 @@ class TransactionController extends Controller
             // التأكد من أن الصناديق تابعة لشركة المستخدم (أو أن المستخدم super_admin)
             if (!$authUser->hasPermissionTo(perm_key('admin.super'))) {
                 if (!$fromCashBox->belongsToCurrentCompany() || !$toCashBox->belongsToCurrentCompany()) {
-                    return response()->json(['error' => 'Unauthorized', 'message' => 'You can only transfer funds between cash boxes within your company.'], 403);
+                    return api_forbidden('يمكنك فقط تحويل الأموال بين الصناديق النقدية داخل شركتك.');
                 }
             }
 
@@ -106,57 +105,15 @@ class TransactionController extends Controller
                 );
 
                 DB::commit();
-                Log::info('Funds transferred successfully.', [
-                    'from_user_id' => $authUser->id,
-                    'to_user_id' => $targetUser->id,
-                    'amount' => $validated['amount'],
-                    'from_cash_box_id' => $validated['from_cash_box_id'],
-                    'to_cash_box_id' => $validated['to_cash_box_id'],
-                    'company_id' => $companyId,
-                ]);
-                return response()->json(['message' => 'Transfer successful'], 200);
+                return api_success([], 'تم التحويل بنجاح.');
             } catch (Throwable $e) {
                 DB::rollBack();
-                Log::error('Funds transfer failed in transaction: ' . $e->getMessage(), [
-                    'exception' => $e,
-                    'user_id' => Auth::id(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                    'trace' => $e->getTraceAsString(),
-                ]);
-                return response()->json([
-                    'error' => 'Transfer failed. Please try again.',
-                    'details' => $e->getMessage(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ], 500);
+                return api_error('فشل التحويل. يرجى المحاولة مرة أخرى.', [], 500);
             }
         } catch (ValidationException $e) {
-            Log::error('Funds transfer validation failed: ' . $e->getMessage(), [
-                'errors' => $e->errors(),
-                'user_id' => Auth::id(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ]);
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Validation failed during fund transfer.',
-                'errors' => $e->errors(),
-            ], 422);
+            return api_error('فشل التحقق من صحة البيانات أثناء تحويل الأموال.', $e->errors(), 422);
         } catch (Throwable $e) {
-            Log::error('Funds transfer failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            return response()->json([
-                'error' => 'Transfer failed. An unexpected error occurred.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e, 500);
         }
     }
 
@@ -171,10 +128,10 @@ class TransactionController extends Controller
         try {
             /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
             if (!$authUser || !$companyId) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'Authentication or company association required.'], 403);
+                return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
             $query = Transaction::with($this->relations);
@@ -204,31 +161,15 @@ class TransactionController extends Controller
             }
 
             $perPage = max(1, $request->get('per_page', 10));
-            $sortField = $request->get('sort_by', 'created_at'); // الترتيب الافتراضي حسب التاريخ
+            $sortField = $request->get('sort_by', 'created_at');
             $sortOrder = $request->get('sort_order', 'desc');
 
             $transactions = $query->orderBy($sortField, $sortOrder)->paginate($perPage);
 
-            return TransactionResource::collection($transactions)
-                ->additional([
-                    'total' => $transactions->total(),
-                    'current_page' => $transactions->currentPage(),
-                    'last_page' => $transactions->lastPage(),
-                ]);
+            // استخدام api_success مع Pagination
+            return api_success($transactions, 'تم استرداد معاملات المستخدم بنجاح.');
         } catch (Throwable $e) {
-            Log::error('User transactions retrieval failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            return response()->json([
-                'error' => 'Error retrieving user transactions.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e, 500);
         }
     }
 
@@ -243,15 +184,15 @@ class TransactionController extends Controller
         try {
             /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
             if (!$authUser || !$companyId) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'Authentication or company association required.'], 403);
+                return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
             // صلاحية الإيداع (تندرج تحت إنشاء معاملة)
             if (!$authUser->hasPermissionTo(perm_key('admin.super')) && !$authUser->hasPermissionTo(perm_key('transactions.create')) && !$authUser->hasPermissionTo(perm_key('admin.company'))) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to make a deposit.'], 403);
+                return api_forbidden('ليس لديك إذن لإجراء إيداع.');
             }
 
             $validated = $request->validate([
@@ -259,7 +200,7 @@ class TransactionController extends Controller
                 'cash_box_id' => ['required', 'exists:cash_boxes,id', function ($attribute, $value, $fail) use ($authUser, $companyId) {
                     $cashBox = CashBox::with(['company'])->find($value);
                     if (!$cashBox || (!$authUser->hasPermissionTo(perm_key('admin.super')) && $cashBox->company_id !== $companyId)) {
-                        $fail('The selected cash box is invalid or not accessible.');
+                        $fail('صندوق النقد المحدد غير صالح أو غير متاح.');
                     }
                 }],
                 'description' => 'nullable|string',
@@ -274,55 +215,15 @@ class TransactionController extends Controller
                 );
 
                 DB::commit();
-                Log::info('Deposit successful.', [
-                    'user_id' => $authUser->id,
-                    'amount' => $validated['amount'],
-                    'cash_box_id' => $validated['cash_box_id'],
-                    'company_id' => $companyId,
-                ]);
-                return response()->json(['message' => 'Deposit successful'], 200);
+                return api_success([], 'تم الإيداع بنجاح.');
             } catch (Throwable $e) {
                 DB::rollBack();
-                Log::error('Deposit failed in transaction: ' . $e->getMessage(), [
-                    'exception' => $e,
-                    'user_id' => Auth::id(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                    'trace' => $e->getTraceAsString(),
-                ]);
-                return response()->json([
-                    'error' => 'Deposit failed. Please try again.',
-                    'details' => $e->getMessage(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ], 500);
+                return api_error('فشل الإيداع. يرجى المحاولة مرة أخرى.', [], 500);
             }
         } catch (ValidationException $e) {
-            Log::error('Deposit validation failed: ' . $e->getMessage(), [
-                'errors' => $e->errors(),
-                'user_id' => Auth::id(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ]);
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Validation failed during deposit.',
-                'errors' => $e->errors(),
-            ], 422);
+            return api_error('فشل التحقق من صحة البيانات أثناء الإيداع.', $e->errors(), 422);
         } catch (Throwable $e) {
-            Log::error('Deposit failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            return response()->json([
-                'error' => 'Deposit failed. An unexpected error occurred.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e, 500);
         }
     }
 
@@ -337,15 +238,15 @@ class TransactionController extends Controller
         try {
             /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
             if (!$authUser || !$companyId) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'Authentication or company association required.'], 403);
+                return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
             // صلاحية السحب (تندرج تحت إنشاء معاملة)
             if (!$authUser->hasPermissionTo(perm_key('admin.super')) && !$authUser->hasPermissionTo(perm_key('transactions.create')) && !$authUser->hasPermissionTo(perm_key('admin.company'))) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to make a withdrawal.'], 403);
+                return api_forbidden('ليس لديك إذن لإجراء سحب.');
             }
 
             $validated = $request->validate([
@@ -353,7 +254,7 @@ class TransactionController extends Controller
                 'cash_box_id' => ['required', 'exists:cash_boxes,id', function ($attribute, $value, $fail) use ($authUser, $companyId) {
                     $cashBox = CashBox::with(['company'])->find($value);
                     if (!$cashBox || (!$authUser->hasPermissionTo(perm_key('admin.super')) && $cashBox->company_id !== $companyId)) {
-                        $fail('The selected cash box is invalid or not accessible.');
+                        $fail('صندوق النقد المحدد غير صالح أو غير متاح.');
                     }
                 }],
                 'description' => 'nullable|string',
@@ -365,7 +266,7 @@ class TransactionController extends Controller
                 $currentBalance = $authUser->balanceBox($validated['cash_box_id']);
                 if ($currentBalance < $validated['amount']) {
                     DB::rollBack();
-                    return response()->json(['error' => 'Insufficient funds', 'message' => 'Not enough balance in the selected cash box.'], 422);
+                    return api_error('الرصيد غير كافٍ في صندوق النقد المحدد.', [], 422);
                 }
 
                 $authUser->withdraw(
@@ -375,55 +276,15 @@ class TransactionController extends Controller
                 );
 
                 DB::commit();
-                Log::info('Withdrawal successful.', [
-                    'user_id' => $authUser->id,
-                    'amount' => $validated['amount'],
-                    'cash_box_id' => $validated['cash_box_id'],
-                    'company_id' => $companyId,
-                ]);
-                return response()->json(['message' => 'Withdrawal successful'], 200);
+                return api_success([], 'تم السحب بنجاح.');
             } catch (Throwable $e) {
                 DB::rollBack();
-                Log::error('Withdrawal failed in transaction: ' . $e->getMessage(), [
-                    'exception' => $e,
-                    'user_id' => Auth::id(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                    'trace' => $e->getTraceAsString(),
-                ]);
-                return response()->json([
-                    'error' => 'Withdrawal failed. Please try again.',
-                    'details' => $e->getMessage(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ], 500);
+                return api_error('فشل السحب. يرجى المحاولة مرة أخرى.', [], 500);
             }
         } catch (ValidationException $e) {
-            Log::error('Withdrawal validation failed: ' . $e->getMessage(), [
-                'errors' => $e->errors(),
-                'user_id' => Auth::id(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ]);
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Validation failed during withdrawal.',
-                'errors' => $e->errors(),
-            ], 422);
+            return api_error('فشل التحقق من صحة البيانات أثناء السحب.', $e->errors(), 422);
         } catch (Throwable $e) {
-            Log::error('Withdrawal failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            return response()->json([
-                'error' => 'Withdrawal failed. An unexpected error occurred.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e, 500);
         }
     }
 
@@ -438,10 +299,10 @@ class TransactionController extends Controller
         try {
             /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
             if (!$authUser || !$companyId) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'Authentication or company association required.'], 403);
+                return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
             $query = Transaction::with($this->relations);
@@ -459,7 +320,7 @@ class TransactionController extends Controller
                 // يرى المعاملات التي أنشأها المستخدم فقط، ومرتبطة بالشركة
                 $query->whereCompanyIsCurrent()->whereCreatedByUser();
             } else {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to view transactions.'], 403);
+                return api_forbidden('ليس لديك إذن لعرض المعاملات.');
             }
 
             // فلاتر البحث
@@ -485,37 +346,19 @@ class TransactionController extends Controller
                 $query->where('cashbox_id', $request->input('cashbox_id'));
             }
 
-
             // تحديد الترتيب
-            $sortField = $request->get('sort_by', 'created_at'); // الحقل المراد الترتيب بناءً عليه
-            $sortOrder = $request->get('sort_order', 'desc'); // نوع الترتيب (تصاعدي/تنازلي)
+            $sortField = $request->get('sort_by', 'created_at');
+            $sortOrder = $request->get('sort_order', 'desc');
             $query->orderBy($sortField, $sortOrder);
 
             // تقسيم النتائج إلى صفحات
-            $perPage = max(1, $request->get('per_page', 10)); // عدد العناصر في الصفحة
+            $perPage = max(1, $request->get('per_page', 10));
             $transactions = $query->paginate($perPage);
 
-            // تنسيق البيانات للإرجاع
-            return response()->json([
-                'data' => TransactionResource::collection($transactions)->items(),
-                'total' => $transactions->total(),
-                'current_page' => $transactions->currentPage(),
-                'last_page' => $transactions->lastPage(),
-            ]);
+            // استخدام api_success مع Pagination
+            return api_success($transactions, 'تم استرداد المعاملات بنجاح.');
         } catch (Throwable $e) {
-            Log::error('Transactions index failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            return response()->json([
-                'error' => 'Error retrieving transactions.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e, 500);
         }
     }
 
@@ -530,10 +373,10 @@ class TransactionController extends Controller
         try {
             /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
             if (!$authUser || !$companyId) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'Authentication or company association required.'], 403);
+                return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
             DB::beginTransaction();
@@ -545,22 +388,19 @@ class TransactionController extends Controller
                 // التحقق من الصلاحيات بناءً على الأذونات
                 $canReverse = false;
                 if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
-                    $canReverse = true; // المسؤول العام يمكنه عكس أي معاملة
+                    $canReverse = true;
                 } elseif ($authUser->hasAnyPermission([perm_key('transactions.update_all'), perm_key('admin.company')])) {
-                    // يستطيع عكس المعاملات داخل الشركة النشطة
                     $canReverse = $transaction->belongsToCurrentCompany();
                 } elseif ($authUser->hasPermissionTo(perm_key('transactions.update_children'))) {
-                    // يستطيع عكس المعاملات التي أنشأها هو أو المستخدمون التابعون له، ضمن الشركة
                     $canReverse = $transaction->belongsToCurrentCompany() && $transaction->createdByUserOrChildren();
                 } elseif ($authUser->hasPermissionTo(perm_key('transactions.update_self'))) {
-                    // يستطيع عكس المعاملات التي أنشأها هو فقط، ضمن الشركة
                     $canReverse = $transaction->belongsToCurrentCompany() && $transaction->createdByCurrentUser();
                 } else {
-                    return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to reverse this transaction.'], 403);
+                    return api_forbidden('ليس لديك إذن لعكس هذه المعاملة.');
                 }
 
                 if (!$canReverse) {
-                    return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to reverse this transaction.'], 403);
+                    return api_forbidden('ليس لديك إذن لعكس هذه المعاملة.');
                 }
 
                 // التحقق من نوع المعاملة
@@ -595,49 +435,13 @@ class TransactionController extends Controller
                 ]);
 
                 DB::commit();
-                Log::info('Transaction reversed successfully.', [
-                    'original_transaction_id' => $transaction->id,
-                    'reversed_transaction_id' => $reversedTransaction->id,
-                    'user_id' => $authUser->id,
-                    'company_id' => $companyId,
-                ]);
-
-                return response()->json([
-                    'message' => 'تم عكس المعاملة بنجاح',
-                    'transaction' => new TransactionResource($reversedTransaction),
-                ], 200);
+                return api_success(new TransactionResource($reversedTransaction), 'تم عكس المعاملة بنجاح.');
             } catch (Throwable $e) {
                 DB::rollBack();
-                Log::error('Transaction reversal failed in transaction: ' . $e->getMessage(), [
-                    'exception' => $e,
-                    'user_id' => Auth::id(),
-                    'transaction_id' => $transactionId,
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                    'trace' => $e->getTraceAsString(),
-                ]);
-                return response()->json([
-                    'error' => 'Failed to reverse transaction. Please try again.',
-                    'details' => $e->getMessage(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ], 500);
+                return api_error('فشل عكس المعاملة. يرجى المحاولة مرة أخرى.', [], 500);
             }
         } catch (Throwable $e) {
-            Log::error('Transaction reversal failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'transaction_id' => $transactionId,
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            return response()->json([
-                'error' => 'Failed to reverse transaction. An unexpected error occurred.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e, 500);
         }
     }
 }
