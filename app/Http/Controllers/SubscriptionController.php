@@ -117,25 +117,41 @@ class SubscriptionController extends Controller
                 return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
-            if (!$authUser->hasPermissionTo(perm_key('admin.super')) && !$authUser->hasPermissionTo(perm_key('subscriptions.create')) && !$authUser->hasPermissionTo(perm_key('admin.company'))) {
+            $hasPermission = $authUser->hasAnyPermission([
+                perm_key('admin.super'),
+                perm_key('subscriptions.create'),
+                perm_key('admin.company'),
+            ]);
+
+            if (!$hasPermission) {
                 return api_forbidden('ليس لديك إذن لإنشاء اشتراكات.');
             }
 
             DB::beginTransaction();
+
             try {
                 $validatedData = $request->validated();
                 $validatedData['created_by'] = $authUser->id;
 
-                // التحقق من أن المستخدم والخطة ينتميان لنفس الشركة
+                // تحقق من أن المستخدم والخطة ينتميان لنفس الشركة
                 $user = \App\Models\User::where('id', $validatedData['user_id'])
                     ->where('company_id', $companyId)
-                    ->firstOrFail();
+                    ->first();
+
+                if (!$user) {
+                    return api_error('المستخدم غير موجود .', [], 404);
+                }
                 $plan = \App\Models\Plan::where('id', $validatedData['plan_id'])
                     ->where('company_id', $companyId)
-                    ->firstOrFail();
+                    ->first();
+
+                if (!$plan) {
+                    return api_error('خطة التقسيط المحددة غير موجودة .', [], 404);
+                }
 
                 $subscription = Subscription::create($validatedData);
                 $subscription->load($this->relations);
+
                 DB::commit();
                 return api_success(new SubscriptionResource($subscription), 'تم إنشاء الاشتراك بنجاح.', 201);
             } catch (ValidationException $e) {
@@ -143,7 +159,7 @@ class SubscriptionController extends Controller
                 return api_error('فشل التحقق من صحة البيانات أثناء تخزين الاشتراك.', $e->errors(), 422);
             } catch (Throwable $e) {
                 DB::rollBack();
-                return api_error('حدث خطأ أثناء حفظ الاشتراك.', [], 500);
+                return api_exception($e, 500);
             }
         } catch (Throwable $e) {
             return api_exception($e);

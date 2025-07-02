@@ -73,15 +73,21 @@ class InstallmentService
         ]);
 
         $cashBoxId = $data['cash_box_id'] ?? null;
-        // تحديث الرصيد: خصم المتبقي من رصيد المشتري، وزيادة الدفعة المقدمة لرصيد الأوث يوزر
         $authUser = Auth::user();
-        if ($downPayment > 0 && $authUser) {
-            $authUser->deposit($downPayment, $cashBoxId);
-        }
-        if ($remaining > 0 && $userId) {
-            $buyer = \App\Models\User::find($userId);
-            if ($buyer) {
-                $buyer->withdraw($remaining, $cashBoxId);
+        // إذا كان المشتري هو نفسه الموظف
+        if ($userId && $authUser && $userId == $authUser->id) {
+            app(\App\Services\UserSelfDebtService::class)
+                ->registerInstallmentPayment($authUser, $downPayment, $remaining, $cashBoxId, $planModel->company_id ?? null);
+        } else {
+            // تحديث الرصيد: خصم المتبقي من رصيد المشتري، وزيادة الدفعة المقدمة لرصيد الأوث يوزر
+            if ($downPayment > 0 && $authUser) {
+                $authUser->deposit($downPayment, $cashBoxId);
+            }
+            if ($remaining > 0 && $userId) {
+                $buyer = \App\Models\User::find($userId);
+                if ($buyer) {
+                    $buyer->withdraw($remaining, $cashBoxId);
+                }
             }
         }
 

@@ -32,14 +32,14 @@ class PurchaseInvoiceService implements DocumentServiceInterface
         // زيادة الكمية في المخزون
         foreach ($data['items'] as $item) {
             $currentVariant = ProductVariant::find($item['variant_id']);
-            $stock = $currentVariant->stocks()->where('status', 'available')->orderBy('created_at', 'desc')->first();
+            $stock          = $currentVariant->stocks()->where('status', 'available')->orderBy('created_at', 'desc')->first();
             if ($stock) {
                 $stock->increment('quantity', $item['quantity']);
             } else {
                 \App\Models\Stock::create([
                     'variant_id' => $item['variant_id'],
-                    'quantity' => $item['quantity'],
-                    'status' => 'available',
+                    'quantity'   => $item['quantity'],
+                    'status'     => 'available',
                     'company_id' => $data['company_id'] ?? null,
                     'created_by' => $data['created_by'] ?? null,
                 ]);
