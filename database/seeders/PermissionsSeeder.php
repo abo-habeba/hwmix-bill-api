@@ -17,9 +17,18 @@ class PermissionsSeeder extends Seeder
      */
     public function run()
     {
+        // ✅ تنظيف كل أنواع الكاش (Application + Config + Route + View + Compiled)
+        \Artisan::call('cache:clear');
+        \Artisan::call('config:clear');
+        \Artisan::call('route:clear');
+        \Artisan::call('view:clear');
+        \Artisan::call('clear-compiled');
+
+
         // مسح الصلاحيات الموجودة مسبقًا لتجنب التكرار في كل مرة يتم تشغيل Seeder
         Permission::query()->delete();
 
+        // ✅ تنظيف كاش الصلاحيات الخاص بـ Spatie
         app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
 
         // جلب جميع تعريفات الصلاحيات من ملف config/permissions_keys.php
@@ -65,18 +74,6 @@ class PermissionsSeeder extends Seeder
         $roleModel = app(Role::class);
         $roles = [
             [
-                'name' => 'ادارة جميع السجلات',
-                'actions' => ['page', 'view_all', 'update_all', 'delete_all'],
-            ],
-            [
-                'name' => 'ادارة سجلاته فقط',
-                'actions' => ['page', 'view_self', 'update_self', 'delete_self'],
-            ],
-            [
-                'name' => 'ادارة سجلاته وسجلات التابعين له',
-                'actions' => ['page', 'view_children', 'update_children', 'delete_children'],
-            ],
-            [
                 'name' => 'مدير شركة',
                 'actions' => [
                     'change_active_company',
@@ -93,6 +90,23 @@ class PermissionsSeeder extends Seeder
                     'delete_self',
                 ],
             ],
+            [
+                'name' => 'ادارة جميع السجلات',
+                'actions' => ['page', 'view_all', 'update_all', 'delete_all'],
+            ],
+            [
+                'name' => 'ادارة سجلاته فقط',
+                'actions' => ['page', 'view_self', 'update_self', 'delete_self'],
+            ],
+            [
+                'name' => 'ادارة سجلاته وسجلات التابعين له',
+                'actions' => ['page', 'view_children', 'update_children', 'delete_children'],
+            ],
+            [
+                'name' => 'اضافة سجلات',
+                'actions' => ['page', 'create'],
+            ],
+
         ];
         $companyModel = app(Company::class);
         $firstCompany = $companyModel::first();
