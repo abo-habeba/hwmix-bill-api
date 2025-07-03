@@ -396,11 +396,11 @@ class User extends Authenticatable
             $exists = $this->cashBoxes()->where('company_id', $company->id)->exists();
             if (!$exists) {
                 $defaultType = \App\Models\CashBoxType::where('description', 'النوع الافتراضي للسيستم')->first();
-                $cashBoxTypeId = $defaultType ? $defaultType->id : null;
+                // $cashBoxTypeId = $defaultType ? $defaultType->id : 1;
                 \App\Models\CashBox::create([
                     'name' => 'نقدي',
                     'balance' => 0,
-                    'cash_box_type_id' => $cashBoxTypeId,
+                    'cash_box_type_id' => 1,
                     'is_default' => true,
                     'user_id' => $this->id,
                     'created_by' => $this->created_by ?? $this->id,
