@@ -2,16 +2,18 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Artisan;
 use Throwable;
+use Illuminate\Http\JsonResponse;
+use App\Services\DatabaseBackupService;
+use Illuminate\Support\Facades\Artisan;
+use Database\Seeders\Backup\RunAllBackupSeeders;
 
 class ArtisanController extends Controller
 {
     /**
      * تشغيل أمر composer dump-autoload.
      * @return \Illuminate\Http\JsonResponse
+     * عمل اوتو لود للملفات 
      */
     public function runComposerDump(): JsonResponse
     {
@@ -24,8 +26,8 @@ class ArtisanController extends Controller
     }
 
     /**
-     * تشغيل migrate:fresh و db:seed (للتطوير فقط).
      * @return \Illuminate\Http\JsonResponse
+     * // ترحيل وعمل سيدرنج لقاعدة البيانات من جديد
      */
     public function migrateAndSeed(): JsonResponse
     {
@@ -41,23 +43,6 @@ class ArtisanController extends Controller
             ], 'تم ترحيل قاعدة البيانات وتغذيتها بنجاح.');
         } catch (Throwable $e) {
             return api_error('حدث خطأ أثناء ترحيل قاعدة البيانات وتغذيتها.', [], 500);
-        }
-    }
-
-    /**
-     * تشغيل PermissionsSeeder.
-     * @return \Illuminate\Http\JsonResponse
-     */
-    public function seedPermissions(): JsonResponse
-    {
-        try {
-            Artisan::call('db:seed', [
-                '--class' => 'Database\Seeders\PermissionsSeeder',
-                '--force' => true
-            ]);
-            return api_success([], 'تم تنفيذ PermissionsSeeder بنجاح.');
-        } catch (Throwable $e) {
-            return api_error('حدث خطأ أثناء تنفيذ PermissionsSeeder.', [], 500);
         }
     }
 
@@ -128,6 +113,39 @@ class ArtisanController extends Controller
             ], 'تم مسح جميع الكاشات وإعادة بنائها بنجاح.');
         } catch (Throwable $e) {
             return api_error('فشل مسح وإعادة بناء الكاشات.', [], 500);
+        }
+    }
+
+    /**
+     * تصدير البيانات وتوليد السيدرز.
+     */
+    public function generateBackup(): JsonResponse
+    {
+        try {
+            $service = new DatabaseBackupService();
+            $report = $service->exportDataAndGenerateSeeders();
+
+            $message = empty($report['errors']) ? 'تم اكتمال النسخ الاحتياطي بنجاح.' : 'تم اكتمال النسخ الاحتياطي مع بعض الأخطاء.';
+            $status = empty($report['errors']) ? 'نجاح' : 'تحذير';
+
+            return api_success($report, $message);
+        } catch (Throwable $e) {
+            return api_exception($e);
+        }
+    }
+
+    /**
+     * تشغيل السيدرز التي تم توليدها.
+     */
+    public function applyBackup(): JsonResponse
+    {
+        try {
+            $service = new DatabaseBackupService();
+            $service->runBackupSeeders();
+
+            return api_success([], 'تم تشغيل السيدرز الاحتياطية بنجاح.');
+        } catch (Throwable $e) {
+            return api_exception($e);
         }
     }
 }

@@ -1,6 +1,5 @@
 <?php
 
-use App\Http\Controllers\Backup\DatabaseBackupController;
 use App\Http\Controllers\ArtisanController;
 use App\Http\Controllers\AttributeController;
 use App\Http\Controllers\AttributeValueController;
@@ -30,20 +29,7 @@ use App\Http\Controllers\StockController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WarehouseController;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
-
-Route::prefix('db')->controller(DatabaseBackupController::class)->group(function () {
-    // 🔄 [GET] /db/export: إنشاء نسخة احتياطية من البيانات كسيدر
-    Route::get('export', 'export');
-
-    // 🚀 [GET] /db/seed-export: تشغيل السيدرز اللي اتولدت قبل كده
-    Route::get('seed-export', 'runSeeders');
-
-    // 🧨 [GET] /db/refresh:   عمل فريش للقاعدة واسترجاع النسخة الاحتياطية
-    Route::get('restoreAndFresh', 'restoreAndFresh');
-});
 
 Route::post('register', [AuthController::class, 'register']);
 Route::post('login', [AuthController::class, 'login']);
@@ -296,10 +282,11 @@ Route::get('/permissions', [PermissionController::class, 'index']);
 
 // Artisan commands routes
 Route::controller(ArtisanController::class)->prefix('php')->group(function () {
-    Route::get('dump', 'dumpAutoload');
-    Route::get('migrate', 'migrateAndSeed');
-    Route::get('seed-perm', 'seedPermissions');
-    Route::get('seed-roles', 'seedRolesAndPermissions');
-    Route::get('PermissionsSeeder', 'PermissionsSeeder');
-    Route::get('clear', 'clearAllCache');
+    Route::get('runComposerDump', 'runComposerDump'); // عمل اوتو لود للملفات 
+    Route::get('migrateAndSeed', 'migrateAndSeed'); // ترحيل وعمل سيدرنج لقاعدة البيانات من جديد
+    Route::get('PermissionsSeeder', 'PermissionsSeeder'); // تشغيل PermissionsSeeder
+    Route::get('seedRolesAndPermissions', 'seedRolesAndPermissions'); // تشغيل RolesAndPermissionsSeeder
+    Route::get('clear', 'clearAllCache'); // مسح جميع الكاشات وإعادة بنائها
+    Route::get('generateBackup', 'generateBackup'); //  توليد السيدرز الاحتياطية
+    Route::get('applyBackup', 'applyBackup');     //  تطبيق السيدرز الاحتياطية
 });
