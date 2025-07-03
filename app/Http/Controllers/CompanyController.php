@@ -80,14 +80,12 @@ class CompanyController extends Controller
             $company = Company::create($validatedData);
             $company->users()->attach($authUser->id, ['created_by' => $authUser->id]);
             $company->saveImage('logo', $file);
-
             Warehouse::create([
                 'name' => 'المخزن الرئيسي',
                 'company_id' => $company->id,
                 'created_by' => $authUser->id,
                 'status' => 'active',
             ]);
-
             $company->logCreated("بإنشاء شركة باسم {$company->name}");
             DB::commit();
             return api_success(new CompanyResource($company), 'تم إنشاء الشركة بنجاح');

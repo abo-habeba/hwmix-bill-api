@@ -91,9 +91,9 @@ class ProductVariantController extends Controller
             $productVariants = $query->orderBy($sortField, $sortOrder)->paginate($perPage);
 
             if ($productVariants->isEmpty()) {
-                return api_success($productVariants, 'لم يتم العثور على متغيرات منتجات.');
+                return api_success([], 'لم يتم العثور على متغيرات منتجات.');
             } else {
-                return api_success($productVariants, 'تم جلب متغيرات المنتجات بنجاح.');
+                return api_success(ProductVariantResource::collection($productVariants), 'تم جلب متغيرات المنتجات بنجاح.');
             }
         } catch (Throwable $e) {
             return api_exception($e);

@@ -92,9 +92,9 @@ class InstallmentPaymentController extends Controller
             $installments = $query->orderBy($sortBy, $sortOrder)->paginate($perPage);
 
             if ($installments->isEmpty()) {
-                return api_success($installments, 'لم يتم العثور على أقساط.');
+                return api_success([], 'لم يتم العثور على أقساط.');
             } else {
-                return api_success($installments, 'تم جلب الأقساط بنجاح.');
+                return api_success(InstallmentResource::collection($installments), 'تم جلب الأقساط بنجاح.');
             }
         } catch (Throwable $e) {
             return api_exception($e, 500);

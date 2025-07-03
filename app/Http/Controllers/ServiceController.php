@@ -87,9 +87,9 @@ class ServiceController extends Controller
             $services = $query->orderBy($sortField, $sortOrder)->paginate($perPage);
 
             if ($services->isEmpty()) {
-                return api_success($services, 'لم يتم العثور على خدمات.');
+                return api_success([], 'لم يتم العثور على خدمات.');
             } else {
-                return api_success($services, 'تم جلب الخدمات بنجاح.');
+                return api_success(ServiceResource::collection($services), 'تم جلب الخدمات بنجاح.');
             }
         } catch (Throwable $e) {
             return api_exception($e);

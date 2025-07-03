@@ -76,12 +76,12 @@ class CategoryController extends Controller
             $query->orderBy($sortBy, $sortOrder);
 
             $perPage = max(1, (int) $request->get('per_page', 10));
-            $categories = $query->paginate($perPage);
+            $categories = $query->get(); // استخدام get بدلاً من paginate للحصول على جميع الفئات
 
             if ($categories->isEmpty()) {
                 return api_success($categories, 'لم يتم العثور على فئات.');
             } else {
-                return api_success($categories, 'تم استرداد الفئات بنجاح.');
+                return api_success(CategoryResource::collection($categories), 'تم استرداد الفئات بنجاح.');
             }
         } catch (Throwable $e) {
             return api_exception($e, 500);

@@ -19,7 +19,7 @@ class DatabaseBackupService
     {
         $this->backupBasePath = database_path('seeders/Backup');
         $this->jsonBackupPath = $this->backupBasePath . '/json_data';
-        $this->seedersBackupPath = $this->backupBasePath . '/seeders';
+        $this->seedersBackupPath = $this->backupBasePath . '/Seeders';
 
         // التأكد من وجود المسارات المطلوبة
         File::ensureDirectoryExists($this->jsonBackupPath);
@@ -179,7 +179,7 @@ class DatabaseBackupService
         return <<<PHP
             <?php
 
-            namespace Database\Seeders\Backup\seeders;
+            namespace Database\Seeders\Backup\Seeders;
 
             use Illuminate\Database\Seeder;
             use Illuminate\Support\Facades\DB;
@@ -227,7 +227,7 @@ class DatabaseBackupService
 
         sort($seederClassNames);  // الترتيب حسب البادئة الرقمية (N001, N002, ...)
 
-        $body = implode("\n", array_map(fn($className) => "        \$this->call(\Database\Seeders\Backup\seeders\\{$className}::class);", $seederClassNames));
+        $body = implode("\n", array_map(fn($className) => "        \$this->call(\Database\Seeders\Backup\Seeders\\{$className}::class);", $seederClassNames));
 
         // يتم إنشاء ملف Seeder الرئيسي مباشرة في مجلد Backup
         File::put("{$this->backupBasePath}/RunAllBackupSeeders.php", <<<PHP

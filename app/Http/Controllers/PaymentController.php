@@ -100,9 +100,9 @@ class PaymentController extends Controller
             $payments = $query->orderBy($sortField, $sortOrder)->paginate($perPage);
 
             if ($payments->isEmpty()) {
-                return api_success($payments, 'لم يتم العثور على مدفوعات.');
+                return api_success([], 'لم يتم العثور على مدفوعات.');
             } else {
-                return api_success($payments, 'تم جلب المدفوعات بنجاح.');
+                return api_success(PaymentResource::collection($payments), 'تم جلب المدفوعات بنجاح.');
             }
         } catch (Throwable $e) {
             return api_exception($e);

@@ -93,9 +93,9 @@ class StockController extends Controller
             $stocks = $query->orderBy($sortField, $sortOrder)->paginate($perPage);
 
             if ($stocks->isEmpty()) {
-                return api_success($stocks, 'لم يتم العثور على سجلات مخزون.');
+                return api_success([], 'لم يتم العثور على سجلات مخزون.');
             } else {
-                return api_success($stocks, 'تم جلب سجلات المخزون بنجاح.');
+                return api_success(StockResource::collection($stocks), 'تم جلب سجلات المخزون بنجاح.');
             }
         } catch (Throwable $e) {
             return api_exception($e);

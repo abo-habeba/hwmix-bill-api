@@ -98,9 +98,9 @@ class SubscriptionController extends Controller
             $subscriptions = $query->orderBy($sortField, $sortOrder)->paginate($perPage);
 
             if ($subscriptions->isEmpty()) {
-                return api_success($subscriptions, 'لم يتم العثور على اشتراكات.');
+                return api_success([], 'لم يتم العثور على اشتراكات.');
             } else {
-                return api_success($subscriptions, 'تم جلب الاشتراكات بنجاح.');
+                return api_success(SubscriptionResource::collection($subscriptions), 'تم جلب الاشتراكات بنجاح.');
             }
         } catch (Throwable $e) {
             return api_exception($e);

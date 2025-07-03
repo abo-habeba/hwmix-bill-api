@@ -95,9 +95,9 @@ class ProfitController extends Controller
             $profits = $query->orderBy($sortField, $sortOrder)->paginate($perPage);
 
             if ($profits->isEmpty()) {
-                return api_success($profits, 'لم يتم العثور على أرباح.');
+                return api_success([], 'لم يتم العثور على أرباح.');
             } else {
-                return api_success($profits, 'تم جلب الأرباح بنجاح.');
+                return api_success(ProfitResource::collection($profits), 'تم جلب الأرباح بنجاح.');
             }
         } catch (Throwable $e) {
             return api_exception($e);

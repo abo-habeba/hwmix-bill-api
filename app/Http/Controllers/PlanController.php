@@ -87,9 +87,9 @@ class PlanController extends Controller
             $plans = $query->orderBy($sortField, $sortOrder)->paginate($perPage);
 
             if ($plans->isEmpty()) {
-                return api_success($plans, 'لم يتم العثور على خطط.');
+                return api_success([], 'لم يتم العثور على خطط.');
             } else {
-                return api_success($plans, 'تم جلب الخطط بنجاح.');
+                return api_success(PlanResource::collection($plans), 'تم جلب الخطط بنجاح.');
             }
         } catch (Throwable $e) {
             return api_exception($e);

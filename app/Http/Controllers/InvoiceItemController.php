@@ -98,9 +98,9 @@ class InvoiceItemController extends Controller
             $items = $query->orderBy($sortField, $sortOrder)->paginate($perPage);
 
             if ($items->isEmpty()) {
-                return api_success($items, 'لم يتم العثور على عناصر فواتير.');
+                return api_success([], 'لم يتم العثور على عناصر فواتير.');
             } else {
-                return api_success($items, 'تم جلب عناصر الفواتير بنجاح.');
+                return api_success(InvoiceItemResource::collection($items), 'تم جلب عناصر الفواتير بنجاح.');
             }
         } catch (Throwable $e) {
             return api_exception($e);

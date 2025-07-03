@@ -10,15 +10,39 @@ use Illuminate\Validation\ValidationException;
 if (!function_exists('api_success')) {
     function api_success($data = [], string $message = 'تم بنجاح', int $code = 200): JsonResponse
     {
+        // إذا كانت البيانات هي عبارة عن Paginator (للباجينيشن)
         if ($data instanceof AbstractPaginator) {
             return response()->json([
                 'status' => true,
                 'message' => $message,
                 'data' => $data->items(),
                 'total' => $data->total(),
+                'page' => $data->currentPage(),
+                'per_page' => $data->perPage(),
             ], $code);
         }
 
+        // إذا كانت البيانات هي عبارة عن Collection Resource
+        if ($data instanceof \Illuminate\Http\Resources\Json\ResourceCollection) {
+            $original = $data->resource;
+
+            if ($original instanceof \Illuminate\Pagination\AbstractPaginator) {
+                return response()->json([
+                    'data' => $data->collection,
+                    'total' => $original->total(),
+                ], $code);
+            }
+        }
+        // إذا كانت البيانات هي عبارة عن Single Resource
+        if ($data instanceof \Illuminate\Http\Resources\Json\JsonResource) {
+            return response()->json([
+                'status' => true,
+                'message' => $message,
+                'data' => $data,
+            ], $code);
+        }
+
+        // إذا كانت البيانات عادية (مثال: Array أو Object)
         return response()->json([
             'status' => true,
             'message' => $message,
@@ -26,6 +50,27 @@ if (!function_exists('api_success')) {
         ], $code);
     }
 }
+
+
+// if (!function_exists('api_success')) {
+//     function api_success($data = [], string $message = 'تم بنجاح', int $code = 200): JsonResponse
+//     {
+//         if ($data instanceof AbstractPaginator) {
+//             return response()->json([
+//                 'status' => true,
+//                 'message' => $message,
+//                 'data' => $data->items(),
+//                 'total' => $data->total(),
+//             ], $code);
+//         }
+
+//         return response()->json([
+//             'status' => true,
+//             'message' => $message,
+//             'data' => $data,
+//         ], $code);
+//     }
+// }
 
 /**
  * ❌ إرجاع استجابة خطأ منطقي أو تحقق

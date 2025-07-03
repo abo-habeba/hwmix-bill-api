@@ -168,9 +168,9 @@ class TransactionController extends Controller
 
             // استخدام api_success مع Pagination
             if ($transactions->isEmpty()) {
-                return api_success($transactions, 'لم يتم العثور على معاملات مستخدم.');
+                return api_success([], 'لم يتم العثور على معاملات مستخدم.');
             } else {
-                return api_success($transactions, 'تم جلب معاملات المستخدم بنجاح.');
+                return api_success(TransactionResource::collection($transactions), 'تم جلب معاملات المستخدم بنجاح.');
             }
         } catch (Throwable $e) {
             return api_exception($e, 500);

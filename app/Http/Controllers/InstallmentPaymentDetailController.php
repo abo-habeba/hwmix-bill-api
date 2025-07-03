@@ -83,9 +83,9 @@ class InstallmentPaymentDetailController extends Controller
             $details = $query->orderBy($sortBy, $sortOrder)->paginate($perPage);
 
             if ($details->isEmpty()) {
-                return api_success($details, 'لم يتم العثور على تفاصيل دفعات أقساط.');
+                return api_success([], 'لم يتم العثور على تفاصيل دفعات أقساط.');
             } else {
-                return api_success($details, 'تم جلب تفاصيل دفعات الأقساط بنجاح.');
+                return api_success(InstallmentPaymentDetailResource::collection($details), 'تم جلب تفاصيل دفعات الأقساط بنجاح.');
             }
         } catch (Throwable $e) {
             return api_exception($e, 500);

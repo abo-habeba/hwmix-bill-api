@@ -95,9 +95,9 @@ class AttributeValueController extends Controller
             $attributeValues = $query->orderBy($sortField, $sortOrder)->paginate($perPage);
 
             if ($attributeValues->isEmpty()) {
-                return api_success($attributeValues, 'لم يتم العثور على قيم سمات.');
+                return api_success([], 'لم يتم العثور على قيم سمات.');
             } else {
-                return api_success($attributeValues, 'تم جلب قيم السمات بنجاح.');
+                return api_success(AttributeValueResource::collection($attributeValues), 'تم جلب قيم السمات بنجاح.');
             }
         } catch (Throwable $e) {
             return api_exception($e);
