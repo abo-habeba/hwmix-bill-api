@@ -10,6 +10,7 @@ class CashBoxTypeSeeder extends Seeder
     public function run(): void
     {
         $types = [
+            ['name' => 'نقدي', 'description' => 'خزنة مخصصة للدفع النقدي'],
             ['name' => 'بطاقة ائتمان', 'description' => 'خزنة مخصصة لبطاقات الائتمان'],
             ['name' => 'تحويل بنكي', 'description' => 'خزنة مخصصة للتحويلات البنكية'],
             ['name' => 'باي بال', 'description' => 'خزنة مخصصة لباي بال'],

@@ -16,6 +16,7 @@ class DatabaseSeeder extends Seeder
         // User::factory(10)->create();
 
         $this->call([
+            CashBoxTypeSeeder::class,
             PermissionsSeeder::class,
             // UserSeeder::class,
             // CompanySeeder::class,
@@ -29,7 +30,6 @@ class DatabaseSeeder extends Seeder
             AttributeValueSeeder::class,
             RevenueSeeder::class,
             PaymentMethodSeeder::class,
-            CashBoxTypeSeeder::class,
         ]);
     }
 }
