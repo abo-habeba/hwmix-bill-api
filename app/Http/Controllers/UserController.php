@@ -271,7 +271,7 @@ class UserController extends Controller
                 $newCompanyIds = array_diff($validated['company_ids'], $oldCompanyIds);
                 foreach ($newCompanyIds as $companyId) {
                     if (!$user->cashBoxes()->where('company_id', $companyId)->exists()) {
-                        $defaultType = \App\Models\CashBoxType::where('description', 'النوع الافتراضي للسيستم')->first();
+                        $defaultType = \App\Models\CashBoxType::where('name', 'نقدي')->first();
                         $cashBoxTypeId = $defaultType ? $defaultType->id : null;
                         \App\Models\CashBox::create([
                             'name' => 'نقدي',
