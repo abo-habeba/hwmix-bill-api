@@ -23,8 +23,9 @@ return new class extends Migration {
             $table->text('description')->nullable();
 
             $table->foreignId('target_user_id')->nullable()->constrained('users')->onDelete('set null');
-            $table->foreignId('cashbox_id')->nullable()->constrained('cashboxes')->onDelete('set null');
-            $table->foreignId('target_cashbox_id')->nullable()->constrained('cashboxes')->onDelete('set null');
+            $table->foreignId('cashbox_id')->nullable()->constrained('cash_boxes')->onDelete('set null');
+            $table->foreignId('target_cashbox_id')->nullable()->constrained('cash_boxes')->onDelete('set null');
+
             $table->foreignId('created_by')->nullable()->constrained('users')->onDelete('set null');
             $table->foreignId('company_id')->nullable()->constrained()->onDelete('set null');
 
