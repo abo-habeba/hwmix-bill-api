@@ -22,9 +22,6 @@ class PermissionController extends Controller
             /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
 
-            if (!$authUser) {
-                return api_unauthorized('يتطلب المصادقة.');
-            }
             if (!$authUser->hasPermissionTo(perm_key('admin.super')) && !$authUser->hasAnyPermission([perm_key('permissions.view_all'), perm_key('admin.company')])) {
                 return api_forbidden('ليس لديك إذن لعرض الصلاحيات.');
             }
@@ -34,7 +31,7 @@ class PermissionController extends Controller
 
             // يمكنك اختيار إرجاع جميع البيانات أو فقط الجزء الذي تحتاجه الواجهة الأمامية.
             // هنا سنرجع جميع البيانات كما هي منظمة في الملف.
-            if ($permissionsConfig->isEmpty()) {
+            if (empty($permissionsConfig)) {
                 return api_success($permissionsConfig, 'لم يتم العثور على تعريفات صلاحيات.');
             } else {
                 return api_success($permissionsConfig, 'تم جلب تعريفات الصلاحيات بنجاح.');

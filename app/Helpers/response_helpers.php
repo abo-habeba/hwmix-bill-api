@@ -45,7 +45,7 @@ if (!function_exists('api_error')) {
  * 💥 إرجاع استجابة في حالة Exception
  */
 if (!function_exists('api_exception')) {
-    function api_exception(Throwable $e, int $code = 500): JsonResponse
+    function api_exception(Throwable $e, int $code = 500, string $message = 'خطأ فيجلب البيانات'): JsonResponse
     {
         if ($e instanceof ValidationException) {
             return api_error('خطأ في التحقق من البيانات', $e->errors(), 422);
@@ -53,7 +53,8 @@ if (!function_exists('api_exception')) {
 
         return response()->json([
             'status' => false,
-            'message' => $e->getMessage(),
+            'message' => $message,
+            'error' => $e->getMessage(),
             'exception' => get_class($e),
             'file' => $e->getFile(),
             'line' => $e->getLine(),

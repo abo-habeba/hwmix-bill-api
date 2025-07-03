@@ -276,9 +276,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::put('installment-payment-detail/{installmentPaymentDetail}', 'update');
             Route::delete('installment-payment-detail/delete/{installmentPaymentDetail}', 'destroy');
         });
+    Route::get('/permissions', [PermissionController::class, 'index']);
 });
 
-Route::get('/permissions', [PermissionController::class, 'index']);
 
 // Artisan commands routes
 Route::controller(ArtisanController::class)->prefix('php')->group(function () {

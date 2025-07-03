@@ -13,9 +13,21 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 class PaymentMethod extends Model
 {
     use HasFactory, Scopes, Blameable;
+
     protected $fillable = ['name', 'code', 'active'];
+
     public function payments()
     {
         return $this->hasMany(Payment::class);
+    }
+
+    public function company()
+    {
+        return $this->belongsTo(Company::class);
+    }
+
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'created_by');
     }
 }

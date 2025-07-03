@@ -104,9 +104,9 @@ class RoleController extends Controller
                 ->paginate($perPage);
 
             if ($roles->isEmpty()) {
-                return api_success($roles, 'لم يتم العثور على أدوار.');
+                return api_success(RoleResource::collection($roles), 'لم يتم العثور على أدوار.');
             } else {
-                return api_success($roles, 'تم جلب الأدوار بنجاح.');
+                return api_success(RoleResource::collection($roles), 'تم جلب الأدوار بنجاح.');
             }
         } catch (Throwable $e) {
             return api_exception($e);

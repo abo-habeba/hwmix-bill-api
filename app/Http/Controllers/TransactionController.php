@@ -130,7 +130,7 @@ class TransactionController extends Controller
             $authUser = Auth::user();
             $companyId = $authUser->company_id ?? null;
 
-            if (!$authUser || !$companyId) {
+            if (!$authUser) {
                 return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
@@ -167,7 +167,11 @@ class TransactionController extends Controller
             $transactions = $query->orderBy($sortField, $sortOrder)->paginate($perPage);
 
             // استخدام api_success مع Pagination
-            return api_success($transactions, 'تم استرداد معاملات المستخدم بنجاح.');
+            if ($transactions->isEmpty()) {
+                return api_success($transactions, 'لم يتم العثور على معاملات مستخدم.');
+            } else {
+                return api_success($transactions, 'تم جلب معاملات المستخدم بنجاح.');
+            }
         } catch (Throwable $e) {
             return api_exception($e, 500);
         }
