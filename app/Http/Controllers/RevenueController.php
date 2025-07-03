@@ -46,7 +46,7 @@ class RevenueController extends Controller
             $query = Revenue::query()->with($this->relations);
             $companyId = $authUser->company_id ?? null;
 
-            if (!$companyId && !$authUser->hasPermissionTo(perm_key('admin.super'))) {
+            if (!$authUser->hasPermissionTo(perm_key('admin.super'))) {
                 return api_unauthorized('المستخدم غير مرتبط بشركة.');
             }
 

@@ -49,7 +49,7 @@ class AttributeValueController extends Controller
             $query = AttributeValue::with($this->relations);
             $companyId = $authUser->company_id ?? null;
 
-            if (!$companyId && !$authUser->hasPermissionTo(perm_key('admin.super'))) {
+            if (!$authUser->hasPermissionTo(perm_key('admin.super'))) {
                 return api_unauthorized('يجب أن تكون مرتبطًا بشركة أو لديك صلاحية مدير عام.');
             }
 

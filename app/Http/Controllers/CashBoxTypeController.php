@@ -100,7 +100,7 @@ class CashBoxTypeController extends Controller
             $authUser = Auth::user();
             $companyId = $authUser->company_id ?? null; // افتراض أن أنواع الخزن يمكن أن ترتبط بالشركات
 
-            if (!$authUser || (!$companyId && !$authUser->hasPermissionTo(perm_key('admin.super')))) {
+            if (!$authUser || (!$authUser->hasPermissionTo(perm_key('admin.super')))) {
                 return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
@@ -161,7 +161,7 @@ class CashBoxTypeController extends Controller
             $authUser = Auth::user();
             $companyId = $authUser->company_id ?? null;
 
-            if (!$authUser || (!$companyId && !$authUser->hasPermissionTo(perm_key('admin.super')))) {
+            if (!$authUser || (!$authUser->hasPermissionTo(perm_key('admin.super')))) {
                 return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
@@ -204,7 +204,7 @@ class CashBoxTypeController extends Controller
             $authUser = Auth::user();
             $companyId = $authUser->company_id ?? null;
 
-            if (!$authUser || (!$companyId && !$authUser->hasPermissionTo(perm_key('admin.super')))) {
+            if (!$authUser || (!$authUser->hasPermissionTo(perm_key('admin.super')))) {
                 return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
@@ -274,7 +274,7 @@ class CashBoxTypeController extends Controller
             $authUser = Auth::user();
             $companyId = $authUser->company_id ?? null;
 
-            if (!$authUser || (!$companyId && !$authUser->hasPermissionTo(perm_key('admin.super')))) {
+            if (!$authUser || (!$authUser->hasPermissionTo(perm_key('admin.super')))) {
                 return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 

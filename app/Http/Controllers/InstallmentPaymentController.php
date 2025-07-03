@@ -49,7 +49,7 @@ class InstallmentPaymentController extends Controller
                 return api_unauthorized('يتطلب المصادقة.');
             }
 
-            if (!$companyId && !$authUser->hasPermissionTo(perm_key('admin.super'))) {
+            if (!$authUser->hasPermissionTo(perm_key('admin.super'))) {
                 return api_unauthorized('المستخدم غير مرتبط بشركة.');
             }
 

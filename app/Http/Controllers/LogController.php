@@ -34,7 +34,7 @@ class LogController extends Controller
             $companyId = $authUser->company_id ?? null; // معرف الشركة النشطة للمستخدم
 
             // التحقق الأساسي: إذا لم يكن المستخدم مرتبطًا بشركة وليس سوبر أدمن
-            if (!$companyId && !$authUser->hasPermissionTo(perm_key('admin.super'))) {
+            if (!$authUser->hasPermissionTo(perm_key('admin.super'))) {
                 return api_unauthorized('المستخدم غير مرتبط بشركة.');
             }
 
