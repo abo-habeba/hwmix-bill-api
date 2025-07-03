@@ -97,7 +97,11 @@ class SubscriptionController extends Controller
 
             $subscriptions = $query->orderBy($sortField, $sortOrder)->paginate($perPage);
 
-            return api_success($subscriptions, 'تم جلب الاشتراكات بنجاح.');
+            if ($subscriptions->isEmpty()) {
+                return api_success($subscriptions, 'لم يتم العثور على اشتراكات.');
+            } else {
+                return api_success($subscriptions, 'تم جلب الاشتراكات بنجاح.');
+            }
         } catch (Throwable $e) {
             return api_exception($e);
         }

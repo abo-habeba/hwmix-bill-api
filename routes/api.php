@@ -283,10 +283,10 @@ Route::get('/permissions', [PermissionController::class, 'index']);
 // Artisan commands routes
 Route::controller(ArtisanController::class)->prefix('php')->group(function () {
     Route::get('runComposerDump', 'runComposerDump'); // عمل اوتو لود للملفات 
+    Route::get('generateBackup', 'generateBackup'); //  توليد السيدرز الاحتياطية
     Route::get('migrateAndSeed', 'migrateAndSeed'); // ميجريشن ريفرش وعمل سيدرنج لقاعدة البيانات من جديد
+    Route::get('applyBackup', 'applyBackup');     //  تطبيق السيدرز الاحتياطية
     Route::get('PermissionsSeeder', 'PermissionsSeeder'); // تشغيل PermissionsSeeder
     Route::get('seedRolesAndPermissions', 'seedRolesAndPermissions'); // تشغيل RolesAndPermissionsSeeder
     Route::get('clear', 'clearAllCache'); // مسح جميع الكاشات وإعادة بنائها
-    Route::get('generateBackup', 'generateBackup'); //  توليد السيدرز الاحتياطية
-    Route::get('applyBackup', 'applyBackup');     //  تطبيق السيدرز الاحتياطية
 });

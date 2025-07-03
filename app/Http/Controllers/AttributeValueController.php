@@ -94,7 +94,11 @@ class AttributeValueController extends Controller
             $sortOrder = $request->input('sort_order', 'desc');
             $attributeValues = $query->orderBy($sortField, $sortOrder)->paginate($perPage);
 
-            return api_success($attributeValues, 'تم جلب قيم السمات بنجاح');
+            if ($attributeValues->isEmpty()) {
+                return api_success($attributeValues, 'لم يتم العثور على قيم سمات.');
+            } else {
+                return api_success($attributeValues, 'تم جلب قيم السمات بنجاح.');
+            }
         } catch (Throwable $e) {
             return api_exception($e);
         }

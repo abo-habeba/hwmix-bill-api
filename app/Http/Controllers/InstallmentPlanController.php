@@ -89,8 +89,11 @@ class InstallmentPlanController extends Controller
             // التصفحة
             $perPage = (int) $request->get('limit', 20);
             $plans = $query->paginate($perPage);
-
-            return api_success($plans, 'تم استرداد خطط التقسيط بنجاح.');
+            if ($plans->isEmpty()) {
+                return api_success($plans, 'لم يتم العثور على خطط تقسيط.');
+            } else {
+                return api_success($plans, 'تم جلب خطط التقسيط بنجاح.');
+            }
         } catch (Throwable $e) {
             return api_exception($e, 500);
         }

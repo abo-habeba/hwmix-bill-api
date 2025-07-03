@@ -88,7 +88,11 @@ class PaymentMethodController extends Controller
 
             $paymentMethods = $query->orderBy($sortField, $sortOrder)->paginate($perPage);
 
-            return api_success($paymentMethods, 'تم استرداد طرق الدفع بنجاح.');
+            if ($paymentMethods->isEmpty()) {
+                return api_success($paymentMethods, 'لم يتم العثور على طرق دفع.');
+            } else {
+                return api_success($paymentMethods, 'تم جلب طرق الدفع بنجاح.');
+            }
         } catch (Throwable $e) {
             return api_exception($e);
         }

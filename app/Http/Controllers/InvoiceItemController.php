@@ -97,7 +97,11 @@ class InvoiceItemController extends Controller
 
             $items = $query->orderBy($sortField, $sortOrder)->paginate($perPage);
 
-            return api_success($items, 'تم استرداد عناصر الفواتير بنجاح.');
+            if ($items->isEmpty()) {
+                return api_success($items, 'لم يتم العثور على عناصر فواتير.');
+            } else {
+                return api_success($items, 'تم جلب عناصر الفواتير بنجاح.');
+            }
         } catch (Throwable $e) {
             return api_exception($e);
         }

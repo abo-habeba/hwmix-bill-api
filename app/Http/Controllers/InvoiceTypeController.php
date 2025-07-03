@@ -85,7 +85,11 @@ class InvoiceTypeController extends Controller
 
             $types = $query->orderBy($sortField, $sortOrder)->paginate($perPage);
 
-            return api_success($types, 'تم استرداد أنواع الفواتير بنجاح.');
+            if ($types->isEmpty()) {
+                return api_success($types, 'لم يتم العثور على أنواع فواتير.');
+            } else {
+                return api_success($types, 'تم جلب أنواع الفواتير بنجاح.');
+            }
         } catch (Throwable $e) {
             return api_exception($e);
         }

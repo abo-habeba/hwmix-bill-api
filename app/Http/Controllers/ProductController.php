@@ -123,7 +123,11 @@ class ProductController extends Controller
             $perPage = max(1, (int) $request->input('per_page', 10));
             $products = $query->paginate($perPage);
 
-            return api_success($products, 'تم جلب المنتجات بنجاح');
+            if ($products->isEmpty()) {
+                return api_success($products, 'لم يتم العثور على منتجات.');
+            } else {
+                return api_success($products, 'تم جلب المنتجات بنجاح.');
+            }
         } catch (Throwable $e) {
             return api_exception($e);
         }

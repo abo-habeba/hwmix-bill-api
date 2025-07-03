@@ -94,7 +94,11 @@ class RevenueController extends Controller
 
             $revenues = $query->orderBy($sortField, $sortOrder)->paginate($perPage);
 
-            return api_success($revenues, 'تم جلب الإيرادات بنجاح');
+            if ($revenues->isEmpty()) {
+                return api_success($revenues, 'لم يتم العثور على إيرادات.');
+            } else {
+                return api_success($revenues, 'تم جلب الإيرادات بنجاح.');
+            }
         } catch (Throwable $e) {
             return api_exception($e);
         }

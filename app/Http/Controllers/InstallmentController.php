@@ -91,7 +91,11 @@ class InstallmentController extends Controller
             $perPage = (int) $request->get('limit', 20);
             $installments = $query->paginate($perPage);
 
-            return api_success($installments, 'تم استرداد الأقساط بنجاح.');
+            if ($installments->isEmpty()) {
+                return api_success($installments, 'لم يتم العثور على أقساط.');
+            } else {
+                return api_success($installments, 'تم استرداد الأقساط بنجاح.');
+            }
         } catch (Throwable $e) {
             return api_exception($e, 500);
         }

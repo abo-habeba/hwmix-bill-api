@@ -45,7 +45,11 @@ class CompanyController extends Controller
             $sortOrder = $request->get('sort_order', 'asc');
             $companies = $query->orderBy($sortField, $sortOrder)->paginate($perPage);
 
-            return api_success(CompanyResource::collection($companies), 'تم جلب الشركات بنجاح');
+            if ($companies->isEmpty()) {
+                return api_success([], 'لم يتم العثور على شركات.'); // استخدم مصفوفة فارغة إذا لم يتم العثور على شركات
+            } else {
+                return api_success(CompanyResource::collection($companies), 'تم جلب الشركات بنجاح.');
+            }
         } catch (\Exception $e) {
             return api_exception($e);
         }

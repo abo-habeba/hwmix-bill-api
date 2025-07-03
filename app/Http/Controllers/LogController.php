@@ -72,7 +72,11 @@ class LogController extends Controller
 
             $logs = $query->orderBy($sortField, $sortOrder)->paginate($perPage);
 
-            return api_success($logs, 'تم جلب سجلات النشاطات بنجاح');
+            if ($logs->isEmpty()) {
+                return api_success($logs, 'لم يتم العثور على سجلات نشاطات.');
+            } else {
+                return api_success($logs, 'تم جلب سجلات النشاطات بنجاح.');
+            }
         } catch (Throwable $e) {
             return api_exception($e);
         }

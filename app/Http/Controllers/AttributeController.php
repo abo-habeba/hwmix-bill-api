@@ -86,7 +86,11 @@ class AttributeController extends Controller
             $perPage = max(1, (int) $request->get('per_page', 10));
             $attributes = $query->paginate($perPage);
 
-            return api_success($attributes, 'تم استرداد السمات بنجاح.');
+            if ($attributes->isEmpty()) {
+                return api_success($attributes, 'لم يتم العثور على سمات.');
+            } else {
+                return api_success($attributes, 'تم جلب السمات بنجاح.');
+            }
         } catch (Throwable $e) {
             return api_exception($e, 500);
         }

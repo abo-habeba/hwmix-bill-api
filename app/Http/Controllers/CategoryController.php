@@ -78,7 +78,11 @@ class CategoryController extends Controller
             $perPage = max(1, (int) $request->get('per_page', 10));
             $categories = $query->paginate($perPage);
 
-            return api_success($categories, 'تم استرداد الفئات بنجاح.');
+            if ($categories->isEmpty()) {
+                return api_success($categories, 'لم يتم العثور على فئات.');
+            } else {
+                return api_success($categories, 'تم استرداد الفئات بنجاح.');
+            }
         } catch (Throwable $e) {
             return api_exception($e, 500);
         }

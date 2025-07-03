@@ -18,7 +18,8 @@ class ArtisanController extends Controller
     public function runComposerDump(): JsonResponse
     {
         try {
-            $output = shell_exec('composer dump-autoload 2>&1');
+            $output = shell_exec('composer2 dump-autoload 2>&1');
+            // $output = shell_exec('composer dump-autoload 2>&1');
             return api_success(['output' => $output], 'تم تنفيذ أمر Composer dump-autoload بنجاح.');
         } catch (Throwable $e) {
             return api_exception($e);

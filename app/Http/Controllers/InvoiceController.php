@@ -91,7 +91,11 @@ class InvoiceController extends Controller
                 ->orderBy($sortField, $sortOrder)
                 ->paginate($perPage);
 
-            return api_success($invoices, 'تم جلب الفواتير بنجاح');
+            if ($invoices->isEmpty()) {
+                return api_success($invoices, 'لم يتم العثور على فواتير.');
+            } else {
+                return api_success($invoices, 'تم جلب الفواتير بنجاح.');
+            }
         } catch (Throwable $e) {
             return api_exception($e);
         }

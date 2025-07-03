@@ -90,7 +90,11 @@ class BrandController extends Controller
             $perPage = max(1, (int) $request->get('per_page', 10));
             $brands = $query->paginate($perPage);
 
-            return api_success($brands, 'تم استرداد العلامات التجارية بنجاح.');
+            if ($brands->isEmpty()) {
+                return api_success($brands, 'لم يتم العثور على علامات تجارية.');
+            } else {
+                return api_success($brands, 'تم استرداد العلامات التجارية بنجاح.');
+            }
         } catch (Throwable $e) {
             return api_exception($e, 500);
         }

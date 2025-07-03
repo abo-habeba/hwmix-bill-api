@@ -117,7 +117,12 @@ class CashBoxController extends Controller
             // جلب البيانات مع التصفية والصفحات
             $cashBoxes = $cashBoxQuery->paginate($perPage);
 
-            return api_success($cashBoxes, 'تم استرداد الخزن بنجاح.');
+            // التحقق من حالة المصفوفة وتحديد الرسالة
+            if ($cashBoxes->isEmpty()) {
+                return api_success($cashBoxes, 'لم يتم العثور على خزن.');
+            } else {
+                return api_success($cashBoxes, 'تم استرداد الخزن بنجاح.');
+            }
         } catch (Throwable $e) {
             return api_exception($e, 500);
         }

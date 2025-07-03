@@ -81,7 +81,12 @@ class CashBoxTypeController extends Controller
             // جلب البيانات مع التصفية والصفحات
             $cashBoxTypes = $cashBoxTypeQuery->paginate($perPage);
 
-            return api_success($cashBoxTypes, 'تم استرداد أنواع الخزن بنجاح.');
+            // التحقق من وجود بيانات وتحديد الرسالة
+            if ($cashBoxTypes->isEmpty()) {
+                return api_success($cashBoxTypes, 'لم يتم العثور على أنواع خزن.');
+            } else {
+                return api_success($cashBoxTypes, 'تم استرداد أنواع الخزن بنجاح.');
+            }
         } catch (Throwable $e) {
             return api_exception($e, 500);
         }

@@ -93,7 +93,11 @@ class UserController extends Controller
 
             $users = $query->orderBy($sortField, $sortOrder)->paginate($perPage);
 
-            return api_success(UserResource::collection($users), 'تم جلب المستخدمين بنجاح');
+            if ($users->isEmpty()) {
+                return api_success([], 'لم يتم العثور على مستخدمين.');
+            } else {
+                return api_success(UserResource::collection($users), 'تم جلب المستخدمين بنجاح.');
+            }
         } catch (Throwable $e) {
             return api_exception($e);
         }

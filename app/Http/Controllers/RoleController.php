@@ -103,7 +103,11 @@ class RoleController extends Controller
                 ->orderBy($sortField, $sortOrder)
                 ->paginate($perPage);
 
-            return api_success($roles, 'تم جلب الأدوار بنجاح');
+            if ($roles->isEmpty()) {
+                return api_success($roles, 'لم يتم العثور على أدوار.');
+            } else {
+                return api_success($roles, 'تم جلب الأدوار بنجاح.');
+            }
         } catch (Throwable $e) {
             return api_exception($e);
         }

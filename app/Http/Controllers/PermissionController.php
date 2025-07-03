@@ -34,7 +34,11 @@ class PermissionController extends Controller
 
             // يمكنك اختيار إرجاع جميع البيانات أو فقط الجزء الذي تحتاجه الواجهة الأمامية.
             // هنا سنرجع جميع البيانات كما هي منظمة في الملف.
-            return api_success($permissionsConfig, 'تم جلب تعريفات الصلاحيات بنجاح.');
+            if ($permissionsConfig->isEmpty()) {
+                return api_success($permissionsConfig, 'لم يتم العثور على تعريفات صلاحيات.');
+            } else {
+                return api_success($permissionsConfig, 'تم جلب تعريفات الصلاحيات بنجاح.');
+            }
         } catch (Throwable $e) {
             return api_exception($e);
         }

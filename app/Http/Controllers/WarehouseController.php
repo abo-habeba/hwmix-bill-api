@@ -81,7 +81,11 @@ class WarehouseController extends Controller
             $sortOrder = $request->input('sort_order', 'desc');
             $warehouses = $query->orderBy($sortField, $sortOrder)->paginate($perPage);
 
-            return api_success(WarehouseResource::collection($warehouses), 'تم جلب المستودعات بنجاح');
+            if ($warehouses->isEmpty()) {
+                return api_success([], 'لم يتم العثور على مستودعات.');
+            } else {
+                return api_success(WarehouseResource::collection($warehouses), 'تم جلب المستودعات بنجاح.');
+            }
         } catch (Throwable $e) {
             return api_exception($e);
         }
