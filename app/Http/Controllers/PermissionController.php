@@ -21,11 +21,6 @@ class PermissionController extends Controller
         try {
             /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-
-            if (!$authUser->hasPermissionTo(perm_key('admin.super')) && !$authUser->hasAnyPermission([perm_key('permissions.view_all'), perm_key('admin.company')])) {
-                return api_forbidden('ليس لديك إذن لعرض الصلاحيات.');
-            }
-
             // جلب جميع تعريفات الصلاحيات من ملف config/permissions_keys.php
             $permissionsConfig = config('permissions_keys');
 
