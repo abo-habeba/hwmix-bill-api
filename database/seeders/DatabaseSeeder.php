@@ -28,7 +28,7 @@ class DatabaseSeeder extends Seeder
             // InvoiceItemSeeder::class,
             AttributeSeeder::class,
             AttributeValueSeeder::class,
-            RevenueSeeder::class,
+            // RevenueSeeder::class,
             PaymentMethodSeeder::class,
         ]);
     }
