@@ -21,13 +21,13 @@ class ArtisanController extends Controller
             $output = shell_exec('composer dump-autoload 2>&1');
             return api_success(['output' => $output], 'تم تنفيذ أمر Composer dump-autoload بنجاح.');
         } catch (Throwable $e) {
-            return api_error('حدث خطأ أثناء تشغيل أمر Composer dump-autoload.', [], 500);
+            return api_exception($e);
         }
     }
 
     /**
      * @return \Illuminate\Http\JsonResponse
-     * // ترحيل وعمل سيدرنج لقاعدة البيانات من جديد
+     * // ميجريشن ريفرش وعمل سيدرنج لقاعدة البيانات من جديد
      */
     public function migrateAndSeed(): JsonResponse
     {
@@ -42,7 +42,7 @@ class ArtisanController extends Controller
                 'seed_output' => 'تم تنفيذ Seeders بنجاح.',
             ], 'تم ترحيل قاعدة البيانات وتغذيتها بنجاح.');
         } catch (Throwable $e) {
-            return api_error('حدث خطأ أثناء ترحيل قاعدة البيانات وتغذيتها.', [], 500);
+            return api_exception($e);
         }
     }
 
@@ -59,7 +59,7 @@ class ArtisanController extends Controller
             ]);
             return api_success([], 'تم تنفيذ RolesAndPermissionsSeeder بنجاح.');
         } catch (Throwable $e) {
-            return api_error('حدث خطأ أثناء تنفيذ RolesAndPermissionsSeeder.', [], 500);
+            return api_exception($e);
         }
     }
 
@@ -76,7 +76,7 @@ class ArtisanController extends Controller
             ]);
             return api_success([], 'تم تنفيذ PermissionsSeeder بنجاح.');
         } catch (Throwable $e) {
-            return api_error('حدث خطأ أثناء تنفيذ PermissionsSeeder.', [], 500);
+            return api_exception($e);
         }
     }
 
@@ -112,7 +112,7 @@ class ArtisanController extends Controller
                 'permissions' => 'تم مسح كاش صلاحيات Spatie (إذا كان موجودًا)',
             ], 'تم مسح جميع الكاشات وإعادة بنائها بنجاح.');
         } catch (Throwable $e) {
-            return api_error('فشل مسح وإعادة بناء الكاشات.', [], 500);
+            return api_exception($e);
         }
     }
 
