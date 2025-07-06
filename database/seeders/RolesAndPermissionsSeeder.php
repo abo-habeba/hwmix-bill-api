@@ -28,12 +28,6 @@ class RolesAndPermissionsSeeder extends Seeder
         } else {
             $admin->syncPermissions($permissions);
         }
-
-        User::with('companies')->chunk(100, function ($users) {
-            foreach ($users as $user) {
-                $user->ensureCashBoxesForAllCompanies();
-            }
-        });
     }
 
 
@@ -71,6 +65,6 @@ class RolesAndPermissionsSeeder extends Seeder
         }
         $user->companies()->sync($pivotData);
         // إنشاء صناديق المستخدم الافتراضية لكل شركة
-        $user->ensureCashBoxesForAllCompanies();
+        // $user->ensureCashBoxesForAllCompanies();
     }
 }

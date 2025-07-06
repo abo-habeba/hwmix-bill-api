@@ -72,21 +72,23 @@ class CashBoxTypeController extends Controller
             }
 
             // تحديد عدد العناصر في الصفحة والفرز
-            $perPage = max(1, (int) $request->get('per_page', 10));
-            $sortField = $request->get('sort_by', 'id');
-            $sortOrder = $request->get('sort_order', 'desc');
+
+            $perPage = (int) $request->input('per_page', 20); // استخدام 'per_page' كاسم للمدخل
+            $sortField = $request->input('sort_by', 'created_at'); // استخدام 'created_at' كقيمة افتراضية للفرز
+            $sortOrder = $request->input('sort_order', 'desc');
 
             $cashBoxTypeQuery->orderBy($sortField, $sortOrder);
 
-            // جلب البيانات مع التصفية والصفحات
-            $cashBoxTypes = $cashBoxTypeQuery->paginate($perPage);
+            $cashBoxTypes = $perPage == -1
+                ? $cashBoxTypeQuery->get()
+                : $cashBoxTypeQuery->paginate(max(1, $perPage));
+
 
             // التحقق من وجود بيانات وتحديد الرسالة
-            if ($cashBoxTypes->isEmpty()) {
-                return api_success($cashBoxTypes, 'لم يتم العثور على أنواع خزن.');
-            } else {
-                return api_success($cashBoxTypes, 'تم استرداد أنواع الخزن بنجاح.');
-            }
+            return api_success(
+                $cashBoxTypes,
+                $cashBoxTypes->isEmpty() ? 'لم يتم العثور على أنواع خزن.' : 'تم استرداد أنواع الخزن بنجاح.'
+            );
         } catch (Throwable $e) {
             return api_exception($e, 500);
         }
@@ -124,15 +126,10 @@ class CashBoxTypeController extends Controller
                     'company_id' => 'nullable|exists:companies,id',
                 ]);
 
+                $validatedData['company_id'] = $companyId;
                 // تعيين company_id بناءً على صلاحيات المستخدم
                 if ($authUser->hasPermissionTo(perm_key('admin.super')) && isset($validatedData['company_id'])) {
                     // السوبر أدمن يمكنه إنشاء نوع لأي شركة يحددها
-                } elseif ($companyId) {
-                    // المستخدم العادي ينشئ نوعًا لشركته فقط
-                    $validatedData['company_id'] = $companyId;
-                } else {
-                    // إذا لم يكن المستخدم سوبر أدمن وليس لديه company_id
-                    unset($validatedData['company_id']); // إذا لم يكن هناك company_id للمستخدم، لا تقم بتعيينها
                 }
 
                 $validatedData['created_by'] = $authUser->id;
@@ -143,10 +140,11 @@ class CashBoxTypeController extends Controller
                 return api_success($cashBoxType, 'تم إنشاء نوع الخزنة بنجاح.', 201);
             } catch (ValidationException $e) {
                 DB::rollback();
-                return api_error('فشل التحقق من صحة البيانات أثناء تخزين نوع الخزنة.', $e->errors(), 422);
+                // return api_error('فشل التحقق من صحة البيانات أثناء تخزين نوع الخزنة.', $e->errors(), 422);
+                return api_exception($e, 500);
             } catch (Throwable $e) {
                 DB::rollback();
-                return api_error('حدث خطأ أثناء حفظ نوع الخزنة.', [], 500);
+                return api_exception($e, 500);
             }
         } catch (Throwable $e) {
             return api_exception($e, 500);

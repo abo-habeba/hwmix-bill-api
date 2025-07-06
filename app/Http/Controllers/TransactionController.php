@@ -123,23 +123,21 @@ class TransactionController extends Controller
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
-    public function userTransactions(Request $request)
+    public function userTransactions(Request $request, $cashBoxId)
     {
         try {
             /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id ?? null;
 
-            if (!$authUser) {
+            if (!$authUser || !$authUser->company_id) {
                 return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
             $query = Transaction::with($this->relations);
 
-            // تطبيق صلاحية 'transactions.view_self'
-            // المستخدم يمكنه رؤية معاملاته الخاصة فقط.
             $query->where('user_id', $authUser->id)
-                ->where('company_id', $companyId); // تأكد من أنها ضمن شركته
+                ->where('company_id', $authUser->company_id)
+                ->where('cashbox_id', $cashBoxId);
 
             // فلاتر البحث
             if ($request->filled('type')) {
@@ -160,7 +158,7 @@ class TransactionController extends Controller
                 $query->where('created_at', '<=', $createdAtTo . ' 23:59:59');
             }
 
-            $perPage = max(1, $request->get('per_page', 10));
+            $perPage = max(1, $request->get('per_page', 20));
             $sortField = $request->get('sort_by', 'created_at');
             $sortOrder = $request->get('sort_order', 'desc');
 

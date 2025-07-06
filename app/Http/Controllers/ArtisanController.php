@@ -6,7 +6,10 @@ use Throwable;
 use Illuminate\Http\JsonResponse;
 use App\Services\DatabaseBackupService;
 use Illuminate\Support\Facades\Artisan;
-use Database\Seeders\Backup\RunAllBackupSeeders;
+use App\Models\User;
+use App\Models\CashBox;
+use App\Models\CashBoxType;
+use Illuminate\Support\Facades\DB;
 
 class ArtisanController extends Controller
 {
@@ -80,6 +83,18 @@ class ArtisanController extends Controller
             return api_exception($e);
         }
     }
+    public function DatabaseSeeder(): JsonResponse
+    {
+        try {
+            Artisan::call('db:seed', [
+                '--class' => 'Database\Seeders\DatabaseSeeder',
+                '--force' => true
+            ]);
+            return api_success([], 'تم تنفيذ DatabaseSeeder بنجاح.');
+        } catch (Throwable $e) {
+            return api_exception($e);
+        }
+    }
 
     /**
      * مسح جميع الكاشات وإعادة بنائها.
@@ -148,5 +163,36 @@ class ArtisanController extends Controller
         } catch (Throwable $e) {
             return api_exception($e);
         }
+    }
+
+    public function ensureCashBoxesForAllUsers()
+    {
+        DB::transaction(function () {
+            // 1. نحصل على النوع "نقدي"
+            $cashType = CashBoxType::where('name', 'نقدي')->first();
+
+            if (!$cashType) {
+                throw new \Exception('نوع الخزنة "نقدي" غير موجود في جدول cash_box_types.');
+            }
+
+            // 2. لكل مستخدم: أنشئ له خزنة إن لم يكن لديه واحدة من هذا النوع
+            User::with('cashBoxes')->get()->each(function ($user) use ($cashType) {
+                $hasCashBox = $user->cashBoxes()->where('cash_box_type_id', $cashType->id)->exists();
+
+                if (!$hasCashBox) {
+                    CashBox::create([
+                        'name' => 'الخزنة النقدية - ' . $user->nickname ?? $user->name,
+                        'balance' => 0,
+                        'cash_box_type_id' => $cashType->id,
+                        'is_default' => true,
+                        'user_id' => $user->id,
+                        'created_by' => $user->id,
+                        'company_id' => $user->company_id,
+                        'description' => 'تم إنشاؤها تلقائيًا',
+                        'account_number' => null,
+                    ]);
+                }
+            });
+        });
     }
 }

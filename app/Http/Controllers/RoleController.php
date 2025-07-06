@@ -95,14 +95,19 @@ class RoleController extends Controller
                 $query->where('name', 'like', '%' . $request->input('name') . '%');
             }
 
-            $perPage = max(1, (int) $request->input('per_page', 10));
+            $perPage = (int) $request->input('per_page', 10);
             $sortField = $request->input('sort_by', 'id');
             $sortOrder = $request->input('sort_order', 'asc');
 
-            $roles = $query
-                ->orderBy($sortField, $sortOrder)
-                ->paginate($perPage);
+            $query->orderBy($sortField, $sortOrder);
 
+            if ($perPage == -1) {
+                // هات كل النتائج بدون باجينيشن
+                $roles = $query->get();
+            } else {
+                // هات النتائج بباجينيشن
+                $roles = $query->paginate(max(1, $perPage));
+            }
             if ($roles->isEmpty()) {
                 return api_success(RoleResource::collection($roles), 'لم يتم العثور على أدوار.');
             } else {

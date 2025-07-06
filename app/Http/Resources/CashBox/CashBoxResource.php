@@ -21,6 +21,7 @@ class CashBoxResource extends JsonResource
             'name' => $this->name,
             'balance' => $this->balance,
             'cash_type' => $this->typeBox->name,
+            'cash_box_type_id' => $this->cash_box_type_id,
             'user_id' => $this->user_id,
             'created_by' => $this->created_by,
             'company_id' => $this->company_id,

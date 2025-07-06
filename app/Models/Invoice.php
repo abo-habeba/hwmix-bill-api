@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Models;
 
 use App\Traits\Blameable;
@@ -15,18 +16,7 @@ class Invoice extends Model
 {
     use HasFactory, LogsActivity, Blameable, Scopes;
 
-    protected $fillable = [
-        'company_id',
-        'user_id',
-        'created_by',
-        'invoice_number',
-        'invoice_type_id',
-        'due_date',
-        'status',
-        'total_amount',
-        'notes',
-        'installment_plan_id',
-    ];
+    protected $guarded = [];
 
     protected static function booted()
     {

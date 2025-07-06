@@ -21,6 +21,11 @@ class StoreInvoiceRequest extends FormRequest
             'total_amount' => 'required|numeric',
             'paid_amount' => 'nullable|numeric|min:0',
             'remaining_amount' => 'nullable|numeric|min:0',
+            'total_discount' => 'nullable|numeric|min:0',
+            'due_date' => 'nullable|date',
+            'cash_box_id' => 'nullable|integer|exists:cash_boxes,id',
+            'user_id' => 'required|integer',
+
             'items' => 'required|array',
             'items.*.product_id' => 'required|integer',
             'items.*.variant_id' => 'required|integer',
@@ -43,7 +48,6 @@ class StoreInvoiceRequest extends FormRequest
             'items.*.stocks.*.expiry' => 'nullable|date',
             'items.*.stocks.*.loc' => 'nullable|string',
             'items.*.stocks.*.status' => 'nullable|string',
-            'user_id' => 'required|integer',
             'installment_plan' => 'nullable|array',
             'installment_plan.down_payment' => 'nullable|numeric',
             'installment_plan.number_of_installments' => 'nullable|integer',
@@ -52,8 +56,7 @@ class StoreInvoiceRequest extends FormRequest
             'installment_plan.start_date' => 'nullable|date',
             'installment_plan.due_date' => 'nullable|date',
             'installment_plan.round_step' => 'nullable|integer',
-            'due_date' => 'nullable|date',
-            'cash_box_id' => 'nullable|integer|exists:cash_boxes,id',
+
         ];
     }
 }

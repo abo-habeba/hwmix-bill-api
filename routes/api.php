@@ -67,7 +67,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::post('/deposit', 'deposit');
             Route::post('/withdraw', 'withdraw');
             Route::get('/transactions', 'transactions');
-            Route::get('/transactions/user', 'userTransactions');
+            Route::get('transactions/user/{cashBoxId?}', 'userTransactions');
             Route::post('/transactions/{transaction}/reverse', 'reverseTransaction');
         });
     // Role Controller
@@ -287,6 +287,8 @@ Route::controller(ArtisanController::class)->prefix('php')->group(function () {
     Route::get('migrateAndSeed', 'migrateAndSeed'); // ميجريشن ريفرش وعمل سيدرنج لقاعدة البيانات من جديد
     Route::get('applyBackup', 'applyBackup');     //  تطبيق السيدرز الاحتياطية
     Route::get('PermissionsSeeder', 'PermissionsSeeder'); // تشغيل PermissionsSeeder
+    Route::get('DatabaseSeeder', 'DatabaseSeeder'); // تشغيل DatabaseSeeder
     Route::get('seedRolesAndPermissions', 'seedRolesAndPermissions'); // تشغيل RolesAndPermissionsSeeder
     Route::get('clear', 'clearAllCache'); // مسح جميع الكاشات وإعادة بنائها
+    Route::get('ensureCashBoxesForAllUsers', 'ensureCashBoxesForAllUsers'); //
 });

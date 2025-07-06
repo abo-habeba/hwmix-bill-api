@@ -47,14 +47,15 @@ class PurchaseInvoiceService implements DocumentServiceInterface
         }
         $invoice->logCreated('إنشاء فاتورة شراء رقم ' . $invoice->invoice_number);
         $cashBoxId = $data['cash_box_id'] ?? null;
-        // خصم المدفوع من رصيد المستخدم الحالي
         $authUser = Auth::user();
+        // خصم المدفوع من رصيد المستخدم الحالي
         $authUser->withdraw($invoice->paid_amount, $cashBoxId);
         // إضافة المتبقي لرصيد المورد (user_id) إذا كان مختلفاً عن المستخدم الحالي
         if ($invoice->user_id && $invoice->user_id != $authUser->id && $invoice->remaining_amount > 0) {
             $supplier = \App\Models\User::find($invoice->user_id);
             if ($supplier) {
-                $supplier->deposit($invoice->remaining_amount, $cashBoxId);
+                //ايداع 
+                $supplier->deposit($invoice->remaining_amount);
             }
         }
         return $invoice;

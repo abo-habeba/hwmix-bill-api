@@ -154,10 +154,8 @@ class CashBoxController extends Controller
             try {
                 $validatedData = $request->validated();
 
-                // إذا كان المستخدم super_admin ويحدد company_id، يسمح بذلك. وإلا، استخدم company_id للمستخدم.
-                $validatedData['company_id'] = ($authUser->hasPermissionTo(perm_key('admin.super')) && isset($validatedData['company_id']))
-                    ? $validatedData['company_id']
-                    : $companyId;
+                $validatedData['company_id'] =  $validatedData['company_id'] ?? $companyId;
+                $validatedData['user_id'] =  $validatedData['user_id'] ?? $authUser->id;
 
                 // التأكد من أن المستخدم مصرح له بإنشاء صندوق لهذه الشركة
                 if ($validatedData['company_id'] != $companyId && !$authUser->hasPermissionTo(perm_key('admin.super'))) {
@@ -178,7 +176,7 @@ class CashBoxController extends Controller
                 return api_error('فشل التحقق من صحة البيانات أثناء تخزين الخزنة.', $e->errors(), 422);
             } catch (Throwable $e) {
                 DB::rollback();
-                return api_error('حدث خطأ أثناء حفظ الخزنة.', [], 500);
+                return api_exception($e, 500);
             }
         } catch (Throwable $e) {
             return api_exception($e, 500);

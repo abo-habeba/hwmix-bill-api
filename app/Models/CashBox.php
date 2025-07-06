@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Attributes\ScopedBy;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+
 #[ScopedBy([CompanyScope::class])]
 /**
  * @mixin IdeHelperCashBox
@@ -23,12 +24,13 @@ class CashBox extends Model
     protected $fillable = [
         'name',
         'balance',
-        'cash_type',
         'is_default',
         'cash_box_type_id',
         'user_id',
         'created_by',
         'company_id',
+        'description',
+        'account_number',
     ];
     public function creator(): BelongsTo
     {

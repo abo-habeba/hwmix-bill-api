@@ -144,7 +144,7 @@ class InvoiceController extends Controller
                 return api_error('فشل التحقق من صحة البيانات أثناء إنشاء المستند.', $e->errors(), 422);
             } catch (Throwable $e) {
                 DB::rollBack();
-                return api_error('حدث خطأ أثناء إنشاء المستند.', [], 500);
+                return api_exception($e);
             }
         } catch (Throwable $e) {
             return api_exception($e);

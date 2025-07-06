@@ -85,7 +85,7 @@ class ProductVariantController extends Controller
                 $query->where('status', $request->input('status'));
             }
 
-            $perPage = max(1, (int) $request->get('per_page', 10));
+            $perPage = max(1, (int) $request->get('per_page', 20));
             $sortField = $request->input('sort_by', 'created_at');
             $sortOrder = $request->input('sort_order', 'desc');
             $productVariants = $query->orderBy($sortField, $sortOrder)->paginate($perPage);
@@ -460,45 +460,62 @@ class ProductVariantController extends Controller
             }
 
             $search = $request->get('search');
-            // إذا كان البحث فارغًا أو قصيرًا جدًا، ارجع مجموعة فارغة
             if (empty($search) || mb_strlen($search) <= 2) {
                 return api_success([], 'لا توجد نتائج بحث.');
             }
 
             $productQuery = Product::query();
 
-            // تطبيق منطق الصلاحيات على استعلام المنتج
+            // صلاحيات
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
-                // المسؤول العام يرى جميع المنتجات
-            } elseif ($authUser->hasAnyPermission([perm_key('products.view_all'), perm_key('admin.company'), perm_key('product_variants.view_all')])) { // يجب أن يكون لديه صلاحية رؤية المنتجات أو المتغيرات
+                //
+            } elseif ($authUser->hasAnyPermission([perm_key('products.view_all'), perm_key('admin.company'), perm_key('product_variants.view_all')])) {
                 $productQuery->whereCompanyIsCurrent();
             } elseif ($authUser->hasAnyPermission([perm_key('products.view_children'), perm_key('product_variants.view_children')])) {
                 $productQuery->whereCompanyIsCurrent()->whereCreatedByUserOrChildren();
             } elseif ($authUser->hasAnyPermission([perm_key('products.view_self'), perm_key('product_variants.view_self')])) {
                 $productQuery->whereCompanyIsCurrent()->whereCreatedByUser();
             } else {
-                // إذا لم يكن لديه صلاحية رؤية أي منتج أو متغير، ارجع مجموعة فارغة
                 return api_forbidden('ليس لديك صلاحية لعرض المنتجات أو متغيراتها.');
             }
 
+            // فلتر بحث عادي
             $productQuery->where(function ($q) use ($search) {
-                $q
-                    ->where('name', 'like', "%$search%")
+                $q->where('name', 'like', "%$search%")
                     ->orWhere('desc', 'like', "%$search%");
             });
 
-            $perPage = max(1, (int) $request->get('per_page', 10));
+            $perPage = max(1, (int) $request->get('per_page', 20));
 
             $productsWithVariants = $productQuery->with(['variants' => function ($query) {
-                // تحميل العلاقات المطلوبة للمتغيرات
                 $query->with($this->relations);
             }])->paginate($perPage);
 
-            // استخلاص جميع المتغيرات من المنتجات المفلترة
             $variants = collect($productsWithVariants->items())->flatMap(function ($product) {
                 return $product->variants;
             });
-            // إذا لم توجد متغيرات، ارجع مجموعة فارغة
+
+            // ✅ لو مفيش نتائج نستخدم similar_text
+            if ($variants->isEmpty()) {
+                $allProducts = Product::limit(100)->with(['variants' => function ($query) {
+                    $query->with($this->relations);
+                }])->get();
+                $similarProducts = [];
+
+                foreach ($allProducts as $product) {
+                    similar_text($product->name, $search, $percent);
+                    if ($percent >= 70) {
+                        $similarProducts[] = $product;
+                    }
+                }
+
+                // استخراج المتغيرات
+                $similarVariants = collect($similarProducts)->flatMap(function ($product) {
+                    return $product->variants;
+                });
+
+                return api_success(ProductVariantResource::collection($similarVariants), 'تم العثور على نتائج مشابهة بناءً على البحث.');
+            }
             return api_success(ProductVariantResource::collection($variants), 'تم العثور على متغيرات المنتجات بنجاح.');
         } catch (Throwable $e) {
             return api_exception($e);

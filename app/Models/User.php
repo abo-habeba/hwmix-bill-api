@@ -75,6 +75,12 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+    protected static function booted(): void
+    {
+        static::created(function (User $user) {
+            app(\App\Services\CashBoxService::class)->ensureCashBoxForUser($user);
+        });
+    }
 
     public function trans()
     {
@@ -200,22 +206,15 @@ class User extends Authenticatable
         $this->ensureCashBoxesForAllCompanies();
         DB::beginTransaction();
         try {
-            $query = $this->cashBoxes();
-            $cashBox = $cashBoxId
-                ? $query->where('id', $cashBoxId)->where('company_id', $this->company_id)->first()
-                : $query->where('company_id', $this->company_id)->where('is_default', true)->first();
+            try {
 
-            // إعادة المحاولة بعد تحديث العلاقة إذا لم يوجد الصندوق
-            if (!$cashBox) {
                 $this->refresh();
                 $query = $this->cashBoxes();
                 $cashBox = $cashBoxId
                     ? $query->where('id', $cashBoxId)->where('company_id', $this->company_id)->first()
                     : $query->where('company_id', $this->company_id)->where('is_default', true)->first();
-            }
-
-            if (!$cashBox) {
-                throw new Exception('Cash box not found.');
+            } catch (Exception $e) {
+                return api_exception($e);
             }
 
             $cashBox->increment('balance', $amount);
@@ -230,44 +229,36 @@ class User extends Authenticatable
 
     public function withdraw($amount, $cashBoxId = null)
     {
+
+        $amount = floatval($amount);
         $this->ensureCashBoxesForAllCompanies();
         DB::beginTransaction();
         try {
-            $query = $this->cashBoxes();
-            $cashBox = $cashBoxId
-                ? $query->where('id', $cashBoxId)->where('company_id', $this->company_id)->first()
-                : $query->where('company_id', $this->company_id)->where('is_default', true)->first();
-
-            // إعادة المحاولة بعد تحديث العلاقة إذا لم يوجد الصندوق
-            if (!$cashBox) {
+            try {
                 $this->refresh();
                 $query = $this->cashBoxes();
                 $cashBox = $cashBoxId
                     ? $query->where('id', $cashBoxId)->where('company_id', $this->company_id)->first()
                     : $query->where('company_id', $this->company_id)->where('is_default', true)->first();
+            } catch (Exception $e) {
+                DB::rollBack();
+                return api_exception($e);
             }
-
-            if (!$cashBox) {
-                throw new Exception('Cash box not found.');
-            }
-
-            if ($cashBox->balance < $amount) {
-                throw new Exception('Insufficient funds in the cash box.');
-            }
-
             $cashBox->decrement('balance', $amount);
 
             DB::commit();
             return true;
         } catch (Exception $e) {
             DB::rollBack();
-            throw $e;
+            return api_exception($e);
         }
     }
 
     // تحويل مبلغ بين المستخدمين
     public function transfer($cashBoxId, $targetUserId, $amount, $description = null)
     {
+
+        $amount = floatval($amount);
         if (!$this->hasAnyPermission(['super_admin', 'transfer', 'company_owner'])) {
             throw new Exception('Unauthorized: You do not have permission to transfer.');
         }

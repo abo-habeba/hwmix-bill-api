@@ -80,15 +80,21 @@ class InstallmentPlanController extends Controller
                 $query->where('user_id', $request->input('user_id'));
             }
             // يمكنك إضافة المزيد من فلاتر البحث هنا
+            // تحديد عدد العناصر في الصفحة والفرز
+            $perPage = (int) $request->input('limit', 20); // استخدام 'limit' كاسم للمدخل
+            $sortField = $request->input('sort_by', 'created_at'); // استخدام 'created_at' كقيمة افتراضية للفرز
+            $sortOrder = $request->input('sort_order', 'desc');
 
-            // الترتيب
-            $sortBy = $request->get('sort_by', 'created_at');
-            $sortOrder = $request->get('sort_order', 'desc');
-            $query->orderBy($sortBy, $sortOrder === 'desc' ? 'desc' : 'asc');
+            $query->orderBy($sortField, $sortOrder); // تطبيق الفرز
 
-            // التصفحة
-            $perPage = (int) $request->get('limit', 20);
-            $plans = $query->paginate($perPage);
+            if ($perPage == -1) {
+                // جلب كل النتائج بدون تصفح
+                $plans = $query->get();
+            } else {
+                // جلب النتائج مع التصفح
+                $plans = $query->paginate(max(1, $perPage));
+            }
+
             if ($plans->isEmpty()) {
                 return api_success($plans, 'لم يتم العثور على خطط تقسيط.');
             } else {

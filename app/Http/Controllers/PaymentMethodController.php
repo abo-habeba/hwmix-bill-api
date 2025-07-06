@@ -82,11 +82,18 @@ class PaymentMethodController extends Controller
             }
 
             // تحديد عدد العناصر في الصفحة والفرز
-            $perPage = max(1, (int) $request->input('per_page', 20));
+            $perPage = (int) $request->input('per_page', 10);
             $sortField = $request->input('sort_by', 'id');
-            $sortOrder = $request->input('sort_order', 'desc');
+            $sortOrder = $request->input('sort_order', 'asc');
 
-            $paymentMethods = $query->orderBy($sortField, $sortOrder)->paginate($perPage);
+            $query->orderBy($sortField, $sortOrder);
+            if ($perPage == -1) {
+                // هات كل النتائج بدون باجينيشن
+                $paymentMethods = $query->get();
+            } else {
+                // هات النتائج بباجينيشن
+                $paymentMethods = $query->paginate(max(1, $perPage));
+            }
 
             if ($paymentMethods->isEmpty()) {
                 return api_success([], 'لم يتم العثور على طرق دفع.');

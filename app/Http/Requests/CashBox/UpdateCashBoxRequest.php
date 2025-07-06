@@ -22,11 +22,15 @@ class UpdateCashBoxRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => 'required|string|max:255',
-            'balance' => 'nullable|numeric|min:0',
-            'cash_type' => 'required|string|max:255|unique:cash_boxes,cash_type,' . $this->route('cash_box') . ',id,company_id,' . $this->company_id,
-            'user_id' => 'required|exists:users,id',
-            'company_id' => 'required|exists:companies,id',
+            'name' => ['sometimes', 'string', 'max:255'],
+            'balance' => ['nullable', 'numeric', 'min:0'],
+            'cash_box_type_id' => ['required', 'exists:cash_box_types,id'],
+            'is_default' => ['boolean'],
+            'user_id' => ['required', 'exists:users,id'],
+            'created_by' => ['nullable', 'exists:users,id'],
+            'company_id' => ['required', 'exists:companies,id'],
+            'description' => ['nullable', 'string', 'max:255'],
+            'account_number' => ['nullable', 'string', 'max:255'],
         ];
     }
 }

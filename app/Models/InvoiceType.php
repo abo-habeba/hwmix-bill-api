@@ -25,4 +25,12 @@ class InvoiceType extends Model
     {
         return $this->hasMany(Invoice::class);
     }
+    public function company()
+    {
+        return $this->belongsTo(Company::class);
+    }
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
 }

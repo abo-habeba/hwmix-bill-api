@@ -2,19 +2,20 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Controllers\Controller;
-use App\Http\Requests\User\UserRequest;
-use App\Http\Requests\User\UserUpdateRequest;
-use App\Http\Resources\User\UserResource;
+use Throwable;
+use App\Models\User;
 use App\Models\CashBox;
 use App\Models\CashBoxType;
-use App\Models\User;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
+use App\Services\CashBoxService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Throwable;
+use App\Http\Controllers\Controller;
+use Illuminate\Support\Facades\Auth;
+use App\Http\Requests\User\UserRequest;
+use App\Http\Resources\User\UserResource;
+use Illuminate\Database\Eloquent\Builder;
+use App\Http\Requests\User\UserUpdateRequest;
 
 if (!function_exists('perm_key')) {
     function perm_key(string $permission)
@@ -121,10 +122,8 @@ class UserController extends Controller
 
             // منطق تعيين company_id و created_by بناءً على الصلاحيات
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
-                // السوبر أدمن يمكنه تحديد company_id و created_by
-                // إذا لم يتم تحديد company_id صراحةً، يمكن أن يكون null أو يتم تعيينه لاحقًا
                 $validatedData['company_id'] = isset($validatedData['company_ids']) && is_array($validatedData['company_ids'])
-                    ? $validatedData['company_ids'][0]  // استخدام أول شركة في القائمة كـ company_id الأساسي
+                    ? $validatedData['company_ids'][0]
                     : ($validatedData['company_id'] ?? null);
                 $validatedData['created_by'] = $validatedData['created_by'] ?? $authUser->id;
             } elseif ($authUser->hasPermissionTo(perm_key('admin.company'))) {
@@ -269,21 +268,7 @@ class UserController extends Controller
                 }
                 $user->companies()->sync($pivotData);
                 $newCompanyIds = array_diff($validated['company_ids'], $oldCompanyIds);
-                foreach ($newCompanyIds as $companyId) {
-                    if (!$user->cashBoxes()->where('company_id', $companyId)->exists()) {
-                        $defaultType = \App\Models\CashBoxType::where('name', 'نقدي')->first();
-                        $cashBoxTypeId = $defaultType ? $defaultType->id : null;
-                        \App\Models\CashBox::create([
-                            'name' => 'نقدي',
-                            'balance' => 0,
-                            'cash_box_type_id' => $cashBoxTypeId,
-                            'is_default' => true,
-                            'user_id' => $user->id,
-                            'created_by' => $user->created_by ?? $user->id,
-                            'company_id' => $companyId,
-                        ]);
-                    }
-                }
+                app(CashBoxService::class)->ensureCashBoxesForUserCompanies($user, $newCompanyIds);
             }
             if (isset($validated['permissions']) && is_array($validated['permissions'])) {
                 $user->syncPermissions($validated['permissions']);

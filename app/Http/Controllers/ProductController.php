@@ -114,20 +114,48 @@ class ProductController extends Controller
                 $query->where('featured', (bool) $request->input('featured'));
             }
 
-
-            // الفرز والتصفح
-            $sortBy = $request->input('sort_by', 'created_at');
+            // تحديد عدد العناصر في الصفحة والفرز
+            $perPage = (int) $request->input('per_page', 20);
+            $sortField = $request->input('sort_by', 'created_at');
             $sortOrder = $request->input('sort_order', 'desc');
-            $query->orderBy($sortBy, $sortOrder);
 
-            $perPage = max(1, (int) $request->input('per_page', 10));
-            $products = $query->paginate($perPage);
+            $products = $query->orderBy($sortField, $sortOrder);
+            $products = $perPage == -1
+                ? $products->get()
+                : $products->paginate(max(1, $perPage));
 
-            if ($products->isEmpty()) {
-                return api_success($products, 'لم يتم العثور على منتجات.');
-            } else {
-                return api_success($products, 'تم جلب المنتجات بنجاح.');
+
+
+            // ✅ لو مفيش نتائج وفعلًا فيه بحث، نحاول نستخدم similar_text
+            if ($products->isEmpty() && $request->filled('search')) {
+                $search = $request->input('search');
+
+                // نحاول نجيب مجموعة محدودة فقط من المنتجات لتطبيق similar_text عليها (مثلاً أول 100)
+                $all = Product::limit(100)->get(); // ممكن تزود العدد أو تضيف whereCompanyIsCurrent لو حبيت
+                $similar = [];
+
+                foreach ($all as $product) {
+                    similar_text($product->name, $search, $percent);
+                    if ($percent >= 70) { // عتبة التشابه - تقدر تغيرها حسب تجربتك
+                        $similar[] = $product;
+                    }
+                }
+
+                // نستخدم Laravel LengthAwarePaginator علشان نرجع شكل pagination سليم
+                $page = $request->input('page', 1);
+                $perPage = max(1, $perPage);
+                $pagedResults = array_slice($similar, ($page - 1) * $perPage, $perPage);
+                $paginated = new \Illuminate\Pagination\LengthAwarePaginator(
+                    $pagedResults,
+                    count($similar),
+                    $perPage,
+                    $page,
+                    ['path' => url()->current(), 'query' => $request->query()]
+                );
+
+                return api_success($paginated, 'تم جلب نتائج مشابهة بناءً على البحث.');
             }
+            return api_success($products, 'تم جلب المنتجات بنجاح.');
         } catch (Throwable $e) {
             return api_exception($e);
         }

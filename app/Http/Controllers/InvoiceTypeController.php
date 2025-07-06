@@ -79,11 +79,14 @@ class InvoiceTypeController extends Controller
             }
 
             // تحديد عدد العناصر في الصفحة والفرز
-            $perPage = max(1, (int) $request->input('per_page', 20));
+            $perPage = (int) $request->input('per_page', 20);
             $sortField = $request->input('sort_by', 'id');
             $sortOrder = $request->input('sort_order', 'desc');
 
-            $types = $query->orderBy($sortField, $sortOrder)->paginate($perPage);
+            $types = $query->orderBy($sortField, $sortOrder);
+            $types = $perPage == -1
+                ? $types->get()
+                : $types->paginate(max(1, $perPage));
 
             if ($types->isEmpty()) {
                 return api_success([], 'لم يتم العثور على أنواع فواتير.');

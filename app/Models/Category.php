@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Traits\Scopes;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 /**
@@ -32,5 +33,9 @@ class Category extends Model
     public function parent()
     {
         return $this->belongsTo(Category::class, 'parent_id');
+    }
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'creator_id'); // تأكد من اسم المفتاح الأجنبي 'creator_id'
     }
 }

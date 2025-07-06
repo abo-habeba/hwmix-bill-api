@@ -22,6 +22,7 @@ trait InvoiceHelperTrait
             'user_id' => $data['user_id'],
             'total_amount' => $data['total_amount'],
             'paid_amount' => $data['paid_amount'],
+            'total_discount' => $data['paid_amount'],
             'remaining_amount' => $data['remaining_amount'],
             'company_id' => $data['company_id'] ?? null,
             'created_by' => $data['created_by'] ?? null,

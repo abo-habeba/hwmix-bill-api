@@ -22,11 +22,15 @@ class StoreCashBoxRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => 'required|string|max:255',
-            'balance' => 'nullable|numeric|min:0',
-            'cash_type' => 'required|string|max:255|unique:cash_boxes,cash_type,NULL,id,company_id,' . $this->company_id,
-            'user_id' => 'required|exists:users,id',
-            'company_id' => 'required|exists:companies,id',
+            'name' => ['required', 'string', 'max:255'],
+            'balance' => ['nullable', 'numeric', 'min:0'],
+            'cash_box_type_id' => ['required', 'exists:cash_box_types,id'],
+            'is_default' => ['nullable', 'boolean'],
+            'user_id' => ['nullable', 'exists:users,id'],
+            'company_id' => ['nullable', 'exists:companies,id'],
+            'created_by' => ['nullable', 'exists:users,id'],
+            'description' => ['nullable', 'string'],
+            'account_number' => ['nullable', 'string', 'max:255'],
         ];
     }
 }

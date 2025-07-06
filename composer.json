@@ -12,6 +12,7 @@
         "jenssegers/agent": "^2.6",
         "laravel/framework": "^11.9",
         "laravel/sanctum": "^4.0",
+        "laravel/scout": "^10.15",
         "laravel/tinker": "^2.9",
         "spatie/laravel-permission": "^6.10"
     },
