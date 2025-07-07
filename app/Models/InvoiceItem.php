@@ -15,19 +15,7 @@ class InvoiceItem extends Model
 {
     use HasFactory, Blameable, Scopes;
 
-    protected $fillable = [
-        'invoice_id',
-        'product_id',
-        'installment_number',
-        'name',
-        'quantity',
-        'unit_price',
-        'discount',
-        'total',
-        'company_id',
-        'created_by'
-    ];
-
+    protected $guarded = [];
     public function invoice()
     {
         return $this->belongsTo(Invoice::class);
