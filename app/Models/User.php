@@ -202,43 +202,12 @@ class User extends Authenticatable
     }
 
 
-    public function deposit(float $amount, $cashBoxId = null)
+public function withdraw(float $amount, $cashBoxId = null)
 {
     $amount = floatval($amount);
     $this->ensureCashBoxesForAllCompanies();
 
     DB::beginTransaction();
-
-    try {
-        $this->refresh();
-
-        $query = $this->cashBoxes();
-        $cashBox = $cashBoxId
-            ? $query->where('id', $cashBoxId)->where('company_id', $this->company_id)->first()
-            : $query->where('company_id', $this->company_id)->where('is_default', true)->first();
-
-        if (!$cashBox) {
-            DB::rollBack();
-            throw new \Exception("لم يتم العثور على خزنة مناسبة.");
-        }
-
-        $cashBox->increment('balance', $amount);
-
-        DB::commit();
-        return true;
-    } catch (Exception $e) {
-        DB::rollBack();
-        throw $e; // ✅ تم التعديل هنا
-    }
-}
-
-    public function withdraw(float $amount, $cashBoxId = null)
-{
-    $amount = floatval($amount);
-    $this->ensureCashBoxesForAllCompanies();
-
-    DB::beginTransaction();
-
     try {
         $this->refresh();
 
@@ -246,6 +215,16 @@ class User extends Authenticatable
         $cashBox = $cashBoxId
             ? $query->where('id', $cashBoxId)->first()
             : $query->where('company_id', $this->company_id)->where('is_default', true)->first();
+
+        // Fallback لو الخزنة مش موجودة
+        if (!$cashBox) {
+            $this->ensureCashBoxesForAllCompanies();
+            $this->refresh();
+            $cashBox = $this->cashBoxes()
+                ->where('company_id', $this->company_id)
+                ->where('is_default', true)
+                ->first();
+        }
 
         if (!$cashBox) {
             DB::rollBack();
@@ -256,9 +235,48 @@ class User extends Authenticatable
 
         DB::commit();
         return true;
-    } catch (Exception $e) {
+    } catch (\Throwable $e) {
         DB::rollBack();
-        throw $e; // ✅ تم التعديل هنا
+        throw $e;
+    }
+}
+
+public function deposit(float $amount, $cashBoxId = null)
+{
+    $amount = floatval($amount);
+    $this->ensureCashBoxesForAllCompanies();
+
+    DB::beginTransaction();
+    try {
+        $this->refresh();
+
+        $query = $this->cashBoxes();
+        $cashBox = $cashBoxId
+            ? $query->where('id', $cashBoxId)->where('company_id', $this->company_id)->first()
+            : $query->where('company_id', $this->company_id)->where('is_default', true)->first();
+
+        // Fallback لو الخزنة مش موجودة
+        if (!$cashBox) {
+            $this->ensureCashBoxesForAllCompanies();
+            $this->refresh();
+            $cashBox = $this->cashBoxes()
+                ->where('company_id', $this->company_id)
+                ->where('is_default', true)
+                ->first();
+        }
+
+        if (!$cashBox) {
+            DB::rollBack();
+            throw new \Exception("لم يتم العثور على خزنة مناسبة.");
+        }
+
+        $cashBox->increment('balance', $amount);
+
+        DB::commit();
+        return true;
+    } catch (\Throwable $e) {
+        DB::rollBack();
+        throw $e;
     }
 }
     // تحويل مبلغ بين المستخدمين
