@@ -54,6 +54,11 @@ class Installment extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
+
+    public function company()
+{
+    return $this->belongsTo(Company::class);
+}
     public function withPayments()
     {
         return $this->load('payments');
