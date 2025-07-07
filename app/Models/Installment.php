@@ -24,8 +24,7 @@ class Installment extends Model
         'paid_at',
         'remaining',
         'created_by',
-        'user_id',
-        'company_id'
+        'user_id'
     ];
 
     public function installmentPlan()
@@ -35,28 +34,24 @@ class Installment extends Model
 
     public function payments()
     {
-        return $this
-            ->belongsToMany(Payment::class, 'payment_installment')
-            ->withPivot('allocated_amount')
+        return $this->belongsToMany(InstallmentPayment::class, 'installment_payment_details')
+            ->withPivot('amount_paid')
             ->withTimestamps();
     }
 
-    // القسط يخص عميل
+    public function paymentDetails()
+    {
+        return $this->hasMany(InstallmentPaymentDetail::class);
+    }
+
     public function user()
     {
         return $this->belongsTo(User::class, 'user_id');
     }
 
-    // القسط أضافه موظف
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
-    }
-
-    // الشركة التابعة للقسط
-    public function company()
-    {
-        return $this->belongsTo(Company::class, 'company_id');
     }
 
     public function withPayments()
