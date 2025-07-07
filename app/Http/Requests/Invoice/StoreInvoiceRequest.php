@@ -14,17 +14,26 @@ class StoreInvoiceRequest extends FormRequest
     public function rules()
     {
         return [
+
             'id' => 'nullable|integer',
             'invoice_type_id' => 'required|integer',
             'invoice_type_code' => 'nullable|string',
             'status' => 'nullable|string',
-            'total_amount' => 'required|numeric',
+
+            // الحقول المالية
+            'gross_amount' => 'required|numeric',       // إجمالي قبل الخصم
+            'total_discount' => 'nullable|numeric|min:0', // الخصم العام
+            'net_amount' => 'required|numeric|min:0',   // بعد الخصم
             'paid_amount' => 'nullable|numeric|min:0',
             'remaining_amount' => 'nullable|numeric|min:0',
-            'total_discount' => 'nullable|numeric|min:0',
+
+            'round_step' => 'nullable|integer',
+
             'due_date' => 'nullable|date',
             'cash_box_id' => 'nullable|integer|exists:cash_boxes,id',
             'user_id' => 'required|integer',
+
+            'notes' => 'nullable|string',
 
             'items' => 'required|array',
             'items.*.product_id' => 'required|integer',

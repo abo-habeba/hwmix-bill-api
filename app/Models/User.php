@@ -5,21 +5,22 @@ namespace App\Models;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Exception;
 // use App\Models\Role;
-use App\Traits\Translations\Translatable;
+use App\Traits\Scopes;
 use App\Traits\Filterable;
 use App\Traits\LogsActivity;
 use App\Traits\RolePermissions;
-use App\Traits\Scopes;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Notifications\Notifiable;
-use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\HasApiTokens;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Role;
-use Spatie\Permission\Traits\HasPermissions;
+use Illuminate\Support\Facades\Log;
 use Spatie\Permission\Traits\HasRoles;
+use Illuminate\Notifications\Notifiable;
+use App\Traits\Translations\Translatable;
+use Spatie\Permission\Traits\HasPermissions;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 /**
  * @method void deposit(float|int $amount)
@@ -201,20 +202,24 @@ class User extends Authenticatable
     }
 
 
-    public function deposit($amount, $cashBoxId = null)
+    public function deposit(float $amount, $cashBoxId = null)
     {
+        $amount = floatval($amount);
         $this->ensureCashBoxesForAllCompanies();
-        DB::beginTransaction();
-        try {
-            try {
 
-                $this->refresh();
-                $query = $this->cashBoxes();
-                $cashBox = $cashBoxId
-                    ? $query->where('id', $cashBoxId)->where('company_id', $this->company_id)->first()
-                    : $query->where('company_id', $this->company_id)->where('is_default', true)->first();
-            } catch (Exception $e) {
-                return api_exception($e);
+        DB::beginTransaction();
+
+        try {
+            $this->refresh();
+
+            $query = $this->cashBoxes();
+            $cashBox = $cashBoxId
+                ? $query->where('id', $cashBoxId)->where('company_id', $this->company_id)->first()
+                : $query->where('company_id', $this->company_id)->where('is_default', true)->first();
+
+            if (!$cashBox) {
+                DB::rollBack();
+                return api_error("لم يتم العثور على خزنة مناسبة.");
             }
 
             $cashBox->increment('balance', $amount);
@@ -223,27 +228,29 @@ class User extends Authenticatable
             return true;
         } catch (Exception $e) {
             DB::rollBack();
-            throw $e;
+            return api_exception($e);
         }
     }
 
-    public function withdraw($amount, $cashBoxId = null)
+    public function withdraw(float $amount, $cashBoxId = null)
     {
-
         $amount = floatval($amount);
         $this->ensureCashBoxesForAllCompanies();
+
         DB::beginTransaction();
         try {
-            try {
-                $this->refresh();
-                $query = $this->cashBoxes();
-                $cashBox = $cashBoxId
-                    ? $query->where('id', $cashBoxId)->where('company_id', $this->company_id)->first()
-                    : $query->where('company_id', $this->company_id)->where('is_default', true)->first();
-            } catch (Exception $e) {
+            $this->refresh();
+
+            $query = $this->cashBoxes();
+            $cashBox = $cashBoxId
+                ? $query->where('id', $cashBoxId)->first()
+                : $query->where('company_id', $this->company_id)->where('is_default', true)->first();
+
+            if (!$cashBox) {
                 DB::rollBack();
-                return api_exception($e);
+                throw new Exception("لم يتم العثور على خزنة مناسبة.");
             }
+
             $cashBox->decrement('balance', $amount);
 
             DB::commit();
@@ -253,6 +260,7 @@ class User extends Authenticatable
             return api_exception($e);
         }
     }
+
 
     // تحويل مبلغ بين المستخدمين
     public function transfer($cashBoxId, $targetUserId, $amount, $description = null)

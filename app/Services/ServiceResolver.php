@@ -29,7 +29,7 @@ class ServiceResolver
     {
         return match ($invoiceTypeCode) {
             // Main invoice types
-            'sale' => new SaleInvoiceService(),
+            'sale' => app(SaleInvoiceService::class),
             'purchase' => new PurchaseInvoiceService(),
             'installment_sale' => new InstallmentSaleInvoiceService(),
             'service_invoice' => new ServiceInvoiceService(),

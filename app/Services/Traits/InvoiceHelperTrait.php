@@ -16,16 +16,19 @@ trait InvoiceHelperTrait
     {
         unset($data['invoice_number']);
         return Invoice::create([
-            'invoice_type_id' => $data['invoice_type_id'],
-            'due_date' => $data['due_date'] ?? null,
-            'status' => $data['status'] ?? 'confirmed',
-            'user_id' => $data['user_id'],
-            'total_amount' => $data['total_amount'],
-            'paid_amount' => $data['paid_amount'],
-            'total_discount' => $data['paid_amount'],
-            'remaining_amount' => $data['remaining_amount'],
-            'company_id' => $data['company_id'] ?? null,
-            'created_by' => $data['created_by'] ?? null,
+            'invoice_type_id'   => $data['invoice_type_id'],
+            'invoice_type_code' => $data['invoice_type_code'] ?? null,
+            'due_date'          => $data['due_date'] ?? null,
+            'status'            => $data['status'] ?? 'confirmed',
+            'user_id'           => $data['user_id'],
+            'gross_amount'      => $data['gross_amount'],
+            'total_discount'    => $data['total_discount'] ?? 0,
+            'net_amount'        => $data['net_amount'],
+            'paid_amount'       => $data['paid_amount'] ?? 0,
+            'remaining_amount'  => $data['remaining_amount'] ?? 0,
+            'round_step'        => $data['round_step'] ?? null,
+            'company_id'        => $data['company_id'] ?? null,
+            'created_by'        => $data['created_by'] ?? null,
         ]);
     }
 

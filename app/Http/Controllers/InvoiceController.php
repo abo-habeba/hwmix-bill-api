@@ -136,6 +136,15 @@ class InvoiceController extends Controller
 
                 $responseDTO = $service->create($validated); // الخدمة يجب أن ترجع كائن Invoice
 
+                if (!$responseDTO || !$responseDTO instanceof \App\Models\Invoice) {
+                    \Log::error('لم يتم إنشاء الفاتورة بنجاح من الـ Service', [
+                        'returned_value' => $responseDTO,
+                        'invoice_type_code' => $invoiceTypeCode,
+                        'validated_data' => $validated,
+                    ]);
+                    throw new \Exception('فشل إنشاء الفاتورة من الخدمة.');
+                }
+
                 $responseDTO->load($this->relations); // تحميل العلاقات بعد الإنشاء
                 DB::commit();
                 return api_success(new InvoiceResource($responseDTO), 'تم إنشاء المستند بنجاح', 201);

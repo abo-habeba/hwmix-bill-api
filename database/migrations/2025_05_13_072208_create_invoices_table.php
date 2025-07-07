@@ -15,19 +15,26 @@ return new class extends Migration {
 
             $table->string('invoice_number')->unique()->nullable();
             $table->date('due_date')->nullable();
-            $table->decimal('total_amount', 15, 2);
-            $table->decimal('remaining_amount', 15, 2);
-            $table->decimal('paid_amount', 15, 2);
-            $table->decimal('total_discount', 15, 2);
+
+            $table->decimal('gross_amount', 15, 2);      // المبلغ قبل الخصم
+            $table->decimal('total_discount', 15, 2);    // إجمالي الخصم
+            $table->decimal('net_amount', 15, 2);        // المبلغ بعد الخصم
+            $table->decimal('paid_amount', 15, 2);       // المدفوع
+            $table->decimal('remaining_amount', 15, 2);  // المتبقي
+
             $table->string('status'); // draft, confirmed
             $table->text('notes')->nullable();
-            // العلاقات الأساسية
+
+            // علاقات
             $table->foreignId('company_id')->constrained()->onDelete('cascade');
             $table->foreignId('created_by')->constrained('users')->onDelete('cascade'); // من أنشأ الفاتورة
             $table->foreignId('user_id')->constrained()->onDelete('cascade'); // العميل
             $table->foreignId('invoice_type_id')->constrained()->onDelete('cascade');
             $table->foreignId('cash_box_id')->nullable()->constrained()->onDelete('set null');
             $table->string('invoice_type_code')->nullable();
+
+            $table->integer('round_step')->nullable(); // خطوة التقريب إن وجدت
+
             $table->timestamps();
         });
     }
