@@ -24,7 +24,8 @@ class Installment extends Model
         'paid_at',
         'remaining',
         'created_by',
-        'user_id'
+        'user_id',
+        'company_id'
     ];
 
     public function installmentPlan()
@@ -50,6 +51,12 @@ class Installment extends Model
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    // الشركة التابعة للقسط
+    public function company()
+    {
+        return $this->belongsTo(Company::class, 'company_id');
     }
 
     public function withPayments()
