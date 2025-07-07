@@ -65,6 +65,12 @@ class InstallmentPlan extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
+    // الشركة المرتبطة بالخطة
+    public function company()
+    {
+        return $this->belongsTo(Company::class, 'company_id');
+    }
+
     // المدفوعات المرتبطة بالخطة (لو ليها جدول معين)
     public function payments()
     {
