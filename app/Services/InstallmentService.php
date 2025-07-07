@@ -26,45 +26,36 @@ class InstallmentService
      * @return void
      */
     public function createInstallments(array $data, int $invoiceId): void
-    {
-        /*-------------------------------------------------
-        | 1. بيانات أساسية                               |
-        --------------------------------------------------*/
+{
+    try {
+        \Log::info('[InstallmentService] 🚀 بدء إنشاء خطة التقسيط للفـاتورة رقم: ' . $invoiceId, $data);
+
+        // 1. بيانات أساسية
         $planData = $data['installment_plan'];
         $userId = $data['user_id'];
         $startDate = Carbon::parse($planData['start_date']);
-        $roundStep = isset($planData['round_step']) && $planData['round_step'] > 0
-            ? (int) $planData['round_step']  // قيمة التقريب (1، 5، 10 …)
-            : 10;  // افتراضى = 10
+        $roundStep = isset($planData['round_step']) && $planData['round_step'] > 0 ? (int)$planData['round_step'] : 10;
 
-        /*-------------------------------------------------
-        | 2. حساب المبالغ بدقة                            |
-        --------------------------------------------------*/
-        $totalAmount = $planData['total_amount'];  // إجمالى الفاتورة
-        $downPayment = $planData['down_payment'];  // المقدم
+        // 2. حساب المبالغ
+        $totalAmount = $planData['total_amount'];
+        $downPayment = $planData['down_payment'];
         $installmentsN = (int) $planData['number_of_installments'];
 
-        $remaining = bcsub($totalAmount, $downPayment, 2);  // المتبقّى
-        $avgInst = bcdiv($remaining, $installmentsN, 2);  // متوسط القسط قبل التقريب
+        $remaining = bcsub($totalAmount, $downPayment, 2);
+        $avgInst = bcdiv($remaining, $installmentsN, 2);
+        $ceilTo = static fn(string $val, int $step): string => number_format(ceil((float)$val / $step) * $step, 2, '.', '');
+        $stdInst = $ceilTo($avgInst, $roundStep);
 
-        // دالة تقريب ديناميكى لأعلى مضاعف roundStep
-        $ceilTo = static function (string $val, int $step): string {
-            $rounded = ceil((float) $val / $step) * $step;
-            return number_format($rounded, 2, '.', '');
-        };
+        \Log::info('[InstallmentService] 🧮 القسط القياسي بعد التقريب: ' . $stdInst);
 
-        $stdInst = $ceilTo($avgInst, $roundStep);  // القسط القياسى بعد التقريب
-
-        /*-------------------------------------------------
-        | 3. إنشاء خطة الأقساط                            |
-        --------------------------------------------------*/
+        // 3. إنشاء خطة الأقساط
         $planModel = InstallmentPlan::create([
             'invoice_id' => $invoiceId,
             'user_id' => $userId,
             'total_amount' => $totalAmount,
             'down_payment' => $downPayment,
             'remaining_amount' => $remaining,
-            'number_of_installments' => $installmentsN,  // يُحدَّث لاحقًا بالعدد الفعلى
+            'number_of_installments' => $installmentsN,
             'installment_amount' => $stdInst,
             'start_date' => $startDate->format('Y-m-d H:i:s'),
             'end_date' => $startDate->copy()->addMonths($installmentsN)->format('Y-m-d'),
@@ -72,43 +63,44 @@ class InstallmentService
             'notes' => $planData['notes'] ?? null,
         ]);
 
+        \Log::info('[InstallmentService] ✅ تم إنشاء خطة الأقساط بنجاح', ['plan_id' => $planModel->id]);
+
+        // 4. التعامل مع الرصيد
         $cashBoxId = $data['cash_box_id'] ?? null;
         $authUser = Auth::user();
-        // إذا كان المشتري هو نفسه الموظف
+
         if ($userId && $authUser && $userId == $authUser->id) {
-            app(\App\Services\UserSelfDebtService::class)
-                ->registerInstallmentPayment($authUser, $downPayment, $remaining, $cashBoxId, $planModel->company_id ?? null);
+            \Log::info('[InstallmentService] 🤝 عملية بيع لنفسه، تسجيل دين تلقائي');
+            app(\App\Services\UserSelfDebtService::class)->registerInstallmentPayment(
+                $authUser, $downPayment, $remaining, $cashBoxId, $planModel->company_id ?? null
+            );
         } else {
-            // تحديث الرصيد: خصم المتبقي من رصيد المشتري، وزيادة الدفعة المقدمة لرصيد الأوث يوزر
             if ($downPayment > 0 && $authUser) {
+                \Log::info('[InstallmentService] 💰 إيداع المقدم للموظف رقم ' . $authUser->id);
                 $authUser->deposit($downPayment, $cashBoxId);
             }
+
             if ($remaining > 0 && $userId) {
                 $buyer = \App\Models\User::find($userId);
                 if ($buyer) {
+                    \Log::info('[InstallmentService] 💸 خصم المتبقي من العميل رقم ' . $buyer->id);
                     $buyer->withdraw($remaining, $cashBoxId);
                 }
             }
         }
 
-        /*-------------------------------------------------
-        | 4. إنشاء الأقساط الفردية                        |
-        --------------------------------------------------*/
+        // 5. إنشاء الأقساط
         $paidSum = '0.00';
         $count = 0;
         $lastDate = null;
 
         for ($i = 1; $i <= $installmentsN; $i++) {
-            $left = bcsub($remaining, $paidSum, 2);  // المتبقّى قبل هذا القسط
+            $left = bcsub($remaining, $paidSum, 2);
             if (bccomp($left, '0.00', 2) <= 0)
-                break;  // توقّف إذا خلص المبلغ
+                break;
 
-            // لو القسط القياسى أكبر من المتبقّى ⇒ آخر قسط
-            $amount = (bccomp($stdInst, $left, 2) === 1 || $i === $installmentsN)
-                ? $left
-                : $stdInst;
-
-            $due = $startDate->copy()->addMonths($i)->format('Y-m-d');  // YYYY-MM-DD
+            $amount = (bccomp($stdInst, $left, 2) === 1 || $i === $installmentsN) ? $left : $stdInst;
+            $due = $startDate->copy()->addMonths($i)->format('Y-m-d');
 
             Installment::create([
                 'installment_plan_id' => $planModel->id,
@@ -120,18 +112,27 @@ class InstallmentService
                 'user_id' => $userId,
             ]);
 
-            // تحديث المجاميع
+            \Log::info("[InstallmentService] ➕ تم إنشاء القسط رقم {$i} بقيمة {$amount} وتاريخ {$due}");
+
             $paidSum = bcadd($paidSum, $amount, 2);
             $lastDate = $due;
             $count = $i;
         }
 
-        /*-------------------------------------------------
-        | 5. تحديث بيانات الخطة                           |
-        --------------------------------------------------*/
+        // 6. تحديث بيانات الخطة
         $planModel->update([
             'end_date' => $lastDate,
-            'number_of_installments' => $count,  // العدد الفعلى
+            'number_of_installments' => $count,
         ]);
+
+        \Log::info('[InstallmentService] 🎯 تم تحديث الخطة بالعدد الفعلي للأقساط: ' . $count);
+
+    } catch (\Throwable $e) {
+        \Log::error('[InstallmentService] 💥 حصل استثناء أثناء إنشاء خطة التقسيط', [
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
+        throw $e;
     }
+}
 }
