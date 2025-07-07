@@ -303,64 +303,80 @@ class InstallmentPaymentController extends Controller
      * @return \Illuminate\Http\JsonResponse
      */
     public function payInstallments(PayInstallmentsRequest $request): JsonResponse
-    {
-        try {
-            /** @var \App\Models\User $authUser */
-            $authUser = Auth::user();
-            $companyId = $authUser->company_id ?? null;
+{
+    try {
+        /** @var \App\Models\User $authUser */
+        $authUser = Auth::user();
+        $companyId = $authUser->company_id ?? null;
 
-            if (!$authUser || !$companyId) {
-                return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
-            }
-
-            // صلاحية دفع الأقساط
-            if (!$authUser->hasPermissionTo(perm_key('admin.super')) && !$authUser->hasPermissionTo(perm_key('installments.pay')) && !$authUser->hasPermissionTo(perm_key('admin.company'))) {
-                return api_forbidden('ليس لديك إذن لدفع الأقساط.');
-            }
-
-            $validatedData = $request->validated();
-
-            $cashBoxId = $validatedData['cash_box_id'] ?? $authUser->cashBoxeDefault?->id;
-            if (!$cashBoxId) {
-                return api_error('لم يتم العثور على صندوق نقدي افتراضي للمستخدم.', [], 400);
-            }
-
-            // التحقق من أن الصندوق النقدي المختار ينتمي لشركة المستخدم
-            $cashBox = \App\Models\CashBox::find($cashBoxId);
-            if (!$cashBox || (!$authUser->hasPermissionTo(perm_key('admin.super')) && $cashBox->company_id !== $companyId)) {
-                return api_forbidden('صندوق النقد المحدد غير صالح أو غير متاح لشركتك.');
-            }
-
-            DB::beginTransaction();
-            try {
-                $service = new InstallmentPaymentService();
-                $service->payInstallments(
-                    $validatedData['installment_ids'],
-                    $validatedData['amount'],
-                    [
-                        'user_id' => $validatedData['user_id'],
-                        'installment_plan_id' => $validatedData['installment_plan_id'],
-                        'payment_method_id' => $validatedData['payment_method_id'],
-                        'cash_box_id' => $cashBoxId,
-                        'notes' => $validatedData['notes'] ?? '',
-                        'paid_at' => $validatedData['paid_at'] ?? now(),
-                        'amount' => $validatedData['amount'],
-                    ]
-                );
-
-                $updatedInstallments = Installment::whereIn('id', $validatedData['installment_ids'])->with($this->relations)->get();
-
-                DB::commit();
-                return api_success(InstallmentResource::collection($updatedInstallments), 'تم دفع الأقساط بنجاح.');
-            } catch (ValidationException $e) {
-                DB::rollBack();
-                return api_error('فشل التحقق من صحة البيانات أثناء دفع الأقساط.', $e->errors(), 422);
-            } catch (Throwable $e) {
-                DB::rollBack();
-                return api_error('حدث خطأ أثناء دفع الأقساط.', [], 500);
-            }
-        } catch (Throwable $e) {
-            return api_exception($e, 500);
+        if (!$authUser || !$companyId) {
+            return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
         }
+
+        // صلاحية دفع الأقساط
+        if (
+            !$authUser->hasPermissionTo(perm_key('admin.super')) &&
+            !$authUser->hasPermissionTo(perm_key('installments.pay')) &&
+            !$authUser->hasPermissionTo(perm_key('admin.company'))
+        ) {
+            return api_forbidden('ليس لديك إذن لدفع الأقساط.');
+        }
+
+        $validatedData = $request->validated();
+
+        $cashBoxId = $validatedData['cash_box_id'] ?? $authUser->cashBoxeDefault?->id;
+        if (!$cashBoxId) {
+            return api_error('لم يتم العثور على صندوق نقدي افتراضي للمستخدم.', [], 400);
+        }
+
+        // التحقق من أن الصندوق النقدي المختار ينتمي لشركة المستخدم
+        $cashBox = \App\Models\CashBox::find($cashBoxId);
+        if (
+            !$cashBox ||
+            (!$authUser->hasPermissionTo(perm_key('admin.super')) && $cashBox->company_id !== $companyId)
+        ) {
+            return api_forbidden('صندوق النقد المحدد غير صالح أو غير متاح لشركتك.');
+        }
+
+        DB::beginTransaction();
+        try {
+            $service = new InstallmentPaymentService();
+            $service->payInstallments(
+                $validatedData['installment_ids'],
+                $validatedData['amount'],
+                [
+                    'user_id' => $validatedData['user_id'],
+                    'installment_plan_id' => $validatedData['installment_plan_id'],
+                    'payment_method_id' => $validatedData['payment_method_id'],
+                    'cash_box_id' => $cashBoxId,
+                    'notes' => $validatedData['notes'] ?? '',
+                    'paid_at' => $validatedData['paid_at'] ?? now(),
+                    'amount' => $validatedData['amount'],
+                ]
+            );
+
+            $updatedInstallments = Installment::whereIn('id', $validatedData['installment_ids'])->with($this->relations)->get();
+
+            DB::commit();
+            return api_success(InstallmentResource::collection($updatedInstallments), 'تم دفع الأقساط بنجاح.');
+        } catch (ValidationException $e) {
+            DB::rollBack();
+            return api_error('فشل التحقق من صحة البيانات أثناء دفع الأقساط.', $e->errors(), 422);
+        } catch (Throwable $e) {
+            DB::rollBack();
+            return api_error(
+                'حدث خطأ أثناء دفع الأقساط.',
+                [
+                    'message' => $e->getMessage(),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'trace' => config('app.debug') ? collect($e->getTrace())->take(5) : [],
+                ],
+                500
+            );
+        }
+    } catch (Throwable $e) {
+        return api_exception($e, 500);
     }
+}
 }
