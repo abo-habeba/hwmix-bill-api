@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use Exception;
+use App\Models\User;
 use App\Models\Installment;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
@@ -74,6 +75,14 @@ class InstallmentPaymentService
                 ]);
 
                 $remainingAmount -= $allocatedAmount;
+            }
+
+            // ➕ زيادة رصيد المستخدم (الموظف اللي دفع) لو مختلف عن صاحب القسط
+            $planOwnerId = $installmentPlan->user_id;
+
+            if ($authUser->id !== $planOwnerId) {
+                $authUser->deposit($amount, $cashBoxId);
+                $authUser->logUpdated('زيادة الرصيد بقيمة ' . $amount . ' نتيجة دفع أقساط عن مستخدم آخر.');
             }
 
             DB::commit();
