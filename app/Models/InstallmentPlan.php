@@ -12,9 +12,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
  */
 class InstallmentPlan extends Model
 {
-    use HasFactory,
-        Blameable,
-        Scopes;  // Assuming you have a Blameable trait for tracking created_by
+    use HasFactory, Blameable, Scopes;
 
     protected $fillable = [
         'invoice_id',
@@ -37,28 +35,39 @@ class InstallmentPlan extends Model
         'end_date' => 'datetime',
     ];
 
+    // الفاتورة المرتبطة بخطة التقسيط
     public function invoice()
     {
         return $this->belongsTo(Invoice::class);
     }
 
+    // العميل المرتبط بالخطة
     public function customer()
     {
         return $this->belongsTo(User::class, 'user_id');
     }
 
-    public function payments()
-    {
-        return $this->hasMany(InstallmentPayment::class);
-    }
-
+    // الأقساط التابعة للخطة
     public function installments()
     {
         return $this->hasMany(Installment::class);
     }
 
+    // المستخدم المرتبط بالخطة (نفس العميل)
     public function user()
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    // المستخدم اللي أنشأ الخطة
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    // المدفوعات المرتبطة بالخطة (لو ليها جدول معين)
+    public function payments()
+    {
+        return $this->hasMany(InstallmentPayment::class);
     }
 }
