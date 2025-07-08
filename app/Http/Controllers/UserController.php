@@ -487,6 +487,6 @@ class UserController extends Controller
         ]);
         $user->company_id = $request->input('company_id');
         $user->save();
-        return api_success(['user' => $user], 'تم تغيير الشركة بنجاح');
+        return api_success(new UserResource($user->load($this->relations)), 'تم تغيير الشركة بنجاح');
     }
 }

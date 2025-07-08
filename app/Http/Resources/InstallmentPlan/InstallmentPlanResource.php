@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Resources\InstallmentPlan;
 
 use App\Http\Resources\Installment\InstallmentResource;
@@ -33,7 +34,10 @@ class InstallmentPlanResource extends JsonResource
             'user' => new UserResource($this->whenLoaded('user')),
             'invoice' => new InvoiceResource($this->whenLoaded('invoice')),
             'payments' => InstallmentPaymentResource::collection($this->whenLoaded('payments')),
-            'installments' => InstallmentResource::collection($this->whenLoaded('installments')),
+            'installments' => InstallmentResource::collection(
+                $this->whenLoaded('installments')?->sortBy('due_date')
+            ),
+
         ];
     }
 }

@@ -82,7 +82,7 @@ class InstallmentPlanController extends Controller
             // يمكنك إضافة المزيد من فلاتر البحث هنا
             // تحديد عدد العناصر في الصفحة والفرز
             $perPage = (int) $request->input('limit', 20); // استخدام 'limit' كاسم للمدخل
-            $sortField = $request->input('sort_by', 'created_at'); // استخدام 'created_at' كقيمة افتراضية للفرز
+            $sortField = $request->input('sort_by', 'created_at');
             $sortOrder = $request->input('sort_order', 'desc');
 
             $query->orderBy($sortField, $sortOrder); // تطبيق الفرز

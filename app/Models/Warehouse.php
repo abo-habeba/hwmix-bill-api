@@ -18,7 +18,6 @@ class Warehouse extends Model
 
     protected $casts = [
         'capacity' => 'integer',
-        'status' => 'boolean',
     ];
 
     public function company()
