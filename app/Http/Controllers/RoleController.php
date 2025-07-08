@@ -460,7 +460,7 @@ class RoleController extends Controller
             if (!$authUser->hasAnyPermission([
                 perm_key('admin.super'),
                 perm_key('admin.company'),
-                perm_key('roles.assign'),
+                
             ])) {
                 return api_forbidden('ليس لديك صلاحية لتعيين الأدوار.');
             }
