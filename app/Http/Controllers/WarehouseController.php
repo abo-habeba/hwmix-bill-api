@@ -6,52 +6,45 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Warehouse\StoreWarehouseRequest;
 use App\Http\Requests\Warehouse\UpdateWarehouseRequest;
 use App\Http\Resources\Warehouse\WarehouseResource;
-use App\Models\Warehouse; // تم تصحيح الخطأ هنا
+use App\Models\Warehouse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth; // تم إضافة هذا الاستيراد
-use Illuminate\Support\Facades\DB; // تم إضافة هذا الاستيراد
-use Illuminate\Support\Facades\Log; // تم إضافة هذا الاستيراد
-use Throwable; // تم إضافة هذا الاستيراد
-// use Symfony\Component\HttpFoundation\Response; // تم التعليق عليه لعدم استخدامه بشكل مباشر
-
-// دالة مساعدة لضمان الاتساق في مفاتيح الأذونات (إذا لم تكن معرفة عالميا)
-// if (!function_exists('perm_key')) {
-//     function perm_key(string $permission): string
-//     {
-//         return $permission;
-//     }
-// }
+use Illuminate\Http\JsonResponse; // تم التأكد من وجود الاستيراد
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException; // تم إضافة هذا الاستيراد للتعامل مع أخطاء التحقق
+use Throwable;
 
 class WarehouseController extends Controller
 {
-    private array $relations;
-
-    public function __construct()
-    {
-        $this->relations = [
-            'company',   // للتحقق من belongsToCurrentCompany
-            'creator',   // للتحقق من createdByCurrentUser/OrChildren
-            'stocks',
-        ];
-    }
+    protected array $relations = [ // تم تغييرها إلى protected لتكون متسقة مع PlanController
+        'company',
+        'creator',
+        'stocks',
+    ];
 
     /**
      * عرض قائمة بالمستودعات.
-     *
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse|\Illuminate\Http\Resources\Json\AnonymousResourceCollection
      */
-    public function index(Request $request)
+    public function index(Request $request): JsonResponse
     {
         try {
+            /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $query = Warehouse::with($this->relations);
-            $companyId = $authUser->company_id;
 
-            if (!$authUser->hasPermissionTo(perm_key('admin.super'))) {
-                return api_unauthorized('يجب أن تكون مرتبطًا بشركة.');
+            if (!$authUser) {
+                return api_unauthorized('يتطلب المصادقة.');
             }
 
+            $companyId = $authUser->company_id ?? null;
+
+            if (!$companyId && !$authUser->hasPermissionTo(perm_key('admin.super'))) {
+                return api_forbidden('المستخدم غير مرتبط بشركة ولا يملك صلاحيات المسؤول العام.');
+            }
+
+            $query = Warehouse::query()->with($this->relations);
+
+            // فلترة الصلاحيات
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
                 // المسؤول العام يرى جميع المستودعات
             } elseif ($authUser->hasAnyPermission([perm_key('warehouses.view_all'), perm_key('admin.company')])) {
@@ -61,25 +54,38 @@ class WarehouseController extends Controller
             } elseif ($authUser->hasPermissionTo(perm_key('warehouses.view_self'))) {
                 $query->whereCompanyIsCurrent()->whereCreatedByUser();
             } else {
-                return api_forbidden('ليس لديك صلاحية لعرض المستودعات.');
+                return api_forbidden('ليس لديك إذن لعرض المستودعات.');
             }
 
-            if ($request->filled('search')) {
-                $search = $request->input('search');
-                $query->where(function ($q) use ($search) {
-                    $q
-                        ->where('name', 'like', "%$search%")
-                        ->orWhere('address', 'like', "%$search%");
-                });
+            // فلاتر الطلب
+            if ($request->filled('company_id')) {
+                if ($request->input('company_id') != $companyId && !$authUser->hasPermissionTo(perm_key('admin.super'))) {
+                    return api_forbidden('ليس لديك إذن لعرض المستودعات لشركة أخرى.');
+                }
+                $query->where('company_id', $request->input('company_id'));
             }
             if ($request->filled('active')) {
                 $query->where('active', (bool) $request->input('active'));
             }
+            if ($request->filled('name')) { // إضافة فلتر الاسم
+                $query->where('name', 'like', '%' . $request->input('name') . '%');
+            }
+            if (!empty($request->get('created_at_from'))) {
+                $query->where('created_at', '>=', $request->get('created_at_from') . ' 00:00:00');
+            }
+            if (!empty($request->get('created_at_to'))) {
+                $query->where('created_at', '<=', $request->get('created_at_to') . ' 23:59:59');
+            }
 
-            $perPage = max(1, $request->input('per_page', 10));
-            $sortField = $request->input('sort_by', 'created_at');
+            // التصفح والفرز
+            $perPage = (int) $request->get('per_page', 20);
+            $sortField = $request->input('sort_by', 'id'); // تغيير الحقل الافتراضي للفرز
             $sortOrder = $request->input('sort_order', 'desc');
-            $warehouses = $query->orderBy($sortField, $sortOrder)->paginate($perPage);
+
+            $warehouses = $query->orderBy($sortField, $sortOrder);
+            $warehouses = $perPage == -1
+                ? $warehouses->get()
+                : $warehouses->paginate(max(1, $perPage));
 
             if ($warehouses->isEmpty()) {
                 return api_success([], 'لم يتم العثور على مستودعات.');
@@ -92,51 +98,45 @@ class WarehouseController extends Controller
     }
 
     /**
-     * Store a newly created resource in storage.
-     *
-     * @param StoreWarehouseRequest $request
-     * @return \Illuminate\Http\JsonResponse
+     * تخزين مستودع جديد.
      */
-    public function store(StoreWarehouseRequest $request)
+    public function store(StoreWarehouseRequest $request): JsonResponse
     {
         try {
+            /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
-            if (!$companyId) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'User is not associated with a company.'], 403);
-            }
 
-            // صلاحيات إنشاء مستودع
             if (!$authUser->hasPermissionTo(perm_key('admin.super')) && !$authUser->hasPermissionTo(perm_key('warehouses.create')) && !$authUser->hasPermissionTo(perm_key('admin.company'))) {
-                return response()->json([
-                    'error' => 'Unauthorized',
-                    'message' => 'You are not authorized to create warehouses.'
-                ], 403);
+                return api_forbidden('ليس لديك إذن لإنشاء مستودعات.');
             }
 
             DB::beginTransaction();
             try {
                 $validatedData = $request->validated();
+                $validatedData['created_by'] = $authUser->id;
 
                 // إذا كان المستخدم super_admin ويحدد company_id، يسمح بذلك. وإلا، استخدم company_id للمستخدم.
-                $validatedData['company_id'] = ($authUser->hasPermissionTo(perm_key('admin.super')) && isset($validatedData['company_id']))
+                $warehouseCompanyId = $validatedData['company_id']
                     ? $validatedData['company_id']
                     : $companyId;
 
                 // التأكد من أن المستخدم مصرح له بإنشاء مستودع لهذه الشركة
-                if ($validatedData['company_id'] != $companyId && !$authUser->hasPermissionTo(perm_key('admin.super'))) {
-                    return response()->json(['error' => 'Unauthorized', 'message' => 'You can only create warehouses for your current company unless you are a Super Admin.'], 403);
+                if ($warehouseCompanyId != $companyId && !$authUser->hasPermissionTo(perm_key('admin.super'))) {
+                    DB::rollBack();
+                    return api_forbidden('يمكنك فقط إنشاء مستودعات لشركتك الحالية ما لم تكن مسؤولاً عامًا.');
                 }
-
-                $validatedData['created_by'] = $authUser->id;
-                $validatedData['active'] = (bool) ($validatedData['active'] ?? true); // افتراضي نشط عند الإنشاء
+                $validatedData['company_id'] = $warehouseCompanyId;
 
                 $warehouse = Warehouse::create($validatedData);
                 $warehouse->load($this->relations);
                 DB::commit();
                 Log::info('Warehouse created successfully.', ['warehouse_id' => $warehouse->id, 'user_id' => $authUser->id, 'company_id' => $companyId]);
-                return new WarehouseResource($warehouse);
+                return api_success(new WarehouseResource($warehouse), 'تم إنشاء المستودع بنجاح.', 201);
+            } catch (ValidationException $e) {
+                DB::rollBack();
+                return api_error('فشل التحقق من صحة البيانات أثناء تخزين المستودع.', $e->errors(), 422);
             } catch (Throwable $e) {
                 DB::rollBack();
                 Log::error('Warehouse store failed in transaction: ' . $e->getMessage(), [
@@ -145,268 +145,167 @@ class WarehouseController extends Controller
                     'file' => $e->getFile(),
                     'line' => $e->getLine(),
                 ]);
-                return response()->json([
-                    'error' => 'Error saving warehouse.',
-                    'details' => $e->getMessage(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ], 500);
+                return api_error('حدث خطأ أثناء حفظ المستودع.', [], 500);
             }
         } catch (Throwable $e) {
-            Log::error('Warehouse store failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ]);
-            return response()->json([
-                'error' => 'Error saving warehouse.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e);
         }
     }
 
     /**
-     * Display the specified resource.
-     *
-     * @param string $id
-     * @return \Illuminate\Http\JsonResponse|\App\Http\Resources\Warehouse\WarehouseResource
+     * عرض مستودع محدد.
      */
-    public function show(string $id)
+    public function show(Warehouse $warehouse): JsonResponse // استخدام Route Model Binding
     {
         try {
+            /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
-            if (!$companyId) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'User is not associated with a company.'], 403);
+            if (!$authUser || !$companyId) {
+                return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
-            $warehouse = Warehouse::with($this->relations)->findOrFail($id);
+            $warehouse->load($this->relations);
 
-            // التحقق من صلاحيات العرض
             $canView = false;
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
-                $canView = true; // المسؤول العام يرى أي مستودع
+                $canView = true;
             } elseif ($authUser->hasAnyPermission([perm_key('warehouses.view_all'), perm_key('admin.company')])) {
-                // يرى إذا كان المستودع ينتمي للشركة النشطة (بما في ذلك مديرو الشركة)
                 $canView = $warehouse->belongsToCurrentCompany();
             } elseif ($authUser->hasPermissionTo(perm_key('warehouses.view_children'))) {
-                // يرى إذا كان المستودع أنشأه هو أو أحد التابعين له وتابع للشركة النشطة
                 $canView = $warehouse->belongsToCurrentCompany() && $warehouse->createdByUserOrChildren();
             } elseif ($authUser->hasPermissionTo(perm_key('warehouses.view_self'))) {
-                // يرى إذا كان المستودع أنشأه هو وتابع للشركة النشطة
                 $canView = $warehouse->belongsToCurrentCompany() && $warehouse->createdByCurrentUser();
-            } else {
-                // لا توجد صلاحية عرض
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to view this warehouse.'], 403);
             }
 
             if ($canView) {
-                return new WarehouseResource($warehouse);
+                return api_success(new WarehouseResource($warehouse), 'تم استرداد المستودع بنجاح.');
             }
 
-            return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to view this warehouse.'], 403);
+            return api_forbidden('ليس لديك إذن لعرض هذا المستودع.');
         } catch (Throwable $e) {
-            Log::error('Warehouse show failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'warehouse_id' => $id,
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ]);
-            return response()->json([
-                'error' => 'Error retrieving warehouse.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e);
         }
     }
 
     /**
-     * Update the specified resource in storage.
-     *
-     * @param UpdateWarehouseRequest $request
-     * @param string $id
-     * @return \Illuminate\Http\JsonResponse|\App\Http\Resources\Warehouse\WarehouseResource
+     * تحديث مستودع محدد.
      */
-    public function update(UpdateWarehouseRequest $request, string $id)
+    public function update(UpdateWarehouseRequest $request, Warehouse $warehouse): JsonResponse // استخدام Route Model Binding
     {
         try {
+            /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
-            if (!$companyId) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'User is not associated with a company.'], 403);
-            }
+            $warehouse->load(['company', 'creator']); // تحميل العلاقات للتحقق من الصلاحيات
 
-            // يجب تحميل العلاقات الضرورية للتحقق من الصلاحيات (مثل الشركة والمنشئ)
-            $warehouse = Warehouse::with(['company', 'creator'])->findOrFail($id);
-
-            // التحقق من صلاحيات التحديث
             $canUpdate = false;
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
-                $canUpdate = true; // المسؤول العام يمكنه تعديل أي مستودع
+                $canUpdate = true;
             } elseif ($authUser->hasAnyPermission([perm_key('warehouses.update_all'), perm_key('admin.company')])) {
-                // يمكنه تعديل أي مستودع داخل الشركة النشطة (بما في ذلك مديرو الشركة)
                 $canUpdate = $warehouse->belongsToCurrentCompany();
             } elseif ($authUser->hasPermissionTo(perm_key('warehouses.update_children'))) {
-                // يمكنه تعديل المستودعات التي أنشأها هو أو أحد التابعين له وتابعة للشركة النشطة
                 $canUpdate = $warehouse->belongsToCurrentCompany() && $warehouse->createdByUserOrChildren();
             } elseif ($authUser->hasPermissionTo(perm_key('warehouses.update_self'))) {
-                // يمكنه تعديل مستودعه الخاص الذي أنشأه وتابع للشركة النشطة
                 $canUpdate = $warehouse->belongsToCurrentCompany() && $warehouse->createdByCurrentUser();
-            } else {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to update this warehouse.'], 403);
             }
 
             if (!$canUpdate) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to update this warehouse.'], 403);
+                return api_forbidden('ليس لديك إذن لتحديث هذا المستودع.');
             }
 
             DB::beginTransaction();
             try {
                 $validatedData = $request->validated();
 
-                // إذا كان المستخدم سوبر ادمن ويحدد معرف الشركه، يسمح بذلك. وإلا، استخدم معرف الشركه للمستودع.
-                $validatedData['company_id'] = ($authUser->hasPermissionTo(perm_key('admin.super')) && isset($validatedData['company_id']))
-                    ? $validatedData['company_id']
-                    : $warehouse->company_id;
-
-                // التأكد من أن المستخدم مصرح له بتعديل مستودع لهذه الشركة
-                if ($validatedData['company_id'] != $warehouse->company_id && !$authUser->hasPermissionTo(perm_key('admin.super'))) {
-                    return response()->json(['error' => 'Unauthorized', 'message' => 'You cannot change a warehouse\'s company unless you are a Super Admin.'], 403);
+                // التأكد من أن المستخدم مصرح له بتغيير company_id إذا كان سوبر أدمن
+                if (isset($validatedData['company_id']) && $validatedData['company_id'] != $warehouse->company_id && !$authUser->hasPermissionTo(perm_key('admin.super'))) {
+                    DB::rollBack();
+                    return api_forbidden('لا يمكنك تغيير شركة المستودع إلا إذا كنت مدير عام.');
                 }
-
-                $validatedData['active'] = (bool) ($validatedData['active'] ?? $warehouse->active);
-
+                // إذا لم يتم تحديد company_id في الطلب ولكن المستخدم سوبر أدمن، لا تغير company_id الخاصة بالمستودع الحالي
+                if (!$authUser->hasPermissionTo(perm_key('admin.super')) || !isset($validatedData['company_id'])) {
+                    unset($validatedData['company_id']);
+                }
                 $warehouse->update($validatedData);
                 $warehouse->load($this->relations);
                 DB::commit();
                 Log::info('Warehouse updated successfully.', ['warehouse_id' => $warehouse->id, 'user_id' => $authUser->id, 'company_id' => $companyId]);
-                return new WarehouseResource($warehouse);
+                return api_success(new WarehouseResource($warehouse), 'تم تحديث المستودع بنجاح.');
+            } catch (ValidationException $e) {
+                DB::rollBack();
+                return api_error('فشل التحقق من صحة البيانات أثناء تحديث المستودع.', $e->errors(), 422);
             } catch (Throwable $e) {
                 DB::rollBack();
-                Log::error('Warehouse update failed in transaction: ' . $e->getMessage(), [
-                    'exception' => $e,
-                    'user_id' => Auth::id(),
-                    'warehouse_id' => $id,
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ]);
-                return response()->json([
-                    'error' => 'Error updating warehouse.',
-                    'details' => $e->getMessage(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ], 500);
+
+                return api_exception($e);
             }
         } catch (Throwable $e) {
-            Log::error('Warehouse update failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'warehouse_id' => $id,
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ]);
-            return response()->json([
-                'error' => 'Error updating warehouse.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e);
         }
     }
 
     /**
-     * Remove the specified resource from storage.
-     *
-     * @param string $id
-     * @return \Illuminate\Http\JsonResponse
+     * حذف مستودع محدد.
      */
-    public function destroy(string $id)
+    public function destroy(Warehouse $warehouse): JsonResponse // استخدام Route Model Binding
     {
         try {
+            /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id;
+            $companyId = $authUser->company_id ?? null;
 
-            if (!$companyId) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'User is not associated with a company.'], 403);
+            if (!$authUser || !$companyId) {
+                return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
-            // يجب تحميل العلاقات الضرورية للتحقق من الصلاحيات (مثل الشركة والمنشئ)
-            $warehouse = Warehouse::with(['company', 'creator'])->findOrFail($id);
+            $warehouse->load(['company', 'creator', 'stocks']); // تحميل العلاقات للتحقق من الصلاحيات
 
-            // التحقق من صلاحيات الحذف
             $canDelete = false;
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
-                $canDelete = true; // المسؤول العام يمكنه حذف أي مستودع
+                $canDelete = true;
             } elseif ($authUser->hasAnyPermission([perm_key('warehouses.delete_all'), perm_key('admin.company')])) {
-                // يمكنه حذف أي مستودع داخل الشركة النشطة (بما في ذلك مديرو الشركة)
                 $canDelete = $warehouse->belongsToCurrentCompany();
             } elseif ($authUser->hasPermissionTo(perm_key('warehouses.delete_children'))) {
-                // يمكنه حذف المستودعات التي أنشأها هو أو أحد التابعين له وتابعة للشركة النشطة
                 $canDelete = $warehouse->belongsToCurrentCompany() && $warehouse->createdByUserOrChildren();
             } elseif ($authUser->hasPermissionTo(perm_key('warehouses.delete_self'))) {
-                // يمكنه حذف مستودعه الخاص الذي أنشأه وتابع للشركة النشطة
                 $canDelete = $warehouse->belongsToCurrentCompany() && $warehouse->createdByCurrentUser();
-            } else {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to delete this warehouse.'], 403);
             }
 
             if (!$canDelete) {
-                return response()->json(['error' => 'Unauthorized', 'message' => 'You are not authorized to delete this warehouse.'], 403);
+                return api_forbidden('ليس لديك إذن لحذف هذا المستودع.');
             }
 
             DB::beginTransaction();
             try {
-                // تحقق مما إذا كان المستودع مرتبطًا بأي stocks قبل الحذف
-                // هذا يمنع حذف المستودع الذي يحتوي على مخزون نشط
+                // التحقق مما إذا كان المستودع مرتبطًا بأي stocks قبل الحذف
                 if ($warehouse->stocks()->exists()) {
                     DB::rollBack();
-                    return response()->json([
-                        'error' => 'Conflict',
-                        'message' => 'Cannot delete warehouse. It contains associated stock records.',
-                    ], 409);
+                    return api_error('لا يمكن حذف المستودع. إنه يحتوي على سجلات مخزون مرتبطة.', [], 409);
                 }
+
+                $deletedWarehouse = $warehouse->replicate(); // نسخ المستودع قبل الحذف لإرجاعه
+                $deletedWarehouse->setRelations($warehouse->getRelations()); // نسخ العلاقات أيضًا
 
                 $warehouse->delete();
                 DB::commit();
-                Log::info('Warehouse deleted successfully.', ['warehouse_id' => $id, 'user_id' => $authUser->id, 'company_id' => $companyId]);
-                return response()->json(['message' => 'Warehouse deleted successfully'], 200);
+                Log::info('Warehouse deleted successfully.', ['warehouse_id' => $deletedWarehouse->id, 'user_id' => $authUser->id, 'company_id' => $companyId]);
+                return api_success(new WarehouseResource($deletedWarehouse), 'تم حذف المستودع بنجاح.'); // إرجاع المورد المحذوف
             } catch (Throwable $e) {
                 DB::rollBack();
                 Log::error('Warehouse deletion failed: ' . $e->getMessage(), [
                     'exception' => $e,
                     'user_id' => Auth::id(),
-                    'warehouse_id' => $id,
+                    'warehouse_id' => $warehouse->id,
                     'file' => $e->getFile(),
                     'line' => $e->getLine(),
                 ]);
-                return response()->json([
-                    'error' => 'Error deleting warehouse.',
-                    'details' => $e->getMessage(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ], 500);
+                return api_error('حدث خطأ أثناء حذف المستودع.', [], 500);
             }
         } catch (Throwable $e) {
-            Log::error('Warehouse deletion failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-                'warehouse_id' => $id,
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ]);
-            return response()->json([
-                'error' => 'Error deleting warehouse.',
-                'details' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
+            return api_exception($e);
         }
     }
 }

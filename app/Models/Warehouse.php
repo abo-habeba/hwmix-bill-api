@@ -14,15 +14,7 @@ class Warehouse extends Model
 {
     use HasFactory, Blameable, Scopes;
 
-    protected $fillable = [
-        'name',
-        'location',
-        'manager',
-        'capacity',
-        'status',
-        'company_id',
-        'created_by'
-    ];
+    protected $guarded = [];
 
     protected $casts = [
         'capacity' => 'integer',

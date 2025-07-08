@@ -51,11 +51,20 @@ class UserResource extends JsonResource
 
     protected function getVisibleCompaniesForUser()
     {
-        // لو المستخدم ده (اللي بيتعرض في الريسورس) هو سوبر أدمن => يرجع كل الشركات
+        // Debugging: تحقق من محتوى $this->companies
+        \Log::info('Companies relationship for user: ' . $this->id, ['companies' => $this->companies->toArray()]);
+
+        // Debugging: تأكد من أن $this->companies هو Collection فارغة إذا لم تكن هناك علاقات
+        if ($this->companies->isEmpty()) {
+            \Log::info('Companies relationship is empty for user: ' . $this->id);
+        } else {
+            \Log::info('Companies relationship is NOT empty for user: ' . $this->id . ', Count: ' . $this->companies->count());
+        }
+
+        // ... بقية الكود
         if ($this->hasPermissionTo(perm_key('admin.super'))) {
             return \App\Models\Company::all();
         }
-        // لو مش سوبر أدمن => يرجع الشركات المرتبطة بيه
         return $this->companies;
     }
 }

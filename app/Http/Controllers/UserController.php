@@ -257,10 +257,15 @@ class UserController extends Controller
             $validated['company_id'] = $validated['company_id'] ?? $user->company_id;
             $validated['created_by'] = $validated['created_by'] ?? $user->created_by;
             $user->update($validated);
-            if (isset($validated['company_ids']) && is_array($validated['company_ids'])) {
+            $companyIds = collect($validated['company_ids'] ?? [])
+                ->filter(fn($id) => !empty($id) && is_numeric($id)) // ← يشيل القيم الغلط
+                ->values()
+                ->toArray();
+
+            if (isset($validated['company_ids'])) {
                 $oldCompanyIds = $user->companies()->pluck('companies.id')->toArray();
                 $pivotData = [];
-                foreach ($validated['company_ids'] as $companyId) {
+                foreach ($companyIds as $companyId) {
                     $pivotData[$companyId] = [
                         'created_by' => $authUser->id,
                         'updated_at' => now(),

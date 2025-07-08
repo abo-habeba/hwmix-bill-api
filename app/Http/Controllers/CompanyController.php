@@ -86,6 +86,10 @@ class CompanyController extends Controller
                 'created_by' => $authUser->id,
                 'status' => 'active',
             ]);
+
+            $authUser->company_id = $company->id;
+            $authUser->save();
+
             $company->logCreated("بإنشاء شركة باسم {$company->name}");
             DB::commit();
             return api_success(new CompanyResource($company), 'تم إنشاء الشركة بنجاح');
