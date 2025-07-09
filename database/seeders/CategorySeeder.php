@@ -16,11 +16,5 @@ class CategorySeeder extends Seeder
             'company_id' => 1,
             'created_by' => 1,
         ]);
-        Category::create([
-            'name' => 'الأدوات المنزلية',
-            'description' => '',
-            'company_id' => 1,
-            'created_by' => 1,
-        ]);
     }
 }
