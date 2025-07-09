@@ -15,14 +15,18 @@ class InstallmentPlanResource extends JsonResource
     {
         $installments = $this->installments;  // العلاقة محمَّلة بالفعل؟
 
-        $totalRemaining = $installments->reduce(fn($c, $inst) => bcadd($c, $inst->remaining, 2), '0.00');
-        $totalPay = bcsub($this->total_amount, $totalRemaining, 2);
+        $totalInstallmentsRemaining = $installments->reduce(fn($c, $inst) => bcadd($c, $inst->remaining, 2), '0.00');
+        $totalInstallmentsAmount = $installments->reduce(fn($c, $inst) => bcadd($c, $inst->amount, 2), '0.00');
+        $totalInstallmentsPay = bcsub($totalInstallmentsAmount, $totalInstallmentsRemaining,  2);
+        $totalPay = bcsub($this->total_amount, $totalInstallmentsRemaining, 2);
         return [
             'id' => $this->id,
             'user_id' => $this->user_id,
             'invoice_id' => $this->invoice_id,
             'total_amount' => number_format($this->total_amount, 2, '.', ''),
-            'total_remaining' => number_format($totalRemaining, 2, '.', ''),  // ← 812.50
+            'total_installments_remaining' => number_format($totalInstallmentsRemaining, 2, '.', ''),  // ← 812.50
+            'total_installments_amount' => number_format($totalInstallmentsAmount, 2, '.', ''),  // ← 812.50
+            'total_installments_pay' => number_format($totalInstallmentsPay, 2, '.', ''),  // ← 453.00
             'total_pay' => number_format($totalPay, 2, '.', ''),  // ← 453.00
             'down_payment' => $this->down_payment,
             'installment_count' => $this->installment_count,
