@@ -46,119 +46,151 @@ class ProductController extends Controller
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
-    public function index(Request $request): JsonResponse
-    {
-        try {
-            /** @var \App\Models\User $authUser */
-            $authUser = Auth::user();
 
-            if (!$authUser) {
-                return api_unauthorized('يتطلب المصادقة.');
-            }
+public function index(Request $request): JsonResponse
+{
+    try {
+        /** @var \App\Models\User|null $authUser */
+        $authUser = Auth::user();
 
-            $query = Product::with($this->relations);
-            $companyId = $authUser->company_id ?? null; // معرف الشركة النشطة للمستخدم
+        \Log::info('📌 [index] - بدأ تنفيذ الدالة.');
 
-            // التحقق الأساسي: إذا لم يكن المستخدم مرتبطًا بشركة وليس سوبر أدمن
-            
-
-            // تطبيق منطق الصلاحيات
-            if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
-                // المسؤول العام يرى جميع المنتجات (لا توجد قيود إضافية على الاستعلام)
-            } elseif ($authUser->hasAnyPermission([perm_key('products.view_all'), perm_key('admin.company')])) {
-                // يرى جميع المنتجات الخاصة بالشركة النشطة (بما في ذلك مديرو الشركة)
-                $query->whereCompanyIsCurrent();
-            } elseif ($authUser->hasPermissionTo(perm_key('products.view_children'))) {
-                // يرى المنتجات التي أنشأها المستخدم أو المستخدمون التابعون له، ضمن الشركة النشطة
-                $query->whereCompanyIsCurrent()->whereCreatedByUserOrChildren();
-            } elseif ($authUser->hasPermissionTo(perm_key('products.view_self'))) {
-                // يرى المنتجات التي أنشأها المستخدم فقط، ومرتبطة بالشركة النشطة
-                $query->whereCompanyIsCurrent()->whereCreatedByUser();
-            } else {
-                // إذا لم يكن لديه أي صلاحية رؤية عامة، ارجع خطأ Forbidden
-                return api_forbidden('ليس لديك صلاحية لعرض المنتجات.');
-            }
-
-            // تطبيق فلاتر البحث
-            if ($request->filled('search')) {
-                $search = $request->input('search');
-                $query->where(function ($q) use ($search) {
-                    $q
-                        ->where('name', 'like', "%$search%")
-                        ->orWhere('desc', 'like', "%$search%")
-                        ->orWhere('slug', 'like', "%$search%")
-                        ->orWhereHas('category', function ($q) use ($search) {
-                            $q
-                                ->where('name', 'like', "%$search%")
-                                ->orWhere('desc', 'like', "%$search%");
-                        })
-                        ->orWhereHas('brand', function ($q) use ($search) {
-                            $q
-                                ->where('name', 'like', "%$search%")
-                                ->orWhere('desc', 'like', "%$search%");
-                        });
-                });
-            }
-            if ($request->filled('category_id')) {
-                $query->where('category_id', $request->input('category_id'));
-            }
-            if ($request->filled('brand_id')) {
-                $query->where('brand_id', $request->input('brand_id'));
-            }
-            if ($request->filled('active')) {
-                $query->where('active', (bool) $request->input('active'));
-            }
-            if ($request->filled('featured')) {
-                $query->where('featured', (bool) $request->input('featured'));
-            }
-
-            // تحديد عدد العناصر في الصفحة والفرز
-            $perPage = (int) $request->input('per_page', 20);
-            $sortField = $request->input('sort_by', 'created_at');
-            $sortOrder = $request->input('sort_order', 'desc');
-
-            $products = $query->orderBy($sortField, $sortOrder);
-            $products = $perPage == -1
-                ? $products->get()
-                : $products->paginate(max(1, $perPage));
-
-
-
-            // ✅ لو مفيش نتائج وفعلًا فيه بحث، نحاول نستخدم similar_text
-            if ($products->isEmpty() && $request->filled('search')) {
-                $search = $request->input('search');
-
-                // نحاول نجيب مجموعة محدودة فقط من المنتجات لتطبيق similar_text عليها (مثلاً أول 100)
-                $all = Product::limit(100)->get(); // ممكن تزود العدد أو تضيف whereCompanyIsCurrent لو حبيت
-                $similar = [];
-
-                foreach ($all as $product) {
-                    similar_text($product->name, $search, $percent);
-                    if ($percent >= 70) { // عتبة التشابه - تقدر تغيرها حسب تجربتك
-                        $similar[] = $product;
-                    }
-                }
-
-                // نستخدم Laravel LengthAwarePaginator علشان نرجع شكل pagination سليم
-                $page = $request->input('page', 1);
-                $perPage = max(1, $perPage);
-                $pagedResults = array_slice($similar, ($page - 1) * $perPage, $perPage);
-                $paginated = new \Illuminate\Pagination\LengthAwarePaginator(
-                    $pagedResults,
-                    count($similar),
-                    $perPage,
-                    $page,
-                    ['path' => url()->current(), 'query' => $request->query()]
-                );
-
-                return api_success($paginated, 'تم جلب نتائج مشابهة بناءً على البحث.');
-            }
-            return api_success($products, 'تم جلب المنتجات بنجاح.');
-        } catch (Throwable $e) {
-            return api_exception($e);
+        if (!$authUser) {
+            \Log::warning('❌ [index] - المستخدم غير مسجل دخول (Auth::user() == null).');
+            return api_unauthorized('يتطلب المصادقة.');
         }
-    }
 
+        \Log::info('✅ [index] - المستخدم مسجل دخول.', [
+            'user_id' => $authUser->id,
+            'company_id' => $authUser->company_id,
+            'permissions' => $authUser->getAllPermissions()->pluck('name'),
+        ]);
+
+        $query = Product::with($this->relations);
+        $companyId = $authUser->company_id ?? null;
+
+        // تتبع قيم perm_key
+        $permKeys = [
+            'super' => perm_key('admin.super'),
+            'view_all' => perm_key('products.view_all'),
+            'admin_company' => perm_key('admin.company'),
+            'view_children' => perm_key('products.view_children'),
+            'view_self' => perm_key('products.view_self'),
+        ];
+        \Log::debug('🔑 [index] - مفاتيح الصلاحيات المحسوبة:', $permKeys);
+
+        // منطق الصلاحيات
+        if ($authUser->hasPermissionTo($permKeys['super'])) {
+            \Log::info('🔐 [index] - المستخدم Super Admin: رؤية كل المنتجات.');
+            // لا شيء إضافي
+        } elseif ($authUser->hasAnyPermission([$permKeys['view_all'], $permKeys['admin_company']])) {
+            \Log::info('🔐 [index] - المستخدم لديه products.view_all أو admin.company.');
+            $query->whereCompanyIsCurrent();
+        } elseif ($authUser->hasPermissionTo($permKeys['view_children'])) {
+            \Log::info('🔐 [index] - المستخدم لديه products.view_children.');
+            $query->whereCompanyIsCurrent()->whereCreatedByUserOrChildren();
+        } elseif ($authUser->hasPermissionTo($permKeys['view_self'])) {
+            \Log::info('🔐 [index] - المستخدم لديه products.view_self.');
+            $query->whereCompanyIsCurrent()->whereCreatedByUser();
+        } else {
+            \Log::warning('🚫 [index] - المستخدم لا يمتلك صلاحية عرض المنتجات.');
+            return api_forbidden('ليس لديك صلاحية لعرض المنتجات.');
+        }
+
+        // تطبيق الفلاتر
+        if ($request->filled('search')) {
+            $search = $request->input('search');
+            \Log::debug("🔍 [index] - تطبيق فلتر البحث: $search");
+            $query->where(function ($q) use ($search) {
+                $q
+                    ->where('name', 'like', "%$search%")
+                    ->orWhere('desc', 'like', "%$search%")
+                    ->orWhere('slug', 'like', "%$search%")
+                    ->orWhereHas('category', function ($q) use ($search) {
+                        $q->where('name', 'like', "%$search%")
+                          ->orWhere('desc', 'like', "%$search%");
+                    })
+                    ->orWhereHas('brand', function ($q) use ($search) {
+                        $q->where('name', 'like', "%$search%")
+                          ->orWhere('desc', 'like', "%$search%");
+                    });
+            });
+        }
+
+        if ($request->filled('category_id')) {
+            $query->where('category_id', $request->input('category_id'));
+            \Log::debug('📂 [index] - فلتر category_id:', ['category_id' => $request->input('category_id')]);
+        }
+
+        if ($request->filled('brand_id')) {
+            $query->where('brand_id', $request->input('brand_id'));
+            \Log::debug('🏷️ [index] - فلتر brand_id:', ['brand_id' => $request->input('brand_id')]);
+        }
+
+        if ($request->filled('active')) {
+            $query->where('active', (bool) $request->input('active'));
+            \Log::debug('✅ [index] - فلتر active:', ['active' => $request->input('active')]);
+        }
+
+        if ($request->filled('featured')) {
+            $query->where('featured', (bool) $request->input('featured'));
+            \Log::debug('⭐ [index] - فلتر featured:', ['featured' => $request->input('featured')]);
+        }
+
+        // ترتيب و pagination
+        $perPage = (int) $request->input('per_page', 20);
+        $sortField = $request->input('sort_by', 'created_at');
+        $sortOrder = $request->input('sort_order', 'desc');
+
+        \Log::debug('📦 [index] - Pagination:', compact('perPage', 'sortField', 'sortOrder'));
+
+        $products = $query->orderBy($sortField, $sortOrder);
+
+        if ($perPage == -1) {
+            $products = $products->get();
+            \Log::info('📄 [index] - جلب جميع المنتجات بدون تقسيط.');
+        } else {
+            $products = $products->paginate(max(1, $perPage));
+            \Log::info('📄 [index] - جلب المنتجات مع تقسيط.');
+        }
+
+        // لو فيه بحث ومفيش نتائج - نرجع اقتراحات
+        if ($products->isEmpty() && $request->filled('search')) {
+            $search = $request->input('search');
+            \Log::info('🤖 [index] - لا توجد نتائج، تجربة البحث الذكي بـ similar_text');
+
+            $all = Product::limit(100)->get();
+            $similar = [];
+
+            foreach ($all as $product) {
+                similar_text($product->name, $search, $percent);
+                if ($percent >= 70) {
+                    $similar[] = $product;
+                }
+            }
+
+            $page = $request->input('page', 1);
+            $perPage = max(1, $perPage);
+            $pagedResults = array_slice($similar, ($page - 1) * $perPage, $perPage);
+            $paginated = new \Illuminate\Pagination\LengthAwarePaginator(
+                $pagedResults,
+                count($similar),
+                $perPage,
+                $page,
+                ['path' => url()->current(), 'query' => $request->query()]
+            );
+
+            \Log::info('📥 [index] - تم جلب نتائج مشابهة بناءً على البحث.');
+            return api_success($paginated, 'تم جلب نتائج مشابهة بناءً على البحث.');
+        }
+
+        \Log::info('✅ [index] - تم جلب المنتجات بنجاح.');
+        return api_success($products, 'تم جلب المنتجات بنجاح.');
+    } catch (Throwable $e) {
+        \Log::error('❗ [index] - استثناء أثناء التنفيذ:', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+        return api_exception($e);
+    }
+}
     /**
      * Store a newly created resource in storage.
      *
