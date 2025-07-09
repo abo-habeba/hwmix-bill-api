@@ -21,7 +21,7 @@ return new class extends Migration {
             $table->foreignId('company_id')->constrained('companies')->onDelete('cascade');
             $table->string('description')->nullable();
             $table->string('account_number')->nullable();
-            $table->unique(['user_id', 'company_id', 'cash_box_type_id', 'is_default'], 'unique_default_cashbox_for_user_company');
+            $table->unique(['user_id', 'company_id', 'is_default'], 'unique_single_default_cashbox');
             $table->timestamps();
         });
     }

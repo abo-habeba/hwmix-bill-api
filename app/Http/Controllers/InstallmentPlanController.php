@@ -23,7 +23,7 @@ class InstallmentPlanController extends Controller
         $this->relations = [
             'user',       // المستخدم الذي يخصه خطة التقسيط
             'creator',    // المستخدم الذي أنشأ خطة التقسيط
-            'invoice',
+            'invoice.items',
             'installments',
             'company',    // يجب تحميل الشركة للتحقق من belongsToCurrentCompany
         ];
@@ -46,7 +46,6 @@ class InstallmentPlanController extends Controller
             }
 
             $query = InstallmentPlan::with($this->relations);
-            $companyId = $authUser->company_id ?? null; // معرف الشركة النشطة للمستخدم
 
             // التحقق الأساسي: إذا لم يكن المستخدم مرتبطًا بشركة وليس سوبر أدمن
             if (!$authUser->hasPermissionTo(perm_key('admin.super'))) {
@@ -81,7 +80,7 @@ class InstallmentPlanController extends Controller
             }
             // يمكنك إضافة المزيد من فلاتر البحث هنا
             // تحديد عدد العناصر في الصفحة والفرز
-            $perPage = (int) $request->input('limit', 20); // استخدام 'limit' كاسم للمدخل
+            $perPage = (int) $request->input('per_page', 20); // استخدام 'limit' كاسم للمدخل
             $sortField = $request->input('sort_by', 'created_at');
             $sortOrder = $request->input('sort_order', 'desc');
 
@@ -96,9 +95,9 @@ class InstallmentPlanController extends Controller
             }
 
             if ($plans->isEmpty()) {
-                return api_success($plans, 'لم يتم العثور على خطط تقسيط.');
+                return api_success([], 'لم يتم العثور على خطط تقسيط.');
             } else {
-                return api_success($plans, 'تم جلب خطط التقسيط بنجاح.');
+                return api_success(InstallmentPlanResource::collection($plans), 'تم جلب خطط التقسيط بنجاح.');
             }
         } catch (Throwable $e) {
             return api_exception($e, 500);

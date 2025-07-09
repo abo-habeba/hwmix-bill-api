@@ -108,6 +108,7 @@ class UserController extends Controller
     {
         $authUser = Auth::user();
 
+        // الشرط الوحيد لفحص الصلاحيات كما هو مطلوب
         if (!$authUser || (
             !$authUser->hasPermissionTo(perm_key('admin.super')) &&
             !$authUser->hasPermissionTo(perm_key('users.create')) &&
@@ -120,75 +121,95 @@ class UserController extends Controller
         try {
             $validatedData = $request->validated();
 
-            // منطق تعيين company_id و created_by بناءً على الصلاحيات
-            if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
-                $validatedData['company_id'] = isset($validatedData['company_ids']) && is_array($validatedData['company_ids'])
-                    ? $validatedData['company_ids'][0]
-                    : ($validatedData['company_id'] ?? null);
-                $validatedData['created_by'] = $validatedData['created_by'] ?? $authUser->id;
-            } elseif ($authUser->hasPermissionTo(perm_key('admin.company'))) {
-                // مدير الشركة ينشئ مستخدمين لشركته النشطة أو الشركات التي يديرها
-                $validatedData['created_by'] = $authUser->id;
+            // تعيين created_by: دائماً المستخدم المصادق عليه لضمان الأمان
+            $validatedData['created_by'] = $authUser->id;
 
-                // إذا تم تحديد company_ids، يجب التأكد أنها ضمن الشركات التي يديرها مدير الشركة
-                if (isset($validatedData['company_ids']) && is_array($validatedData['company_ids'])) {
-                    $authCompanyIds = $authUser->companies->pluck('id')->toArray();
-                    foreach ($validatedData['company_ids'] as $companyId) {
-                        if (!in_array($companyId, $authCompanyIds)) {
-                            DB::rollBack();
-                            return api_forbidden('يمكنك فقط إنشاء مستخدمين لشركات تديرها.');
-                        }
-                    }
-                    // تعيين company_id الرئيسي للمستخدم الجديد ليكون الشركة النشطة للمدير أو أول شركة في الـ company_ids المدخلة
-                    $validatedData['company_id'] = $authUser->company_id ?? $validatedData['company_ids'][0];
-                } else {
-                    // إذا لم يتم تحديد company_ids، يتم تعيين المستخدم للشركة النشطة للمدير
-                    if (!$authUser->company_id) {
-                        DB::rollBack();
-                        return api_forbidden('يجب تحديد شركة نشطة لإنشاء مستخدمين.');
-                    }
-                    $validatedData['company_id'] = $authUser->company_id;
+            // منطق تعيين company_id بناءً على صلاحيات المستخدم المصادق عليه
+            if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
+                // السوبر أدمن يمكنه تحديد أي company_id، وإذا لم يتم تحديده، يمكن أن يكون null أو افتراضي
+                $validatedData['company_id'] = $validatedData['company_id'] ?? 1;
+            } elseif ($authUser->hasPermissionTo(perm_key('admin.company'))) {
+                // مدير الشركة: يجب أن ينشئ مستخدمين لشركته أو الشركات التي يديرها
+                $authCompanyIds = $authUser->companies->pluck('id')->toArray();
+
+                if (isset($validatedData['company_id']) && !in_array($validatedData['company_id'], $authCompanyIds)) {
+                    DB::rollBack();
+                    return api_forbidden('يمكنك فقط إنشاء مستخدمين لشركات تديرها.');
                 }
-                $validatedData['company_ids'] = $validatedData['company_ids'] ?? [$authUser->company_id];  // للتزامن لاحقًا
-            } else {  // users.create فقط
-                // المستخدم العادي ينشئ مستخدمين لشركته النشطة فقط
+
+                // تعيين company_id الرئيسي للمستخدم الجديد ليكون الشركة النشطة للمدير أو الشركة المحددة
+                $validatedData['company_id'] = $validatedData['company_id'] ?? $authUser->company_id;
+
+                // إذا لم يتم تحديد شركة نشطة للمدير أو من الواجهة الأمامية
+                if (empty($validatedData['company_id'])) {
+                    DB::rollBack();
+                    return api_forbidden('يجب تحديد شركة نشطة لإنشاء مستخدمين.');
+                }
+            } else { // المستخدم لديه users.create فقط
+                // المستخدم العادي: ينشئ مستخدمين لشركته النشطة فقط
                 if (!$authUser->company_id) {
                     DB::rollBack();
                     return api_forbidden('يجب تحديد شركة نشطة لإنشاء مستخدمين.');
                 }
                 $validatedData['company_id'] = $authUser->company_id;
-                $validatedData['created_by'] = $authUser->id;
-
-                // يجب أن تكون الشركة النشطة للمستخدم في company_ids
-                if (isset($validatedData['company_ids']) && is_array($validatedData['company_ids'])) {
-                    $validatedData['company_ids'] = [$authUser->company_id];  // تعيين تلقائي إذا لم يتم تحديدها
-                }
             }
 
+            // إنشاء المستخدم
             $user = User::create($validatedData);
+
             // إنشاء صناديق المستخدم الافتراضية لكل شركة
             $user->ensureCashBoxesForAllCompanies();
 
-            if (!empty($validatedData['company_ids'])) {
-                $pivotData = [];
-                foreach ($validatedData['company_ids'] as $companyId) {
-                    $pivotData[$companyId] = [
-                        'created_by' => $authUser->id,
-                        'updated_at' => now(),
-                    ];
+            // معالجة company_ids لربط المستخدم بالشركات الإضافية
+            $companyIdsFromRequest = $request->input('company_ids', []);
+
+            $companyIdsToSync = [];
+            if (is_array($companyIdsFromRequest)) {
+                foreach ($companyIdsFromRequest as $id) {
+                    // التحقق من أن القيمة عدد صحيح وصالحة (أكبر من صفر)
+                    if (filter_var($id, FILTER_VALIDATE_INT) !== false && (int)$id > 0) {
+                        $companyId = (int)$id;
+
+                        // تحقق إضافي لمدير الشركة: لا يمكنه ربط المستخدم بشركات لا يديرها
+                        if ($authUser->hasPermissionTo(perm_key('admin.company')) && !in_array($companyId, $authCompanyIds)) {
+                            Log::warning("Company admin {$authUser->id} attempted to link user {$user->id} to unauthorized company {$companyId}.");
+                            continue; // تخطي هذه الشركة
+                        }
+                        // تحقق إضافي للمستخدم العادي: لا يمكنه ربط المستخدم إلا بشركته النشطة
+                        if ($authUser->hasPermissionTo(perm_key('users.create')) && !$authUser->hasPermissionTo(perm_key('admin.super')) && !$authUser->hasPermissionTo(perm_key('admin.company'))) {
+                            if ($companyId !== $authUser->company_id) {
+                                Log::warning("Regular user {$authUser->id} attempted to link user {$user->id} to unauthorized company {$companyId}.");
+                                continue; // تخطي هذه الشركة
+                            }
+                        }
+                        $companyIdsToSync[$companyId] = [
+                            'created_by' => $authUser->id,
+                            'updated_at' => now(),
+                        ];
+                    }
                 }
-                $user->companies()->sync($pivotData);
             }
+
+            // إضافة الشركة الأساسية للمستخدم (إذا لم تكن موجودة بالفعل في company_idsToSync)
+            // هذا يضمن أن المستخدم مرتبط بشركته الأساسية دائماً
+            if (!empty($user->company_id) && !isset($companyIdsToSync[$user->company_id])) {
+                $companyIdsToSync[$user->company_id] = [
+                    'created_by' => $authUser->id,
+                    'updated_at' => now(),
+                ];
+            }
+
+            $user->companies()->sync($companyIdsToSync);
 
             $user->logCreated('بانشاء المستخدم ' . $user->nickname);
             DB::commit();
             return api_success(new UserResource($user->load($this->relations)), 'تم إنشاء المستخدم بنجاح');
         } catch (Throwable $e) {
             DB::rollback();
+            Log::error("فشل إنشاء المستخدم: " . $e->getMessage(), ['exception' => $e, 'user_id' => $authUser->id, 'request_data' => $request->all()]);
             return api_exception($e);
         }
     }
-
     public function show(User $user)
     {
         $authUser = Auth::user();

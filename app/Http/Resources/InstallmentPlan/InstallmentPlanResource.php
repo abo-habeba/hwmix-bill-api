@@ -2,11 +2,12 @@
 
 namespace App\Http\Resources\InstallmentPlan;
 
-use App\Http\Resources\Installment\InstallmentResource;
-use App\Http\Resources\InstallmentPayment\InstallmentPaymentResource;
-use App\Http\Resources\Invoice\InvoiceResource;
 use App\Http\Resources\User\UserResource;
+use App\Http\Resources\Invoice\InvoiceResource;
 use Illuminate\Http\Resources\Json\JsonResource;
+use App\Http\Resources\Installment\InstallmentResource;
+use App\Http\Resources\InvoiceItem\InvoiceItemResource;
+use App\Http\Resources\InstallmentPayment\InstallmentPaymentResource;
 
 class InstallmentPlanResource extends JsonResource
 {
@@ -33,11 +34,18 @@ class InstallmentPlanResource extends JsonResource
             'updated_at' => $this->updated_at ? $this->updated_at->format('Y-m-d H:i:s') : null,
             'user' => new UserResource($this->whenLoaded('user')),
             'invoice' => new InvoiceResource($this->whenLoaded('invoice')),
+            // 'invoice_items' => InvoiceItemResource::collection($this->invoice->items),
+
+            'invoice_items' => InvoiceItemResource::collection(
+                // نستخدم whenLoaded على علاقة 'invoice' أولاً للتأكد من تحميل الفاتورة
+                $this->whenLoaded('invoice', function () {
+                    return $this->invoice->items;
+                })
+            ),
             'payments' => InstallmentPaymentResource::collection($this->whenLoaded('payments')),
             'installments' => InstallmentResource::collection(
                 $this->whenLoaded('installments')?->sortBy('due_date')
             ),
-
         ];
     }
 }
