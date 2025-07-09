@@ -108,7 +108,7 @@ class User extends Authenticatable
      */
     public function balanceBox($id = null)
     {
-        // $this->ensureCashBoxesForAllCompanies();
+         $this->ensureCashBoxesForAllCompanies();
         $query = $this->cashBoxes();
         $cashBox = null;
         if ($id) {
