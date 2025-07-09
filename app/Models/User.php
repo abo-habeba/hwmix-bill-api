@@ -109,7 +109,6 @@ class User extends Authenticatable
      */
     public function balanceBox($id = null)
     {
-        $query = $this->cashBoxes();
         $cashBox = null;
         if ($id) {
             $cashBox = $query->where('id', $id)->where('company_id', $this->company_id)->first();
