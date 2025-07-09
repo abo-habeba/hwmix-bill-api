@@ -40,6 +40,7 @@ class AuthController extends Controller
 
             $user = User::create([
                 'phone' => $validated['phone'],
+                'company_id' => 1,
                 'full_name' => $validated['full_name'] ?? null,
                 'nickname' => $validated['nickname'] ?? null,
                 'password' => Hash::make($validated['password']),
@@ -47,8 +48,7 @@ class AuthController extends Controller
 
             $token = $user->createToken('auth_token')->plainTextToken;
             // إنشاء صناديق المستخدم الافتراضية لكل شركة
-            $user->ensureCashBoxesForAllCompanies();
-
+            app(\App\Services\CashBoxService::class)->ensureCashBoxForUser($user);
             return api_success([
                 'user' => new UserResource($user),
                 'token' => $token,

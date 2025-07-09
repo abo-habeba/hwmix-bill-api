@@ -164,35 +164,4 @@ class ArtisanController extends Controller
             return api_exception($e);
         }
     }
-
-    public function ensureCashBoxesForAllUsers()
-    {
-        DB::transaction(function () {
-            // 1. نحصل على النوع "نقدي"
-            $cashType = CashBoxType::where('name', 'نقدي')->first();
-
-            if (!$cashType) {
-                throw new \Exception('نوع الخزنة "نقدي" غير موجود في جدول cash_box_types.');
-            }
-
-            // 2. لكل مستخدم: أنشئ له خزنة إن لم يكن لديه واحدة من هذا النوع
-            User::with('cashBoxes')->get()->each(function ($user) use ($cashType) {
-                $hasCashBox = $user->cashBoxes()->where('cash_box_type_id', $cashType->id)->exists();
-
-                if (!$hasCashBox) {
-                    CashBox::create([
-                        'name' => 'الخزنة النقدية - ' . $user->nickname ?? $user->name,
-                        'balance' => 0,
-                        'cash_box_type_id' => $cashType->id,
-                        'is_default' => true,
-                        'user_id' => $user->id,
-                        'created_by' => $user->id,
-                        'company_id' => $user->company_id,
-                        'description' => 'تم إنشاؤها تلقائيًا',
-                        'account_number' => null,
-                    ]);
-                }
-            });
-        });
-    }
 }

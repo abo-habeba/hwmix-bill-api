@@ -273,6 +273,7 @@ class UserController extends Controller
                 }
                 $user->companies()->sync($pivotData);
                 $newCompanyIds = array_diff($validated['company_ids'], $oldCompanyIds);
+
                 app(CashBoxService::class)->ensureCashBoxesForUserCompanies($user, $newCompanyIds);
             }
             if (isset($validated['permissions']) && is_array($validated['permissions'])) {

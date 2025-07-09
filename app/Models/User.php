@@ -9,6 +9,7 @@ use App\Traits\Scopes;
 use App\Traits\Filterable;
 use App\Traits\LogsActivity;
 use App\Traits\RolePermissions;
+use App\Services\CashBoxService;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Role;
@@ -108,7 +109,6 @@ class User extends Authenticatable
      */
     public function balanceBox($id = null)
     {
-        // $this->ensureCashBoxesForAllCompanies();
         $query = $this->cashBoxes();
         $cashBox = null;
         if ($id) {
@@ -135,13 +135,11 @@ class User extends Authenticatable
 
     public function cashBoxeDefault()
     {
-        // $this->ensureCashBoxesForAllCompanies();
         return $this->hasOne(CashBox::class)->where('is_default', 1);
     }
 
     public function cashBoxesByCompany()
     {
-        $this->ensureCashBoxesForAllCompanies();
         return $this->cashBoxes()->where('company_id', $this->company_id)->get();
     }
 
@@ -202,83 +200,78 @@ class User extends Authenticatable
     }
 
 
-public function withdraw(float $amount, $cashBoxId = null)
-{
-    $amount = floatval($amount);
-    $this->ensureCashBoxesForAllCompanies();
+    public function withdraw(float $amount, $cashBoxId = null)
+    {
+        $amount = floatval($amount);
 
-    DB::beginTransaction();
-    try {
-        $this->refresh();
-
-        $query = $this->cashBoxes();
-        $cashBox = $cashBoxId
-            ? $query->where('id', $cashBoxId)->first()
-            : $query->where('company_id', $this->company_id)->where('is_default', true)->first();
-
-        // Fallback لو الخزنة مش موجودة
-        if (!$cashBox) {
-            $this->ensureCashBoxesForAllCompanies();
+        DB::beginTransaction();
+        try {
             $this->refresh();
-            $cashBox = $this->cashBoxes()
-                ->where('company_id', $this->company_id)
-                ->where('is_default', true)
-                ->first();
-        }
 
-        if (!$cashBox) {
+            $query = $this->cashBoxes();
+            $cashBox = $cashBoxId
+                ? $query->where('id', $cashBoxId)->first()
+                : $query->where('company_id', $this->company_id)->where('is_default', true)->first();
+
+            // Fallback لو الخزنة مش موجودة
+            if (!$cashBox) {
+                $this->refresh();
+                $cashBox = $this->cashBoxes()
+                    ->where('company_id', $this->company_id)
+                    ->where('is_default', true)
+                    ->first();
+            }
+
+            if (!$cashBox) {
+                DB::rollBack();
+                throw new \Exception("لم يتم العثور على خزنة مناسبة.");
+            }
+
+            $cashBox->decrement('balance', $amount);
+
+            DB::commit();
+            return true;
+        } catch (\Throwable $e) {
             DB::rollBack();
-            throw new \Exception("لم يتم العثور على خزنة مناسبة.");
+            throw $e;
         }
-
-        $cashBox->decrement('balance', $amount);
-
-        DB::commit();
-        return true;
-    } catch (\Throwable $e) {
-        DB::rollBack();
-        throw $e;
     }
-}
 
-public function deposit(float $amount, $cashBoxId = null)
-{
-    $amount = floatval($amount);
-    $this->ensureCashBoxesForAllCompanies();
-
-    DB::beginTransaction();
-    try {
-        $this->refresh();
-
-        $query = $this->cashBoxes();
-        $cashBox = $cashBoxId
-            ? $query->where('id', $cashBoxId)->where('company_id', $this->company_id)->first()
-            : $query->where('company_id', $this->company_id)->where('is_default', true)->first();
-
-        // Fallback لو الخزنة مش موجودة
-        if (!$cashBox) {
-            $this->ensureCashBoxesForAllCompanies();
+    public function deposit(float $amount, $cashBoxId = null)
+    {
+        $amount = floatval($amount);
+        DB::beginTransaction();
+        try {
             $this->refresh();
-            $cashBox = $this->cashBoxes()
-                ->where('company_id', $this->company_id)
-                ->where('is_default', true)
-                ->first();
-        }
 
-        if (!$cashBox) {
+            $query = $this->cashBoxes();
+            $cashBox = $cashBoxId
+                ? $query->where('id', $cashBoxId)->where('company_id', $this->company_id)->first()
+                : $query->where('company_id', $this->company_id)->where('is_default', true)->first();
+
+            // Fallback لو الخزنة مش موجودة
+            if (!$cashBox) {
+                $this->refresh();
+                $cashBox = $this->cashBoxes()
+                    ->where('company_id', $this->company_id)
+                    ->where('is_default', true)
+                    ->first();
+            }
+
+            if (!$cashBox) {
+                DB::rollBack();
+                throw new \Exception("لم يتم العثور على خزنة مناسبة.");
+            }
+
+            $cashBox->increment('balance', $amount);
+
+            DB::commit();
+            return true;
+        } catch (\Throwable $e) {
             DB::rollBack();
-            throw new \Exception("لم يتم العثور على خزنة مناسبة.");
+            throw $e;
         }
-
-        $cashBox->increment('balance', $amount);
-
-        DB::commit();
-        return true;
-    } catch (\Throwable $e) {
-        DB::rollBack();
-        throw $e;
     }
-}
     // تحويل مبلغ بين المستخدمين
     public function transfer($cashBoxId, $targetUserId, $amount, $description = null)
     {
@@ -398,9 +391,9 @@ public function deposit(float $amount, $cashBoxId = null)
      * Ensure the user has a cash box for every company they belong to.
      * If not, create a default cash box for that company.
      */
-    public function ensureCashBoxesForAllCompanies()
+    public function ensureCashBoxesForAllCompanies(): void
     {
-        // لو مفيش شركات لكن المستخدم سوبر أدمن
+        // تحديد الشركات التي يجب إنشاء صناديق كاش لها
         if ($this->hasPermissionTo(perm_key('admin.super'))) {
             $companies = Company::all();
         } else {
@@ -408,21 +401,11 @@ public function deposit(float $amount, $cashBoxId = null)
             $companies = $this->companies;
         }
 
-        foreach ($companies as $company) {
-            $exists = $this->cashBoxes()->where('company_id', $company->id)->exists();
-            if (!$exists) {
-                $defaultType = \App\Models\CashBoxType::where('description', 'النوع الافتراضي للسيستم')->first();
-                // $cashBoxTypeId = $defaultType ? $defaultType->id : 1;
-                \App\Models\CashBox::create([
-                    'name' => 'نقدي',
-                    'balance' => 0,
-                    'cash_box_type_id' => 1,
-                    'is_default' => true,
-                    'user_id' => $this->id,
-                    'created_by' => $this->created_by ?? $this->id,
-                    'company_id' => $company->id,
-                ]);
-            }
-        }
+        // استخراج معرفات الشركات
+        $companyIds = $companies->pluck('id')->toArray();
+
+        // استدعاء خدمة CashBoxService لإنشاء الصناديق
+        //  إنشاء الصندوق ويستخدم الكود المركزي في الخدمة
+        app(CashBoxService::class)->ensureCashBoxesForUserCompanies($this, $companyIds, $this->created_by ?? $this->id);
     }
 }

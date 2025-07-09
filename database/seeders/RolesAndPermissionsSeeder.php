@@ -65,6 +65,6 @@ class RolesAndPermissionsSeeder extends Seeder
         }
         $user->companies()->sync($pivotData);
         // إنشاء صناديق المستخدم الافتراضية لكل شركة
-        // $user->ensureCashBoxesForAllCompanies();
+        $user->ensureCashBoxesForAllCompanies();
     }
 }

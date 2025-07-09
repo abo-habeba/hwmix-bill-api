@@ -34,20 +34,6 @@ class UserSeeder extends Seeder
                 'created_by' => 1,
                 'company_id' => 1,
             ],
-            [
-                'id' => 6,
-                'phone' => '01006444993',
-                'email' => 'wael.for@gmail.com',
-                'username' => 'wael',
-                'password' => Hash::make('12345678'),
-                'nickname' => 'ابو ندي',
-                'full_name' => 'وائل محمد احمد',
-                'balance' => '0.00',
-                'status' => '1',
-                'customer_type' => 'wholesale',
-                'created_by' => 1,
-                'company_id' => 1,
-            ],
         ];
 
         $companyIds = Company::pluck('id')->toArray();
