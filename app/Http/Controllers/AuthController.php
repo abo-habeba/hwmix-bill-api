@@ -78,7 +78,7 @@ class AuthController extends Controller
             $loginField = filter_var($validated['login'], FILTER_VALIDATE_EMAIL) ? 'email' : 'phone';
 
             if (!Auth::attempt([$loginField => $validated['login'], 'password' => $validated['password']])) {
-                return api_unauthorized('بيانات الاعتماد غير صالحة.');
+                return api_error('بيانات الاعتماد غير صالحة.', [], 422);
             }
 
             /** @var \App\Models\User $user */
