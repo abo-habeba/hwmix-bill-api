@@ -45,23 +45,6 @@ class InvoiceTypeController extends Controller
             }
 
             $query = InvoiceType::query()->with($this->relations);
-            $companyId = $authUser->company_id ?? null;
-
-            // تطبيق فلترة الصلاحيات بناءً على صلاحيات العرض
-            if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
-                // المسؤول العام يرى جميع أنواع الفواتير
-            } elseif ($authUser->hasAnyPermission([perm_key('invoice_types.view_all'), perm_key('admin.company')])) {
-                // يرى جميع أنواع الفواتير الخاصة بالشركة النشطة
-                $query->whereCompanyIsCurrent();
-            } elseif ($authUser->hasPermissionTo(perm_key('invoice_types.view_children'))) {
-                // يرى أنواع الفواتير التي أنشأها المستخدم أو المستخدمون التابعون له، ضمن الشركة النشطة
-                $query->whereCompanyIsCurrent()->whereCreatedByUserOrChildren();
-            } elseif ($authUser->hasPermissionTo(perm_key('invoice_types.view_self'))) {
-                // يرى أنواع الفواتير التي أنشأها المستخدم فقط، ومرتبطة بالشركة النشطة
-                $query->whereCompanyIsCurrent()->whereCreatedByUser();
-            } else {
-                return api_forbidden('ليس لديك إذن لعرض أنواع الفواتير.');
-            }
 
             // فلاتر الطلب الإضافية
             if ($request->filled('context')) {
