@@ -20,7 +20,7 @@ class UserResource extends JsonResource
     {
         $company = Company::with('logo')->find($this->company_id);
 
-        $logoUrl = $company?->logo?->url ? asset('storage/' . $company->logo->url) : null;
+        $logoUrl = $company?->logo?->url ? asset($company->logo->url) : null;
         $avatarImage = $this->images->where('type', 'avatar')->first();
 
         return [

@@ -7,6 +7,7 @@ use App\Models\Warehouse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Models\Scopes\CompanyScope;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
 use App\Http\Requests\Company\CompanyRequest;
 use App\Http\Resources\Company\CompanyResource;
@@ -14,11 +15,20 @@ use App\Http\Requests\Company\CompanyUpdateRequest;
 
 class CompanyController extends Controller
 {
+    private array $relations;
+
+    public function __construct()
+    {
+        $this->relations = [
+            'logo',
+        ];
+    }
+
     public function index(Request $request)
     {
         try {
             $authUser = Auth::user();
-            $query = Company::query();
+            $query = Company::with($this->relations);
 
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
                 // وصول مطلق
@@ -73,13 +83,14 @@ class CompanyController extends Controller
             $validatedData['company_id'] = $validatedData['company_id'] ?? $authUser->company_id;
             $validatedData['created_by'] = $validatedData['created_by'] ?? $authUser->id;
 
-            $file = $request->hasFile('logo')
-                ? $request->file('logo')
+            $file = $request->hasFile('images_ids')
+                ? $request->file('images_ids')
                 : new \Illuminate\Http\UploadedFile(public_path('images/default-logo.png'), 'default-logo.png');
 
             $company = Company::create($validatedData);
             $company->users()->attach($authUser->id, ['created_by' => $authUser->id]);
-            $company->saveImage('logo', $file);
+
+            $company->syncImages($file, 'logo');
             Warehouse::create([
                 'name' => 'المخزن الرئيسي',
                 'company_id' => $company->id,
@@ -92,7 +103,7 @@ class CompanyController extends Controller
 
             $company->logCreated("بإنشاء شركة باسم {$company->name}");
             DB::commit();
-            return api_success(new CompanyResource($company), 'تم إنشاء الشركة بنجاح');
+            return api_success(new CompanyResource($company->load($this->relations)), 'تم إنشاء الشركة بنجاح');
         } catch (\Exception $e) {
             DB::rollback();
             return api_exception($e);
@@ -113,7 +124,7 @@ class CompanyController extends Controller
             ($authUser->hasPermissionTo(perm_key('companies.view_self')) && $company->isSelf()) ||
             ($authUser->hasPermissionTo(perm_key('admin.company')) && $authUser->company_id === $company->company_id)
         ) {
-            return api_success(new CompanyResource($company), 'تم جلب بيانات الشركة بنجاح');
+            return api_success(new CompanyResource($company->load($this->relations)), 'تم جلب بيانات الشركة بنجاح');
         }
 
         return api_forbidden('ليس لديك صلاحية لعرض هذه الشركة.');
@@ -123,6 +134,7 @@ class CompanyController extends Controller
     {
         $authUser = Auth::user();
         $validated = $request->validated();
+        Log::info('Validated data for company update:', $validated);
 
         if (
             $authUser->hasPermissionTo(perm_key('admin.super')) ||
@@ -135,16 +147,12 @@ class CompanyController extends Controller
                 DB::beginTransaction();
                 $company->update($validated);
 
-                if ($logoRequest = $request->file('logo')) {
-                    if ($logo = $company->images()->where('type', 'logo')->first()) {
-                        $company->deleteImage($logo);
-                    }
-                    $company->saveImage('logo', $logoRequest);
+                if (isset($validated['images_ids'])) {
+                    $company->syncImages($validated['images_ids'], 'logo');
                 }
-
                 $company->logUpdated('الشركة ' . $company->name);
                 DB::commit();
-                return api_success(new CompanyResource($company), 'تم تحديث الشركة بنجاح');
+                return api_success(new CompanyResource($company->load($this->relations)), 'تم تحديث الشركة بنجاح');
             } catch (\Exception $e) {
                 DB::rollback();
                 return api_exception($e);

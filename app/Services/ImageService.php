@@ -45,6 +45,7 @@ class ImageService
                 'url' => Storage::url($newRelativePath), // تحديث URL العام الجديد
                 'imageable_id' => $model->id,
                 'imageable_type' => get_class($model),
+                'is_temp' => 0,
                 'type' => $type,
             ]);
         }
@@ -82,6 +83,7 @@ class ImageService
             $image->update([
                 'imageable_type' => null,
                 'imageable_id' => null,
+                'is_temp' => 1,
             ]);
         }
     }
@@ -136,6 +138,7 @@ class ImageService
                 'url' => Storage::url($newRelativePath), // تحديث URL العام الجديد
                 'imageable_id' => $model->id,
                 'imageable_type' => $modelClass,
+                'is_temp' => 0,
                 'type' => $type,
             ]);
         }

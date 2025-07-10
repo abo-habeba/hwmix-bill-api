@@ -31,7 +31,9 @@ class CompanyUpdateRequest extends FormRequest
             'email' => "nullable|email|unique:companies,email,{$this->company->id}",
             'created_by' => 'nullable|integer|exists:users,id',
             'company_id' => 'nullable|integer|exists:companies,id',
-            'logo' => 'sometimes|nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
+            'images_ids' => 'nullable|array',
+            'images_ids.*' => 'integer|exists:images,id',
+            // 'logo' => 'sometimes|nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
         ];
     }
 }

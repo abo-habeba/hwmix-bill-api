@@ -31,7 +31,9 @@ class CompanyRequest extends FormRequest
             'email' => 'nullable|email|max:255|unique:companies,email',
             'created_by' => 'nullable|integer|exists:users,id',
             'company_id' => 'nullable|integer|exists:companies,id',
-            'logo' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
+            'images_ids' => 'nullable|array',
+            'images_ids.*' => 'integer|exists:images,id',
+            // 'logo' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
         ];
     }
 }

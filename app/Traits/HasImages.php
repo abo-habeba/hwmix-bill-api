@@ -4,6 +4,7 @@ namespace App\Traits;
 
 use App\Models\Image;
 use App\Services\ImageService;
+use Illuminate\Database\Eloquent\Relations\MorphOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 trait HasImages
@@ -14,6 +15,22 @@ trait HasImages
     public function images(): MorphMany
     {
         return $this->morphMany(Image::class, 'imageable');
+    }
+
+    /**
+     * علاقة اللوجو (صورة واحدة - Polymorphic)
+     */
+    public function logo(): MorphOne
+    {
+        return $this->morphOne(Image::class, 'imageable')->where('type', 'logo');
+    }
+
+    /**
+     * علاقة الأفاتار (صورة واحدة - Polymorphic)
+     */
+    public function avatar(): MorphOne
+    {
+        return $this->morphOne(Image::class, 'imageable')->where('type', 'avatar');
     }
 
     /**

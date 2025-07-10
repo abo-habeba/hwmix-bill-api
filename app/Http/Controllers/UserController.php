@@ -31,7 +31,7 @@ class UserController extends Controller
     public function __construct()
     {
         $this->relations = [
-            'companies',
+            'companies.logo',
             'cashBoxes',
             'cashBoxeDefault',
             'creator',
