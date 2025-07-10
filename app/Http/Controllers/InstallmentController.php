@@ -43,11 +43,6 @@ class InstallmentController extends Controller
             $query = Installment::with($this->relations);
             $companyId = $authUser->company_id ?? null; // معرف الشركة النشطة للمستخدم
 
-            // التحقق الأساسي: إذا لم يكن المستخدم مرتبطًا بشركة وليس سوبر أدمن
-            if (!$authUser->hasPermissionTo(perm_key('admin.super'))) {
-                return api_unauthorized('المستخدم غير مرتبط بشركة.');
-            }
-
             // تطبيق فلترة الصلاحيات بناءً على صلاحيات العرض
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
                 // المسؤول العام يرى جميع الأقساط (لا توجد قيود إضافية على الاستعلام)

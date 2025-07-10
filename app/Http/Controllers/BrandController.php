@@ -47,12 +47,6 @@ class BrandController extends Controller
             $authUser = Auth::user();
             $query = Brand::with($this->relations);
             $companyId = $authUser->company_id ?? null;
-
-            // التحقق الأساسي: إذا لم يكن المستخدم مرتبطًا بشركة وليس سوبر أدمن
-            if (!$authUser->hasPermissionTo(perm_key('admin.super'))) {
-                return api_unauthorized('المستخدم غير مرتبط بشركة.');
-            }
-
             // تطبيق منطق الصلاحيات
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
                 // المسؤول العام يرى جميع الماركات (لا قيود إضافية)

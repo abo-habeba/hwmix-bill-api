@@ -56,11 +56,6 @@ class CashBoxController extends Controller
             $cashBoxQuery = CashBox::query()->with($this->relations);
             $companyId = $authUser->company_id ?? null;
 
-            // التحقق الأساسي: إذا لم يكن المستخدم مرتبطًا بشركة وليس سوبر أدمن
-            if (!$authUser->hasPermissionTo(perm_key('admin.super'))) {
-                return api_unauthorized('المستخدم غير مرتبط بشركة.');
-            }
-
             // منطق خاص لعرض صناديق المستخدم الحالي فقط
             if ($request->query('current_user') == 1) {
                 $cashBoxQuery->where('user_id', $authUser->id)->whereCompanyIsCurrent();

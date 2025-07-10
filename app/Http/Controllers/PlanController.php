@@ -39,10 +39,6 @@ class PlanController extends Controller
             $query = Plan::query()->with($this->relations);
             $companyId = $authUser->company_id ?? null;
 
-            if (!$authUser->hasPermissionTo(perm_key('admin.super'))) {
-                return api_unauthorized('المستخدم غير مرتبط بشركة.');
-            }
-
             // فلترة الصلاحيات
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
                 // المسؤول العام يرى جميع الخطط

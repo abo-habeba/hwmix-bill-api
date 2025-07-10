@@ -33,11 +33,6 @@ class LogController extends Controller
             $query = ActivityLog::query();
             $companyId = $authUser->company_id ?? null; // معرف الشركة النشطة للمستخدم
 
-            // التحقق الأساسي: إذا لم يكن المستخدم مرتبطًا بشركة وليس سوبر أدمن
-            if (!$authUser->hasPermissionTo(perm_key('admin.super'))) {
-                return api_unauthorized('المستخدم غير مرتبط بشركة.');
-            }
-
             // تطبيق فلترة الصلاحيات باستخدام الـ Scopes المخصصة
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
                 // المسؤول العام يرى جميع سجلات النشاطات (لا توجد قيود إضافية على الاستعلام)
