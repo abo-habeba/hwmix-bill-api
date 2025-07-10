@@ -13,16 +13,24 @@ return new class extends Migration
     {
         Schema::create('images', function (Blueprint $table) {
             $table->id();
+
             $table->string('url');
-            $table->string('type'); // نوع الصورة (avatar, logo, cover, etc.)
-            $table->unsignedBigInteger('imageable_id');
-            $table->string('imageable_type');
+            $table->string('file_name')->nullable();
+            $table->string('mime_type')->nullable();
+            $table->unsignedBigInteger('size')->nullable();
+
+            $table->string('type')->nullable();
+            $table->boolean('is_temp')->default(true);
+
+            $table->unsignedBigInteger('imageable_id')->nullable();
+            $table->string('imageable_type')->nullable();
+
             $table->foreignId('company_id')->constrained('companies')->onDelete('cascade');
             $table->foreignId('created_by')->constrained('users')->onDelete('cascade');
+
             $table->timestamps();
         });
     }
-
     /**
      * Reverse the migrations.
      */

@@ -1,35 +1,36 @@
 <?php
 
-use App\Http\Controllers\ArtisanController;
-use App\Http\Controllers\AttributeController;
-use App\Http\Controllers\AttributeValueController;
+use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\LogController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\RoleController;
+use App\Http\Controllers\UserController;
 use App\Http\Controllers\BrandController;
+use App\Http\Controllers\StockController;
+use App\Http\Controllers\ProfitController;
+use App\Http\Controllers\ArtisanController;
 use App\Http\Controllers\CashBoxController;
-use App\Http\Controllers\CashBoxTypeController;
-use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CompanyController;
-use App\Http\Controllers\InstallmentController;
-use App\Http\Controllers\InstallmentPaymentController;
-use App\Http\Controllers\InstallmentPaymentDetailController;
-use App\Http\Controllers\InstallmentPlanController;
 use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\ProductController;
+use App\Http\Controllers\RevenueController;
+use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\ImageController;
+use App\Http\Controllers\AttributeController;
+use App\Http\Controllers\WarehouseController;
+use App\Http\Controllers\PermissionController;
+use App\Http\Controllers\CashBoxTypeController;
+use App\Http\Controllers\InstallmentController;
 use App\Http\Controllers\InvoiceItemController;
 use App\Http\Controllers\InvoiceTypeController;
-use App\Http\Controllers\LogController;
-use App\Http\Controllers\PaymentController;
-use App\Http\Controllers\PaymentMethodController;
-use App\Http\Controllers\PermissionController;
-use App\Http\Controllers\ProductController;
-use App\Http\Controllers\ProductVariantController;
-use App\Http\Controllers\ProfitController;
-use App\Http\Controllers\RevenueController;
-use App\Http\Controllers\RoleController;
-use App\Http\Controllers\StockController;
 use App\Http\Controllers\TransactionController;
-use App\Http\Controllers\UserController;
-use App\Http\Controllers\WarehouseController;
-use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\PaymentMethodController;
+use App\Http\Controllers\AttributeValueController;
+use App\Http\Controllers\ProductVariantController;
+use App\Http\Controllers\InstallmentPlanController;
+use App\Http\Controllers\InstallmentPaymentController;
+use App\Http\Controllers\InstallmentPaymentDetailController;
 
 Route::post('register', [AuthController::class, 'register']);
 Route::post('login', [AuthController::class, 'login']);
@@ -60,6 +61,17 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::put('company/{company}', 'update');
             Route::post('company/delete', 'destroy');
         });
+
+    // Image Controller 
+    Route::controller(ImageController::class)
+        ->group(function () {
+            Route::get('images', 'index');
+            Route::post('image', 'store');
+            Route::put('image/{Image}', 'update');
+            Route::post('images/delete', 'destroy');
+        });
+
+
     // Transaction Controller
     Route::controller(TransactionController::class)
         ->group(function () {
@@ -278,8 +290,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
         });
     Route::get('/permissions', [PermissionController::class, 'index']);
 });
-
-
 // Artisan commands routes
 Route::controller(ArtisanController::class)->prefix('php')->group(function () {
     Route::get('runComposerDump', 'runComposerDump'); // عمل اوتو لود للملفات 

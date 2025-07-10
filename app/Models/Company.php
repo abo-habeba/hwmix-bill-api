@@ -6,7 +6,7 @@ use App\Models\Scopes\CompanyScope;
 use App\Models\User;
 use App\Traits\Translations\Translatable;
 use App\Traits\Filterable;
-use App\Traits\HandlesImages;
+use App\Traits\HasImages;
 use App\Traits\LogsActivity;
 use App\Traits\RolePermissions;
 use App\Traits\Scopes;
@@ -26,7 +26,7 @@ use Spatie\Permission\Traits\HasRoles;
  */
 class Company extends Model
 {
-    use HasFactory, Notifiable, Translatable, HasRoles, Filterable, Scopes, RolePermissions, LogsActivity, HandlesImages;
+    use HasFactory, Notifiable, Translatable, HasRoles, Filterable, Scopes, RolePermissions, LogsActivity, HasImages;
 
     protected $fillable = [
         'name',

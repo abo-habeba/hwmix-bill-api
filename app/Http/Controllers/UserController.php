@@ -200,7 +200,8 @@ class UserController extends Controller
             }
 
             $user->companies()->sync($companyIdsToSync);
-
+            // images_ids
+            $user->syncImages($validatedData['images_ids'], 'avatar');
             $user->logCreated('بانشاء المستخدم ' . $user->nickname);
             DB::commit();
             return api_success(new UserResource($user->load($this->relations)), 'تم إنشاء المستخدم بنجاح');
@@ -300,6 +301,8 @@ class UserController extends Controller
             if (isset($validated['permissions']) && is_array($validated['permissions'])) {
                 $user->syncPermissions($validated['permissions']);
             }
+            // images_ids
+            $user->syncImages($validated['images_ids'], 'avatar');
             $user->logUpdated('المستخدم ' . $user->nickname);
             DB::commit();
             return api_success(new UserResource($user->load($this->relations)), 'تم تحديث المستخدم بنجاح');

@@ -6,6 +6,7 @@ namespace App\Models;
 use Exception;
 // use App\Models\Role;
 use App\Traits\Scopes;
+use App\Traits\HasImages;
 use App\Traits\Filterable;
 use App\Traits\LogsActivity;
 use App\Traits\RolePermissions;
@@ -30,7 +31,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable, Translatable, HasRoles, HasApiTokens, Filterable, Scopes, RolePermissions, LogsActivity, HasPermissions;
+    use HasFactory, Notifiable, Translatable, HasRoles, HasApiTokens, Filterable, Scopes, RolePermissions, LogsActivity, HasPermissions, HasImages;
 
     /**
      * The attributes that are mass assignable.

@@ -21,6 +21,7 @@ class UserResource extends JsonResource
         $company = Company::with('logo')->find($this->company_id);
 
         $logoUrl = $company?->logo?->url ? asset('storage/' . $company->logo->url) : null;
+        $avatarImage = $this->images->where('type', 'avatar')->first();
 
         return [
             'id' => $this->id,
@@ -36,6 +37,7 @@ class UserResource extends JsonResource
             'email_verified_at' => $this->email_verified_at,
             'roles' => $this->getRolesWithPermissions(),
             'balance' => $this->balanceBox() ?? 0,
+            'avatar_url' => $avatarImage ? asset($avatarImage->url) : null,
             // الشركات التي يمكن للمستخدم الوصول إليها
             'companies' => CompanyResource::collection($this->getVisibleCompaniesForUser()),
             'cashBoxes' => CashBoxResource::collection($this->cashBoxesByCompany()),

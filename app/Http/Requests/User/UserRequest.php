@@ -34,6 +34,7 @@ class UserRequest extends FormRequest
             'email_verified_at' => 'nullable|date',
             'type' => 'nullable|in:system_owner,company_owner,sales,accounting,client,user',
             'balance' => 'nullable|numeric',
+            'images_ids' => 'nullable|exists:image,id',
             'status' => 'nullable|in:active,inactive',
             'company_id' => 'nullable|exists:companies,id',
             'company_ids' => 'nullable|array',
