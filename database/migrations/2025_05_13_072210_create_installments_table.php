@@ -16,6 +16,7 @@ return new class extends Migration {
             $table->foreignId('installment_plan_id')->constrained('installment_plans')->onDelete('cascade');
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');  // << أضفت العلاقة دي
             $table->foreignId('created_by')->constrained('users')->onDelete('cascade');  // << أضفت العلاقة دي  created_by
+            $table->foreignId('company_id')->constrained('Company')->onDelete('cascade');  // << أضفت العلاقة دي  created_by
             $table->string('installment_number')->nullable();
             $table->date('due_date');
             $table->decimal('amount', 15, 2);

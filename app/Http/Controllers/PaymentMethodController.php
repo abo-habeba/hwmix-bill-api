@@ -42,23 +42,6 @@ class PaymentMethodController extends Controller
             }
 
             $query = PaymentMethod::query()->with($this->relations);
-            $companyId = $authUser->company_id ?? null;
-
-            // تطبيق فلترة الصلاحيات بناءً على صلاحيات العرض
-            if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
-                // المسؤول العام يرى جميع طرق الدفع
-            } elseif ($authUser->hasAnyPermission([perm_key('payment_methods.view_all'), perm_key('admin.company')])) {
-                // يرى جميع طرق الدفع الخاصة بالشركة النشطة
-                $query->whereCompanyIsCurrent();
-            } elseif ($authUser->hasPermissionTo(perm_key('payment_methods.view_children'))) {
-                // يرى طرق الدفع التي أنشأها المستخدم أو المستخدمون التابعون له، ضمن الشركة النشطة
-                $query->whereCompanyIsCurrent()->whereCreatedByUserOrChildren();
-            } elseif ($authUser->hasPermissionTo(perm_key('payment_methods.view_self'))) {
-                // يرى طرق الدفع التي أنشأها المستخدم فقط، ومرتبطة بالشركة النشطة
-                $query->whereCompanyIsCurrent()->whereCreatedByUser();
-            } else {
-                return api_forbidden('ليس لديك إذن لعرض طرق الدفع.');
-            }
 
             // فلاتر الطلب الإضافية
             if ($request->filled('name')) {
