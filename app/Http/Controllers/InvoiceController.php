@@ -51,10 +51,6 @@ class InvoiceController extends Controller
             $query = Invoice::query()->with($this->relations);
             // $companyId = $authUser->company_id ?? null;
 
-            if (!$authUser->hasPermissionTo(perm_key('admin.super'))) {
-                return api_unauthorized('يجب أن تكون مرتبطًا بشركة أو لديك صلاحية مدير عام.');
-            }
-
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
                 // المسؤول العام يرى جميع الفواتير (لا توجد قيود إضافية على الاستعلام)
             } elseif ($authUser->hasAnyPermission([perm_key('invoices.view_all'), perm_key('admin.company')])) {
