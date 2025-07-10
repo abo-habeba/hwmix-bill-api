@@ -47,6 +47,23 @@ class PaymentController extends Controller
             }
 
             $query = Payment::query()->with($this->relations);
+            $companyId = $authUser->company_id ?? null;
+
+            // تطبيق فلترة الصلاحيات بناءً على صلاحيات العرض
+            if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
+                // المسؤول العام يرى جميع المدفوعات
+            } elseif ($authUser->hasAnyPermission([perm_key('payments.view_all'), perm_key('admin.company')])) {
+                // يرى جميع المدفوعات الخاصة بالشركة النشطة
+                $query->whereCompanyIsCurrent();
+            } elseif ($authUser->hasPermissionTo(perm_key('payments.view_children'))) {
+                // يرى المدفوعات التي أنشأها المستخدم أو المستخدمون التابعون له، ضمن الشركة النشطة
+                $query->whereCompanyIsCurrent()->whereCreatedByUserOrChildren();
+            } elseif ($authUser->hasPermissionTo(perm_key('payments.view_self'))) {
+                // يرى المدفوعات التي أنشأها المستخدم فقط، ومرتبطة بالشركة النشطة
+                $query->whereCompanyIsCurrent()->whereCreatedByUser();
+            } else {
+                return api_forbidden('ليس لديك إذن لعرض المدفوعات.');
+            }
 
             // فلاتر الطلب الإضافية
             if ($request->filled('user_id')) {

@@ -304,20 +304,6 @@ class InstallmentPaymentController extends Controller
             /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
             $companyId = $authUser->company_id ?? null;
-
-            if (!$authUser || !$companyId) {
-                return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
-            }
-
-            // صلاحية دفع الأقساط
-            if (
-                !$authUser->hasPermissionTo(perm_key('admin.super')) &&
-                !$authUser->hasPermissionTo(perm_key('installments.pay')) &&
-                !$authUser->hasPermissionTo(perm_key('admin.company'))
-            ) {
-                return api_forbidden('ليس لديك إذن لدفع الأقساط.');
-            }
-
             $validatedData = $request->validated();
 
             $cashBoxId = $validatedData['cash_box_id'] ?? $authUser->cashBoxeDefault?->id;
