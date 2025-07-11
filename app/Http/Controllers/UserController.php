@@ -123,35 +123,12 @@ class UserController extends Controller
             // تعيين created_by: دائماً المستخدم المصادق عليه لضمان الأمان
             $validatedData['created_by'] = $authUser->id;
 
-            // منطق تعيين company_id بناءً على صلاحيات المستخدم المصادق عليه
-            if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
-                // السوبر أدمن يمكنه تحديد أي company_id، وإذا لم يتم تحديده، يمكن أن يكون null أو افتراضي
-                $validatedData['company_id'] = $validatedData['company_id'] ?? 1;
-            } elseif ($authUser->hasPermissionTo(perm_key('admin.company'))) {
-                // مدير الشركة: يجب أن ينشئ مستخدمين لشركته أو الشركات التي يديرها
-                $authCompanyIds = $authUser->companies->pluck('id')->toArray();
 
-                if (isset($validatedData['company_id']) && !in_array($validatedData['company_id'], $authCompanyIds)) {
-                    DB::rollBack();
-                    return api_forbidden('يمكنك فقط إنشاء مستخدمين لشركات تديرها.');
-                }
+            // السوبر أدمن يمكنه تحديد أي company_id، وإذا لم يتم تحديده، يمكن أن يكون null أو افتراضي
+            $validatedData['company_id'] = $validatedData['company_id'] ?? 1;
+            $validatedData['company_id'] = $validatedData['company_id'] ?? $authUser->company_id;
 
-                // تعيين company_id الرئيسي للمستخدم الجديد ليكون الشركة النشطة للمدير أو الشركة المحددة
-                $validatedData['company_id'] = $validatedData['company_id'] ?? $authUser->company_id;
-
-                // إذا لم يتم تحديد شركة نشطة للمدير أو من الواجهة الأمامية
-                if (empty($validatedData['company_id'])) {
-                    DB::rollBack();
-                    return api_forbidden('يجب تحديد شركة نشطة لإنشاء مستخدمين.');
-                }
-            } else { // المستخدم لديه users.create فقط
-                // المستخدم العادي: ينشئ مستخدمين لشركته النشطة فقط
-                if (!$authUser->company_id) {
-                    DB::rollBack();
-                    return api_forbidden('يجب تحديد شركة نشطة لإنشاء مستخدمين.');
-                }
-                $validatedData['company_id'] = $authUser->company_id;
-            }
+            $validatedData['company_id'] = $authUser->company_id;
 
             // إنشاء المستخدم
             $user = User::create($validatedData);
@@ -169,11 +146,6 @@ class UserController extends Controller
                     if (filter_var($id, FILTER_VALIDATE_INT) !== false && (int)$id > 0) {
                         $companyId = (int)$id;
 
-                        // تحقق إضافي لمدير الشركة: لا يمكنه ربط المستخدم بشركات لا يديرها
-                        if ($authUser->hasPermissionTo(perm_key('admin.company')) && !in_array($companyId, $authCompanyIds)) {
-                            Log::warning("Company admin {$authUser->id} attempted to link user {$user->id} to unauthorized company {$companyId}.");
-                            continue; // تخطي هذه الشركة
-                        }
                         // تحقق إضافي للمستخدم العادي: لا يمكنه ربط المستخدم إلا بشركته النشطة
                         if ($authUser->hasPermissionTo(perm_key('users.create')) && !$authUser->hasPermissionTo(perm_key('admin.super')) && !$authUser->hasPermissionTo(perm_key('admin.company'))) {
                             if ($companyId !== $authUser->company_id) {
@@ -183,6 +155,7 @@ class UserController extends Controller
                         }
                         $companyIdsToSync[$companyId] = [
                             'created_by' => $authUser->id,
+                            'company_id' => $authUser->company_id,
                             'updated_at' => now(),
                         ];
                     }
@@ -194,6 +167,7 @@ class UserController extends Controller
             if (!empty($user->company_id) && !isset($companyIdsToSync[$user->company_id])) {
                 $companyIdsToSync[$user->company_id] = [
                     'created_by' => $authUser->id,
+                    'company_id' => $authUser->company_id,
                     'updated_at' => now(),
                 ];
             }
@@ -292,6 +266,7 @@ class UserController extends Controller
                 foreach ($companyIds as $companyId) {
                     $pivotData[$companyId] = [
                         'created_by' => $authUser->id,
+                        'company_id' => $authUser->company_id,
                         'updated_at' => now(),
                     ];
                 }
