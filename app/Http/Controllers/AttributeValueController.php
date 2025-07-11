@@ -30,7 +30,6 @@ class AttributeValueController extends Controller
     {
         $this->relations = [
             'attribute',
-            'company',
             'creator',
         ];
     }

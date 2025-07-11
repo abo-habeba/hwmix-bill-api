@@ -19,11 +19,14 @@ class AttributeValue extends Model
         'created_by',
         'name',
         'color',
-        'company_id'
     ];
 
     public function attribute()
     {
         return $this->belongsTo(Attribute::class);
+    }
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'created_by');
     }
 }
