@@ -83,14 +83,16 @@ class CompanyController extends Controller
             $validatedData['company_id'] = $validatedData['company_id'] ?? $authUser->company_id;
             $validatedData['created_by'] = $validatedData['created_by'] ?? $authUser->id;
 
-            $file = $request->hasFile('images_ids')
-                ? $request->file('images_ids')
-                : new \Illuminate\Http\UploadedFile(public_path('images/default-logo.png'), 'default-logo.png');
 
             $company = Company::create($validatedData);
             $company->users()->attach($authUser->id, ['created_by' => $authUser->id]);
-
-            $company->syncImages($file, 'logo');
+            if ($request->has('images_ids')) {
+                $imagesIds = $request->input('images_ids');
+                $company->syncImages($imagesIds, 'logo');
+            } else {
+                // اضافة صوره افتراضية
+                // new \Illuminate\Http\UploadedFile(public_path('images/default-logo.png'), 'default-logo.png');
+            }
             Warehouse::create([
                 'name' => 'المخزن الرئيسي',
                 'company_id' => $company->id,
@@ -147,8 +149,9 @@ class CompanyController extends Controller
                 DB::beginTransaction();
                 $company->update($validated);
 
-                if (isset($validated['images_ids'])) {
-                    $company->syncImages($validated['images_ids'], 'logo');
+                if ($request->has('images_ids')) {
+                    $imagesIds = $request->input('images_ids');
+                    $company->syncImages($imagesIds, 'logo');
                 }
                 $company->logUpdated('الشركة ' . $company->name);
                 DB::commit();

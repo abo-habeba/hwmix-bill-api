@@ -37,7 +37,6 @@ class UserController extends Controller
             'creator',
         ];
     }
-
     public function index(Request $request)
     {
         $authUser = Auth::user();
@@ -201,7 +200,10 @@ class UserController extends Controller
 
             $user->companies()->sync($companyIdsToSync);
             // images_ids
-            $user->syncImages($validatedData['images_ids'], 'avatar');
+            if ($request->has('images_ids')) {
+                $imagesIds = $request->input('images_ids');
+                $user->syncImages($imagesIds, 'avatar');
+            }
             $user->logCreated('بانشاء المستخدم ' . $user->nickname);
             DB::commit();
             return api_success(new UserResource($user->load($this->relations)), 'تم إنشاء المستخدم بنجاح');
@@ -302,7 +304,10 @@ class UserController extends Controller
                 $user->syncPermissions($validated['permissions']);
             }
             // images_ids
-            $user->syncImages($validated['images_ids'], 'avatar');
+            if ($request->has('images_ids')) {
+                $imagesIds = $request->input('images_ids');
+                $user->syncImages($imagesIds, 'avatar');
+            }
             $user->logUpdated('المستخدم ' . $user->nickname);
             DB::commit();
             return api_success(new UserResource($user->load($this->relations)), 'تم تحديث المستخدم بنجاح');

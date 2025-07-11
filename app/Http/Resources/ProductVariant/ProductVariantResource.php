@@ -21,7 +21,8 @@ class ProductVariantResource extends JsonResource
     public function toArray(Request $request): array
     {
         // $cost = $this->stocks->where('status', 'available')->sortByDesc('created_at')->first();
-        // dd($cost);
+        $availableStocks = $this->stocks->where('status', 'available');
+        // dd($availableStocks->sum('quantity'));
         return [
             'id' => $this->id,
             // بيانات متغير المنتج
@@ -34,8 +35,8 @@ class ProductVariantResource extends JsonResource
             'dimensions' => $this->dimensions,
             'tax' => $this->tax,
             'cost' => $this->stocks->where('status', 'available')->sortByDesc('created_at')->first()?->cost ?? 0,
-            'quantity' => $this->stocks->where('status', 'available')->sum('quantity'),
-            'min_quantity' => $this->min_quantity,
+            'quantity' => $availableStocks->sum('quantity') ?? null,
+            'min_quantity' => $this->min_quantity ?? null,
             'stocks' => StockResource::collection($this->whenLoaded('stocks')),
             'discount' => $this->discount,
             'status' => $this->status,

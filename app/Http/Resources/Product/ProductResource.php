@@ -17,6 +17,11 @@ class ProductResource extends JsonResource
 {
     public function toArray(Request $request)
     {
+        $totalAvailableQuantity = $this->whenLoaded('variants', function () {
+            return $this->variants->sum(function ($variant) {
+                return $variant->stocks->where('status', 'available')->sum('quantity');
+            });
+        }, 0);
         return [
             'id' => $this->id,
             'name' => $this->name,
@@ -24,11 +29,12 @@ class ProductResource extends JsonResource
             'active' => (bool) $this->active,
             'featured' => (bool) $this->featured,
             'returnable' => (bool) $this->returnable,
-            'desc' => $this->desc,  // تم إرجاع الاسم إلى 'desc'
-            'desc_long' => $this->desc_long,  // تم إرجاع الاسم إلى 'desc_long'
+            'desc' => $this->desc,
+            'desc_long' => $this->desc_long,
             'category_id' => $this->category_id,
             'brand_id' => $this->whenNotNull($this->brand_id),
             'company_id' => $this->company_id,
+            'total_available_quantity' => $totalAvailableQuantity,
             'company' => new CompanyResource($this->whenLoaded('company')),
             'creator' => new UserBasicResource($this->whenLoaded('creator')),
             'brand' => new BrandResource($this->whenLoaded('brand')),
