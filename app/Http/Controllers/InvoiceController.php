@@ -203,54 +203,50 @@ class InvoiceController extends Controller
      * @param int $id
      * @return \Illuminate\Http\JsonResponse
      */
-    public function update(UpdateInvoiceRequest $request, string $id): JsonResponse
+    public function update(UpdateInvoiceRequest $request, Invoice $invoice): JsonResponse
     {
         try {
-            /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
-            $companyId = $authUser->company_id ?? null;
+            $companyId = $authUser->company_id;
 
             if (!$authUser || !$companyId) {
-                return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
+                return api_unauthorized('يتطلب المصادقة أو الانتماء لشركة.');
             }
 
-            $invoice = Invoice::with(['company', 'creator'])->findOrFail($id);
-
-            $canUpdate = false;
-            if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
-                $canUpdate = true;
-            } elseif ($authUser->hasAnyPermission([perm_key('invoices.update_all'), perm_key('admin.company')])) {
-                $canUpdate = $invoice->belongsToCurrentCompany();
-            } elseif ($authUser->hasPermissionTo(perm_key('invoices.update_children'))) {
-                $canUpdate = $invoice->belongsToCurrentCompany() && $invoice->createdByUserOrChildren();
-            } elseif ($authUser->hasPermissionTo(perm_key('invoices.update_self'))) {
-                $canUpdate = $invoice->belongsToCurrentCompany() && $invoice->createdByCurrentUser();
+            if (
+                !$authUser->hasPermissionTo(perm_key('admin.super')) &&
+                !$authUser->hasPermissionTo(perm_key('invoices.update')) &&
+                !$authUser->hasPermissionTo(perm_key('admin.company'))
+            ) {
+                return api_forbidden('ليس لديك صلاحية لتعديل الفاتورة.');
             }
 
-            if (!$canUpdate) {
-                return api_forbidden('ليس لديك صلاحية لتحديث هذه الفاتورة.');
-            }
+            $validated = $request->validated();
+            $validated['company_id'] = $companyId;
+            $validated['updated_by'] = $authUser->id;
 
             DB::beginTransaction();
             try {
-                $validatedData = $request->validated();
-                $validatedData['updated_by'] = $authUser->id; // تعيين من قام بالتعديل
+                $invoiceTypeCode = $invoice->invoice_type_code;
+                $service = ServiceResolver::resolve($invoiceTypeCode);
 
-                $invoice->update($validatedData);
-                $invoice->load($this->relations); // إعادة تحميل العلاقات بعد التحديث
+                $updatedInvoice = $service->update($validated, $invoice);
+                $updatedInvoice->load($this->relations);
+
                 DB::commit();
-                return api_success(new InvoiceResource($invoice), 'تم تحديث الفاتورة بنجاح');
+                return api_success(new InvoiceResource($updatedInvoice), 'تم تعديل الفاتورة بنجاح');
             } catch (ValidationException $e) {
                 DB::rollBack();
-                return api_error('فشل التحقق من صحة البيانات أثناء تحديث المستند.', $e->errors(), 422);
+                return api_error('خطأ في التحقق من البيانات', $e->errors(), 422);
             } catch (Throwable $e) {
                 DB::rollBack();
-                return api_error('حدث خطأ أثناء تحديث المستند.', [], 500);
+                return api_exception($e);
             }
         } catch (Throwable $e) {
             return api_exception($e);
         }
     }
+
 
     /**
      * حذف الفاتورة المحددة من قاعدة البيانات.

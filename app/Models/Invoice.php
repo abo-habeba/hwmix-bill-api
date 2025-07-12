@@ -7,14 +7,12 @@ use App\Traits\LogsActivity;
 use App\Traits\Scopes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Auth;
 
-/**
- * @mixin IdeHelperInvoice
- */
 class Invoice extends Model
 {
-    use HasFactory, LogsActivity, Blameable, Scopes;
+    use HasFactory, LogsActivity, Blameable, Scopes, SoftDeletes;
 
     protected $guarded = [];
 
@@ -27,9 +25,12 @@ class Invoice extends Model
                 $invoice->invoice_number = self::generateInvoiceNumber($type->code, $companyId);
             }
 
-            // Set default values for company_id and created_by
             $invoice->company_id = $invoice->company_id ?? Auth::user()->company_id;
             $invoice->created_by = $invoice->created_by ?? Auth::id();
+        });
+
+        static::updating(function ($invoice) {
+            $invoice->updated_by = Auth::id();
         });
     }
 
@@ -37,15 +38,10 @@ class Invoice extends Model
     {
         $datePart = now()->format('ymd');
         $lastInvoice = self::where('company_id', $companyId)
-            ->whereHas('invoiceType', function ($query) use ($typeCode) {
-                $query->where('code', $typeCode);
-            })
+            ->whereHas('invoiceType', fn($query) => $query->where('code', $typeCode))
             ->latest('id')
             ->first();
-        $lastSerial = 0;
-        if ($lastInvoice) {
-            $lastSerial = (int) substr($lastInvoice->invoice_number, -6);
-        }
+        $lastSerial = $lastInvoice ? (int) substr($lastInvoice->invoice_number, -6) : 0;
         $nextSerial = str_pad($lastSerial + 1, 6, '0', STR_PAD_LEFT);
         return strtoupper(self::shortenTypeCode($typeCode)) . '-' . $datePart . '-' . $companyId . '-' . $nextSerial;
     }
@@ -53,44 +49,39 @@ class Invoice extends Model
     public static function shortenTypeCode(string $typeCode): string
     {
         $parts = explode('_', $typeCode);
-        if (count($parts) === 1) {
-            // كلمة واحدة: خذ أول 4 أحرف
-            return substr($typeCode, 0, 4);
-        }
-        // كلمتين أو أكثر: خذ أول حرفين من كل كلمة (حد أقصى 2 كلمات)
-        $shortenedParts = [];
-        foreach ($parts as $part) {
-            $shortenedParts[] = substr($part, 0, 3);
-        }
-
-        return implode('_', $shortenedParts);
+        return count($parts) === 1
+            ? substr($typeCode, 0, 4)
+            : implode('_', array_map(fn($p) => substr($p, 0, 3), $parts));
     }
 
     public function user()
     {
         return $this->belongsTo(User::class);
     }
-
     public function invoiceType()
     {
         return $this->belongsTo(InvoiceType::class);
     }
-
     public function items()
     {
         return $this->hasMany(InvoiceItem::class);
     }
-
+    public function itemsWithTrashed()
+    {
+        return $this->hasMany(InvoiceItem::class)->withTrashed();
+    }
     public function company()
     {
         return $this->belongsTo(Company::class);
     }
-
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
     }
-
+    public function updater()
+    {
+        return $this->belongsTo(User::class, 'updated_by');
+    }
     public function installmentPlan()
     {
         return $this->belongsTo(InstallmentPlan::class, 'installment_plan_id');

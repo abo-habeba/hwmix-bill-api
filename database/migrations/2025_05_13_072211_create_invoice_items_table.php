@@ -13,16 +13,23 @@ return new class extends Migration
     {
         Schema::create('invoice_items', function (Blueprint $table) {
             $table->id();
+
             $table->foreignId('invoice_id')->constrained('invoices')->onDelete('cascade');
-            $table->foreignId('product_id')->nullable()->constrained('products')->nullOnDelete()->after('invoice_id');
+            $table->foreignId('product_id')->nullable()->constrained('products')->nullOnDelete();
+            $table->foreignId('variant_id')->nullable()->constrained('product_variants')->nullOnDelete();
+
             $table->foreignId('company_id')->constrained()->onDelete('cascade');
-            $table->foreignId('created_by')->constrained('users')->onDelete('cascade');
+            $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('updated_by')->nullable()->constrained('users')->nullOnDelete();
+
             $table->string('name');
-            $table->integer('quantity');
+            $table->decimal('quantity', 15, 2);
             $table->decimal('unit_price', 15, 2);
             $table->decimal('discount', 15, 2)->default(0);
             $table->decimal('total', 15, 2);
+
             $table->timestamps();
+            $table->softDeletes(); // ✅ مهم جدًا
         });
     }
 

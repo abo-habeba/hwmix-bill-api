@@ -63,7 +63,6 @@ trait InvoiceHelperTrait
                 ]);
 
                 Log::info("[createInvoiceItems] ✅ تم إنشاء البند رقم $index بنجاح");
-
             } catch (\Throwable $e) {
                 Log::error("[createInvoiceItems] ❌ فشل إنشاء البند رقم $index", [
                     'exception' => $e->getMessage(),
@@ -157,6 +156,42 @@ trait InvoiceHelperTrait
                 'exception' => $e->getMessage(),
                 'items' => $items,
             ]);
+            throw $e;
+        }
+    }
+
+    protected function returnStockForItems(Invoice $invoice)
+    {
+        try {
+            foreach ($invoice->items as $item) {
+                $variant = ProductVariant::find($item->variant_id ?? null);
+                if (!$variant) continue;
+
+                $remaining = $item->quantity;
+
+                $stocks = $variant->stocks()->where('status', 'available')->orderBy('created_at', 'desc')->get();
+
+                foreach ($stocks as $stock) {
+                    if ($remaining <= 0) break;
+
+                    $stock->increment('quantity', $remaining); // ترجيع كامل
+                    Log::info('[returnStockForItems] ✅ تم ترجيع الكمية', [
+                        'variant_id' => $variant->id,
+                        'stock_id'   => $stock->id,
+                        'returned'   => $remaining,
+                    ]);
+
+                    break; // بنرجع الكمية مرة واحدة للمخزن الأحدث
+                }
+            }
+
+            Log::info('[returnStockForItems] ✅ تم إنهاء ترجيع الكميات بنجاح');
+        } catch (\Throwable $e) {
+            Log::error('[returnStockForItems] ❌ فشل أثناء ترجيع المخزون', [
+                'exception' => $e->getMessage(),
+                'invoice_id' => $invoice->id,
+            ]);
+
             throw $e;
         }
     }
