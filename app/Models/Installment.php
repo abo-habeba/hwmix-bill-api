@@ -7,13 +7,14 @@ use App\Traits\LogsActivity;
 use App\Traits\Scopes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
  * @mixin IdeHelperInstallment
  */
 class Installment extends Model
 {
-    use HasFactory, LogsActivity, Blameable, Scopes;
+    use HasFactory, LogsActivity, Blameable, Scopes, SoftDeletes;
 
     protected $fillable = [
         'installment_plan_id',
@@ -24,9 +25,11 @@ class Installment extends Model
         'paid_at',
         'remaining',
         'created_by',
-        'user_id'
+        'user_id',
+        'company_id', // ✅ مهم جدًا
     ];
 
+    // العلاقات
     public function installmentPlan()
     {
         return $this->belongsTo(InstallmentPlan::class);
@@ -54,13 +57,8 @@ class Installment extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
-
     public function company()
-{
-    return $this->belongsTo(Company::class);
-}
-    public function withPayments()
     {
-        return $this->load('payments');
+        return $this->belongsTo(Company::class);
     }
 }

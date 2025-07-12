@@ -13,17 +13,33 @@ return new class extends Migration {
     {
         Schema::create('installments', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('installment_plan_id')->constrained('installment_plans')->onDelete('cascade');
-            $table->foreignId('user_id')->constrained('users')->onDelete('cascade');  // << أضفت العلاقة دي
-            $table->foreignId('created_by')->constrained('users')->onDelete('cascade');  // << أضفت العلاقة دي  created_by
-            $table->foreignId('company_id')->constrained('Company')->onDelete('cascade');  // << أضفت العلاقة دي  created_by
+
+            $table->foreignId('installment_plan_id')
+                ->constrained('installment_plans')
+                ->onDelete('cascade');
+
+            $table->foreignId('user_id')
+                ->constrained('users')
+                ->onDelete('cascade'); // العميل
+
+            $table->foreignId('created_by')
+                ->constrained('users')
+                ->onDelete('cascade'); // أنشئ بواسطة
+
+            $table->foreignId('company_id')
+                ->constrained('companies') // ✅ تم تصحيحه من Company إلى companies
+                ->onDelete('cascade');     // الشركة
+
             $table->string('installment_number')->nullable();
+
             $table->date('due_date');
             $table->decimal('amount', 15, 2);
-            $table->string('status');
-            $table->timestamp('paid_at')->nullable();
             $table->decimal('remaining', 15, 2)->default(0);
+            $table->string('status'); // لم يتم الدفع، تم الدفع، متأخر، ملغي، وهكذا
+            $table->timestamp('paid_at')->nullable();
+
             $table->timestamps();
+            $table->softDeletes(); // ✅ دعم soft delete
         });
     }
 
