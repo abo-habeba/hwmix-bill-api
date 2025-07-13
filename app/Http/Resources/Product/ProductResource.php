@@ -2,16 +2,17 @@
 
 namespace App\Http\Resources\Product;
 
+use Illuminate\Http\Request;
 use App\Http\Resources\Brand\BrandResource;
-use App\Http\Resources\Category\CategoryResource;
-use App\Http\Resources\Company\CompanyResource;
-use App\Http\Resources\ProductVariant\ProductVariantResource;
-use App\Http\Resources\ProductVariantAttribute\ProductVariantAttributeResource;
 use App\Http\Resources\Stock\StockResource;
 use App\Http\Resources\User\UserBasicResource;
-use App\Http\Resources\Warehouse\WarehouseResource;
+use App\Http\Resources\Company\CompanyResource;
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Http\Request;
+use App\Http\Resources\Category\CategoryResource;
+use App\Http\Resources\Warehouse\WarehouseResource;
+use App\Http\Resources\ProductVariant\ProductVariantResource;
+use App\Http\Resources\InstallmentPlan\InstallmentPlanBasicResource;
+use App\Http\Resources\ProductVariantAttribute\ProductVariantAttributeResource;
 
 class ProductResource extends JsonResource
 {
@@ -36,6 +37,7 @@ class ProductResource extends JsonResource
             'company_id' => $this->company_id,
             'total_available_quantity' => $totalAvailableQuantity,
             'company' => new CompanyResource($this->whenLoaded('company')),
+            'company' => new InstallmentPlanBasicResource($this->whenLoaded('installmentPlan')),
             'creator' => new UserBasicResource($this->whenLoaded('creator')),
             'brand' => new BrandResource($this->whenLoaded('brand')),
             'category' => new CategoryResource($this->whenLoaded('category')),

@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Resources\InvoiceItem;
 
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -9,6 +10,7 @@ class InvoiceItemResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'variant_id' => $this->id,
             'invoice_id' => $this->invoice_id,
             'name' => $this->name,
             'quantity' => $this->quantity,

@@ -2,19 +2,21 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Controllers\Controller;
-use App\Http\Requests\Invoice\StoreInvoiceRequest;
-use App\Http\Requests\Invoice\UpdateInvoiceRequest;
-use App\Http\Resources\Invoice\InvoiceResource;
+use Throwable;
 use App\Models\Invoice;
 use App\Models\InvoiceType;
-use App\Services\ServiceResolver;
 use Illuminate\Http\Request;
+use App\Services\ServiceResolver;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use App\Http\Controllers\Controller;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
-use Throwable;
+use App\Http\Resources\Invoice\InvoiceResource;
+use App\Http\Requests\Invoice\StoreInvoiceRequest;
+use App\Http\Requests\Invoice\UpdateInvoiceRequest;
+use App\Http\Resources\InvoiceItem\InvoiceItemResource;
+use Illuminate\Support\Collection;
 
 class InvoiceController extends Controller
 {
@@ -88,9 +90,9 @@ class InvoiceController extends Controller
                 ->paginate($perPage);
 
             if ($invoices->isEmpty()) {
-                return api_success($invoices, 'لم يتم العثور على فواتير.');
+                return api_success([], 'لم يتم العثور على فواتير.');
             } else {
-                return api_success($invoices, 'تم جلب الفواتير بنجاح.');
+                return api_success(InvoiceResource::Collection($invoices), 'تم جلب الفواتير بنجاح.');
             }
         } catch (Throwable $e) {
             return api_exception($e);
@@ -221,12 +223,13 @@ class InvoiceController extends Controller
                 return api_forbidden('ليس لديك صلاحية لتعديل الفاتورة.');
             }
 
-            $validated = $request->validated();
-            $validated['company_id'] = $companyId;
-            $validated['updated_by'] = $authUser->id;
 
             DB::beginTransaction();
             try {
+                $validated = $request->validated();
+                $validated['company_id'] = $companyId;
+                $validated['updated_by'] = $authUser->id;
+
                 $invoiceTypeCode = $invoice->invoice_type_code;
                 $service = ServiceResolver::resolve($invoiceTypeCode);
 

@@ -92,24 +92,25 @@ trait InvoiceHelperTrait
         Log::info('[deleteInvoiceItems] حذف البنود القديمة للفاتورة', ['invoice_id' => $invoice->id]);
         InvoiceItem::where('invoice_id', $invoice->id)->delete();
     }
-
     protected function checkVariantsStock(array $items, string $mode = 'deduct')
     {
         try {
             if ($mode === 'none') return;
 
-            foreach ($items as $item) {
-                $variant = ProductVariant::find($item['variant_id'] ?? null);
+            foreach ($items as $index => $item) {
+                $variantId = $item['variant_id'] ?? null;
+                $variant = $variantId ? ProductVariant::find($variantId) : null;
+
                 if (!$variant) {
                     throw ValidationException::withMessages([
-                        'variant_id' => ['المتغير بمعرف ' . ($item['variant_id'] ?? '-') . ' غير موجود.'],
+                        "items.$index.variant_id" => ["المتغير المختار غير موجود (ID: $variantId)"],
                     ]);
                 }
 
                 $totalAvailableQuantity = $variant->stocks()->where('status', 'available')->sum('quantity');
                 if ($mode === 'deduct' && $totalAvailableQuantity < $item['quantity']) {
                     throw ValidationException::withMessages([
-                        'stock' => ['الكمية غير متوفرة في المخزون'],
+                        "items.$index.quantity" => ['الكمية غير متوفرة في المخزون.'],
                     ]);
                 }
             }
@@ -123,6 +124,7 @@ trait InvoiceHelperTrait
             throw $e;
         }
     }
+
 
     protected function deductStockForItems(array $items)
     {

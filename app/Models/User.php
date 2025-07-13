@@ -200,7 +200,7 @@ class User extends Authenticatable
         return $this->hasMany(Payment::class);
     }
 
-
+    // خصم 
     public function withdraw(float $amount, $cashBoxId = null)
     {
         $amount = floatval($amount);
@@ -209,16 +209,12 @@ class User extends Authenticatable
         try {
             $this->refresh();
 
-            $query = $this->cashBoxes();
-            $cashBox = $cashBoxId
-                ? $query->where('id', $cashBoxId)->first()
-                : $query->where('company_id', $this->company_id)->where('is_default', true)->first();
-
-            // Fallback لو الخزنة مش موجودة
-            if (!$cashBox) {
-                $this->refresh();
-                $cashBox = $this->cashBoxes()
+            if ($cashBoxId) {
+                $cashBox = \App\Models\CashBox::where('id', $cashBoxId)
                     ->where('company_id', $this->company_id)
+                    ->first();
+            } else {
+                $cashBox = \App\Models\CashBox::where('company_id', $this->company_id)
                     ->where('is_default', true)
                     ->first();
             }
@@ -237,7 +233,7 @@ class User extends Authenticatable
             throw $e;
         }
     }
-
+    // ايداع
     public function deposit(float $amount, $cashBoxId = null)
     {
         $amount = floatval($amount);
@@ -245,16 +241,12 @@ class User extends Authenticatable
         try {
             $this->refresh();
 
-            $query = $this->cashBoxes();
-            $cashBox = $cashBoxId
-                ? $query->where('id', $cashBoxId)->where('company_id', $this->company_id)->first()
-                : $query->where('company_id', $this->company_id)->where('is_default', true)->first();
-
-            // Fallback لو الخزنة مش موجودة
-            if (!$cashBox) {
-                $this->refresh();
-                $cashBox = $this->cashBoxes()
+            if ($cashBoxId) {
+                $cashBox = \App\Models\CashBox::where('id', $cashBoxId)
                     ->where('company_id', $this->company_id)
+                    ->first();
+            } else {
+                $cashBox = \App\Models\CashBox::where('company_id', $this->company_id)
                     ->where('is_default', true)
                     ->first();
             }
@@ -273,6 +265,7 @@ class User extends Authenticatable
             throw $e;
         }
     }
+
     // تحويل مبلغ بين المستخدمين
     public function transfer($cashBoxId, $targetUserId, $amount, $description = null)
     {

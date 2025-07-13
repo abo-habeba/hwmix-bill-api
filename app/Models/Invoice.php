@@ -84,6 +84,6 @@ class Invoice extends Model
     }
     public function installmentPlan()
     {
-        return $this->belongsTo(InstallmentPlan::class, 'installment_plan_id');
+        return $this->hasOne(InstallmentPlan::class, 'invoice_id');
     }
 }
