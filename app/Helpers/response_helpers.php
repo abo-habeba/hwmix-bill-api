@@ -3,6 +3,7 @@
 use Illuminate\Http\JsonResponse;
 use Illuminate\Pagination\AbstractPaginator;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Log;
 
 /**
  * ✅ إرجاع استجابة ناجحة
@@ -68,21 +69,38 @@ if (!function_exists('api_error')) {
  * 💥 إرجاع استجابة في حالة Exception
  */
 if (!function_exists('api_exception')) {
-    function api_exception(Throwable $e, int $code = 500, string $message = 'خطأ فيجلب البيانات'): JsonResponse
+    function api_exception(Throwable $e, int $code = 500, string $message = 'خطأ في جلب البيانات'): JsonResponse
     {
+        // التعامل مع أنواع محددة من الأخطاء
         if ($e instanceof ValidationException) {
-            return api_error('خطأ في التحقق من البيانات', $e->errors(), 422);
+            return response()->json([
+                'status' => false,
+                'message' => 'خطأ في التحقق من البيانات',
+                'errors' => $e->errors(),
+            ], 422);
+        } elseif ($e instanceof ModelNotFoundException) {
+            return response()->json([
+                'status' => false,
+                'message' => 'السجل غير موجود',
+            ], 404);
         }
 
-        return response()->json([
+        // تجميع تفاصيل الخطأ
+        $errorDetails = [
             'status' => false,
             'message' => $message,
             'error' => $e->getMessage(),
             'exception' => get_class($e),
             'file' => $e->getFile(),
             'line' => $e->getLine(),
-            'trace' => config('app.debug') ? $e->getTrace() : [],
-        ], $code);
+            'trace' => config('app.debug') ? $e->getTraceAsString() : [],
+        ];
+
+        // تسجيل الخطأ
+        Log::error('تفاصيل الخطأ:', $errorDetails);
+
+        // إرجاع استجابة JSON
+        return response()->json($errorDetails, $code);
     }
 }
 
