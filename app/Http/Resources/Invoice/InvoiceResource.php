@@ -3,6 +3,7 @@
 namespace App\Http\Resources\Invoice;
 
 use App\Http\Resources\User\UserResource;
+use App\Http\Resources\User\UserBasicResource;
 use App\Http\Resources\Company\CompanyResource;
 use Illuminate\Http\Resources\Json\JsonResource;
 use App\Http\Resources\InvoiceItem\InvoiceItemResource;
@@ -18,22 +19,30 @@ class InvoiceResource extends JsonResource
             'user_id' => $this->user_id,
             'invoice_type_id' => $this->invoice_type_id,
             'invoice_number' => $this->invoice_number,
-            'issue_date' => optional($this->issue_date)->format('Y-m-d H:i:s'),
-            'due_date' => optional($this->due_date)->format('Y-m-d H:i:s'),
+            // الحقول المالية
+            'gross_amount' => $this->gross_amount,
             'total_amount' => $this->total_amount,
             'paid_amount' => $this->paid_amount,
             'remaining_amount' => $this->remaining_amount,
+            'round_step' => $this->round_step,
+            'net_amount' => $this->net_amount,
+            'total_discount' => $this->total_discount,
+
             'status' => $this->status,
             'notes' => $this->notes,
+
+
+            'issue_date' => optional($this->issue_date)->format('Y-m-d H:i:s'),
+            'due_date' => optional($this->due_date)->format('Y-m-d H:i:s'),
             'created_at' => optional($this->created_at)->format('Y-m-d H:i:s'),
             'updated_at' => optional($this->updated_at)->format('Y-m-d H:i:s'),
 
             // العلاقات لما تكون محملة فقط
-            'user' => new UserResource($this->whenLoaded('user')),
+            'user' => new UserBasicResource($this->whenLoaded('user')),
             'invoice_type' => new InvoiceTypeResource($this->whenLoaded('invoiceType')),
             'items' => InvoiceItemResource::collection($this->whenLoaded('items')),
             'company' => new CompanyResource($this->whenLoaded('company')),
-            'creator' => new UserResource($this->whenLoaded('creator')),
+            'creator' => new UserBasicResource($this->whenLoaded('creator')),
             'installment_plan' => new InstallmentPlanResource($this->whenLoaded('installmentPlan')),
 
             // بيانات إضافية

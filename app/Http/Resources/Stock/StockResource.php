@@ -18,7 +18,6 @@ class StockResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        \Log::info('Stock Quantity: ' . $this->quantity);
         // dd($this->quantity);
         return [
             'id' => $this->id,

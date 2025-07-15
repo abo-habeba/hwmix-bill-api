@@ -136,8 +136,6 @@ class CompanyController extends Controller
     {
         $authUser = Auth::user();
         $validated = $request->validated();
-        Log::info('Validated data for company update:', $validated);
-
         if (
             $authUser->hasPermissionTo(perm_key('admin.super')) ||
             $authUser->hasPermissionTo(perm_key('companies.update_all')) ||

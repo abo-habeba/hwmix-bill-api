@@ -53,19 +53,10 @@ class ProductController extends Controller
             /** @var \App\Models\User|null $authUser */
             $authUser = Auth::user();
 
-            \Log::info('📌 [index] - بدأ تنفيذ الدالة.');
 
             if (!$authUser) {
-                \Log::warning('❌ [index] - المستخدم غير مسجل دخول (Auth::user() == null).');
                 return api_unauthorized('يتطلب المصادقة.');
             }
-
-            \Log::info('✅ [index] - المستخدم مسجل دخول.', [
-                'user_id' => $authUser->id,
-                'company_id' => $authUser->company_id,
-                'permissions' => $authUser->getAllPermissions()->pluck('name'),
-            ]);
-
             $query = Product::with($this->relations);
             $companyId = $authUser->company_id ?? null;
 
@@ -77,30 +68,23 @@ class ProductController extends Controller
                 'view_children' => perm_key('products.view_children'),
                 'view_self' => perm_key('products.view_self'),
             ];
-            \Log::debug('🔑 [index] - مفاتيح الصلاحيات المحسوبة:', $permKeys);
 
             // منطق الصلاحيات
             if ($authUser->hasPermissionTo($permKeys['super'])) {
-                \Log::info('🔐 [index] - المستخدم Super Admin: رؤية كل المنتجات.');
                 // لا شيء إضافي
             } elseif ($authUser->hasAnyPermission([$permKeys['view_all'], $permKeys['admin_company']])) {
-                \Log::info('🔐 [index] - المستخدم لديه products.view_all أو admin.company.');
                 $query->whereCompanyIsCurrent();
             } elseif ($authUser->hasPermissionTo($permKeys['view_children'])) {
-                \Log::info('🔐 [index] - المستخدم لديه products.view_children.');
                 $query->whereCompanyIsCurrent()->whereCreatedByUserOrChildren();
             } elseif ($authUser->hasPermissionTo($permKeys['view_self'])) {
-                \Log::info('🔐 [index] - المستخدم لديه products.view_self.');
                 $query->whereCompanyIsCurrent()->whereCreatedByUser();
             } else {
-                \Log::warning('🚫 [index] - المستخدم لا يمتلك صلاحية عرض المنتجات.');
                 return api_forbidden('ليس لديك صلاحية لعرض المنتجات.');
             }
 
             // تطبيق الفلاتر
             if ($request->filled('search')) {
                 $search = $request->input('search');
-                \Log::debug("🔍 [index] - تطبيق فلتر البحث: $search");
                 $query->where(function ($q) use ($search) {
                     $q
                         ->where('name', 'like', "%$search%")
@@ -119,45 +103,35 @@ class ProductController extends Controller
 
             if ($request->filled('category_id')) {
                 $query->where('category_id', $request->input('category_id'));
-                \Log::debug('📂 [index] - فلتر category_id:', ['category_id' => $request->input('category_id')]);
             }
 
             if ($request->filled('brand_id')) {
                 $query->where('brand_id', $request->input('brand_id'));
-                \Log::debug('🏷️ [index] - فلتر brand_id:', ['brand_id' => $request->input('brand_id')]);
             }
 
             if ($request->filled('active')) {
                 $query->where('active', (bool) $request->input('active'));
-                \Log::debug('✅ [index] - فلتر active:', ['active' => $request->input('active')]);
             }
 
             if ($request->filled('featured')) {
                 $query->where('featured', (bool) $request->input('featured'));
-                \Log::debug('⭐ [index] - فلتر featured:', ['featured' => $request->input('featured')]);
             }
 
             // ترتيب و pagination
             $perPage = (int) $request->input('per_page', 20);
             $sortField = $request->input('sort_by', 'created_at');
             $sortOrder = $request->input('sort_order', 'desc');
-
-            \Log::debug('📦 [index] - Pagination:', compact('perPage', 'sortField', 'sortOrder'));
-
             $products = $query->orderBy($sortField, $sortOrder);
 
             if ($perPage == -1) {
                 $products = $products->get();
-                \Log::info('📄 [index] - جلب جميع المنتجات بدون تقسيط.');
             } else {
                 $products = $products->paginate(max(1, $perPage));
-                \Log::info('📄 [index] - جلب المنتجات مع تقسيط.');
             }
 
             // لو فيه بحث ومفيش نتائج - نرجع اقتراحات
             if ($products->isEmpty() && $request->filled('search')) {
                 $search = $request->input('search');
-                \Log::info('🤖 [index] - لا توجد نتائج، تجربة البحث الذكي بـ similar_text');
 
                 $all = Product::limit(100)->get();
                 $similar = [];
@@ -180,14 +154,10 @@ class ProductController extends Controller
                     ['path' => url()->current(), 'query' => $request->query()]
                 );
 
-                \Log::info('📥 [index] - تم جلب نتائج مشابهة بناءً على البحث.');
                 return api_success(ProductResource::collection($products), 'تم جلب نتائج مشابهة بناءً على البحث.');
             }
-
-            \Log::info('✅ [index] - تم جلب المنتجات بنجاح.');
             return api_success(ProductResource::collection($products), 'تم جلب المنتجات بنجاح.');
         } catch (Throwable $e) {
-            \Log::error('❗ [index] - استثناء أثناء التنفيذ:', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
             return api_exception($e);
         }
     }

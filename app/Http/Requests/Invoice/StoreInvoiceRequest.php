@@ -22,15 +22,16 @@ class StoreInvoiceRequest extends FormRequest
 
             // الحقول المالية
             'gross_amount' => 'required|numeric',       // إجمالي قبل الخصم
-            'total_discount' => 'nullable|numeric|min:0', // الخصم العام
-            'net_amount' => 'required|numeric|min:0',   // بعد الخصم
-            'paid_amount' => 'nullable|numeric|min:0',
-            'remaining_amount' => 'nullable|numeric|min:0',
+            'total_discount' => 'nullable|numeric', // الخصم العام
+            'net_amount' => 'required|numeric',   // بعد الخصم
+            'paid_amount' => 'nullable|numeric',
+            'remaining_amount' => 'nullable|numeric',
 
             'round_step' => 'nullable|integer',
 
             'due_date' => 'nullable|date',
             'cash_box_id' => 'nullable|integer|exists:cash_boxes,id',
+            'user_cash_box_id' => 'nullable|integer|exists:cash_boxes,id',
             'user_id' => 'required|integer',
 
             'notes' => 'nullable|string',

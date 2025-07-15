@@ -1,23 +1,23 @@
 <?php
+
 namespace App\Observers;
 
-use App\Models\ActivityLog; // نموذج الـ Log الذي قمت بإنشائه
+use App\Models\ActivityLog;
 use Illuminate\Database\Eloquent\Model;
-
+use Illuminate\Support\Facades\Auth;
 
 class GlobalSystemLogObserver
 {
     public function created(Model $model)
     {
-        // ActivityLog::info('تم إنشاء سجل جديد في جدول ' . $model->getTable());
         // عند إنشاء مستخدم جديد
         ActivityLog::create([
             'action' => 'created',
             'model' => get_class($model),
             'data_old' => null,
             'data_new' => json_encode($model),
-            'user_id' => auth()->id(),
-            'created_by' => auth()->id(),
+            'user_id' => Auth::id(),
+            'created_by' => Auth::id(),
             'ip_address' => request()->ip(),
         ]);
     }
@@ -30,8 +30,8 @@ class GlobalSystemLogObserver
             'model' => get_class($model),
             'data_old' => json_encode($model->getOriginal()),
             'data_new' => json_encode($model),
-            'user_id' => auth()->id(),
-            'created_by' => auth()->id(),
+            'user_id' => Auth::id(),
+            'created_by' => Auth::id(),
             'ip_address' => request()->ip(),
         ]);
     }
@@ -44,8 +44,8 @@ class GlobalSystemLogObserver
             'model' => get_class($model),
             'data_old' => json_encode($model),
             'data_new' => null,
-            'user_id' => auth()->id(),
-            'created_by' => auth()->id(),
+            'user_id' => Auth::id(),
+            'created_by' => Auth::id(),
             'ip_address' => request()->ip(),
         ]);
     }

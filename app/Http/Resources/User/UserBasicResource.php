@@ -17,16 +17,22 @@ class UserBasicResource extends JsonResource
      */
     public function toArray($request)
     {
-        // $this->load('companies');
-        $company = $this->companies?->firstWhere('id', $this->company_id);
-        $logo = $company?->logo;
-        $logoUrl = $logo && $logo->url ? asset('storage/' . $logo->url) : null;
+        $avatarImage = $this->images->where('type', 'avatar')->first();
         return [
             'id' => $this->id,
+            'balance' => optional($this->cashBoxeDefault)->balance ?? 0,
             'full_name' => $this->full_name,
             'nickname' => $this->nickname,
             'phone' => $this->phone,
             'customer_type' => $this->customer_type,
+            'username' => $this->username,
+            'email' => $this->email,
+            'phone' => $this->phone,
+            'position' => $this->position,
+            'cash_box_id' => optional($this->cashBoxeDefault)->id,
+            'avatar_url' => $avatarImage ? asset($avatarImage->url) : null,
+            'status' => $this->status,
+            'company_id' => $this->company_id,
         ];
     }
 }

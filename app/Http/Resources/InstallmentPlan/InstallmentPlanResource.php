@@ -3,6 +3,7 @@
 namespace App\Http\Resources\InstallmentPlan;
 
 use App\Http\Resources\User\UserResource;
+use App\Http\Resources\User\UserBasicResource;
 use App\Http\Resources\Invoice\InvoiceResource;
 use Illuminate\Http\Resources\Json\JsonResource;
 use App\Http\Resources\Installment\InstallmentResource;
@@ -36,7 +37,7 @@ class InstallmentPlanResource extends JsonResource
             'notes' => $this->notes,
             'created_at' => $this->created_at ? $this->created_at->format('Y-m-d H:i:s') : null,
             'updated_at' => $this->updated_at ? $this->updated_at->format('Y-m-d H:i:s') : null,
-            'user' => new UserResource($this->whenLoaded('user')),
+            'user' => new UserBasicResource($this->whenLoaded('user')),
             'invoice' => new InvoiceResource($this->whenLoaded('invoice')),
             // 'invoice_items' => InvoiceItemResource::collection($this->invoice->items),
 
@@ -48,8 +49,9 @@ class InstallmentPlanResource extends JsonResource
             ),
             'payments' => InstallmentPaymentResource::collection($this->whenLoaded('payments')),
             'installments' => InstallmentResource::collection(
-                $this->whenLoaded('installments')?->sortBy('due_date')
+                $this->whenLoaded('installments')?->sortBy('due_date') ?? collect()
             ),
+
         ];
     }
 }

@@ -25,10 +25,10 @@ class InvoiceController extends Controller
     public function __construct()
     {
         $this->relations = [
-            'user',
+            'user.cashBoxeDefault',
             'company',
             'invoiceType',
-            'items',
+            'items.variant',
             'installmentPlan',
             'creator', // للمصادقة على createdByUser/OrChildren
         ];
@@ -85,9 +85,8 @@ class InvoiceController extends Controller
             $sortField = $request->input('sort_by', 'id');
             $sortOrder = $request->input('sort_order', 'desc');
 
-            $invoices = $query
-                ->orderBy($sortField, $sortOrder)
-                ->paginate($perPage);
+            // $invoices = $query->orderBy($sortField, $sortOrder)->paginate($perPage);
+            $invoices = $query->orderByRaw('GREATEST(updated_at, created_at) DESC')->paginate($perPage);
 
             if ($invoices->isEmpty()) {
                 return api_success([], 'لم يتم العثور على فواتير.');

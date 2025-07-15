@@ -23,7 +23,7 @@ class InstallmentPlanController extends Controller
         $this->relations = [
             'user',       // المستخدم الذي يخصه خطة التقسيط
             'creator',    // المستخدم الذي أنشأ خطة التقسيط
-            'invoice.items',
+            'invoice.items.variant',
             'installments',
             'company',    // يجب تحميل الشركة للتحقق من belongsToCurrentCompany
         ];

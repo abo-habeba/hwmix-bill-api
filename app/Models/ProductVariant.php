@@ -59,6 +59,11 @@ class ProductVariant extends Model
         return $this->belongsTo(Product::class);
     }
 
+    // 🔁 المتغير ممكن يكون مرتبط ببنود فواتير
+    public function items()
+    {
+        return $this->hasMany(InvoiceItem::class, 'variant_id');
+    }
     public function attributes()
     {
         return $this->hasMany(ProductVariantAttribute::class);

@@ -132,19 +132,13 @@ class WarehouseController extends Controller
                 $warehouse = Warehouse::create($validatedData);
                 $warehouse->load($this->relations);
                 DB::commit();
-                Log::info('Warehouse created successfully.', ['warehouse_id' => $warehouse->id, 'user_id' => $authUser->id, 'company_id' => $companyId]);
                 return api_success(new WarehouseResource($warehouse), 'تم إنشاء المستودع بنجاح.', 201);
             } catch (ValidationException $e) {
                 DB::rollBack();
                 return api_error('فشل التحقق من صحة البيانات أثناء تخزين المستودع.', $e->errors(), 422);
             } catch (Throwable $e) {
                 DB::rollBack();
-                Log::error('Warehouse store failed in transaction: ' . $e->getMessage(), [
-                    'exception' => $e,
-                    'user_id' => Auth::id(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ]);
+
                 return api_error('حدث خطأ أثناء حفظ المستودع.', [], 500);
             }
         } catch (Throwable $e) {
@@ -232,7 +226,6 @@ class WarehouseController extends Controller
                 $warehouse->update($validatedData);
                 $warehouse->load($this->relations);
                 DB::commit();
-                Log::info('Warehouse updated successfully.', ['warehouse_id' => $warehouse->id, 'user_id' => $authUser->id, 'company_id' => $companyId]);
                 return api_success(new WarehouseResource($warehouse), 'تم تحديث المستودع بنجاح.');
             } catch (ValidationException $e) {
                 DB::rollBack();
@@ -291,17 +284,10 @@ class WarehouseController extends Controller
 
                 $warehouse->delete();
                 DB::commit();
-                Log::info('Warehouse deleted successfully.', ['warehouse_id' => $deletedWarehouse->id, 'user_id' => $authUser->id, 'company_id' => $companyId]);
                 return api_success(new WarehouseResource($deletedWarehouse), 'تم حذف المستودع بنجاح.'); // إرجاع المورد المحذوف
             } catch (Throwable $e) {
                 DB::rollBack();
-                Log::error('Warehouse deletion failed: ' . $e->getMessage(), [
-                    'exception' => $e,
-                    'user_id' => Auth::id(),
-                    'warehouse_id' => $warehouse->id,
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ]);
+
                 return api_error('حدث خطأ أثناء حذف المستودع.', [], 500);
             }
         } catch (Throwable $e) {

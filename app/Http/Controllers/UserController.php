@@ -16,6 +16,7 @@ use App\Http\Requests\User\UserRequest;
 use App\Http\Resources\User\UserResource;
 use Illuminate\Database\Eloquent\Builder;
 use App\Http\Requests\User\UserUpdateRequest;
+use App\Http\Resources\User\UserBasicResource;
 
 if (!function_exists('perm_key')) {
     function perm_key(string $permission)
@@ -96,7 +97,7 @@ class UserController extends Controller
             if ($users->isEmpty()) {
                 return api_success([], 'لم يتم العثور على مستخدمين.');
             } else {
-                return api_success(UserResource::collection($users), 'تم جلب المستخدمين بنجاح.');
+                return api_success(UserBasicResource::collection($users), 'تم جلب المستخدمين بنجاح.');
             }
         } catch (Throwable $e) {
             return api_exception($e);

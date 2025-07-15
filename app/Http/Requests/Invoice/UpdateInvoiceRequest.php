@@ -27,14 +27,16 @@ class UpdateInvoiceRequest extends FormRequest
 
             // الحقول المالية
             'gross_amount' => 'sometimes|numeric',
-            'total_discount' => 'nullable|numeric|min:0',
-            'net_amount' => 'sometimes|numeric|min:0',
-            'paid_amount' => 'nullable|numeric|min:0',
-            'remaining_amount' => 'nullable|numeric|min:0',
+            'total_discount' => 'nullable|numeric',
+            'net_amount' => 'sometimes|numeric',
+
+            'paid_amount' => 'nullable|numeric',
+            'remaining_amount' => 'nullable|numeric',
             'round_step' => 'nullable|integer',
 
             'due_date' => 'nullable|date',
             'cash_box_id' => 'nullable|integer|exists:cash_boxes,id',
+            'user_cash_box_id' => 'nullable|integer|exists:cash_boxes,id',
             'user_id' => 'sometimes|integer|exists:users,id',
 
             'notes' => 'nullable|string',
