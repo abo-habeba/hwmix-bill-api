@@ -141,6 +141,7 @@ class UserController extends Controller
             $companyIdsFromRequest = $request->input('company_ids', []);
 
             $companyIdsToSync = [];
+
             if (is_array($companyIdsFromRequest)) {
                 foreach ($companyIdsFromRequest as $id) {
                     // التحقق من أن القيمة عدد صحيح وصالحة (أكبر من صفر)
@@ -164,14 +165,14 @@ class UserController extends Controller
             }
 
             // إضافة الشركة الأساسية للمستخدم (إذا لم تكن موجودة بالفعل في company_idsToSync)
-            // هذا يضمن أن المستخدم مرتبط بشركته الأساسية دائماً
-            if (!empty($user->company_id) && !isset($companyIdsToSync[$user->company_id])) {
-                $companyIdsToSync[$user->company_id] = [
-                    'created_by' => $authUser->id,
-                    'company_id' => $authUser->company_id,
-                    'updated_at' => now(),
-                ];
-            }
+            // هذا يضمن أن المستخدم مرتبط بشركته النشطه دائماً
+            // if (!empty($user->company_id) && !isset($companyIdsToSync[$user->company_id])) {
+            //     $companyIdsToSync[$user->company_id] = [
+            //         'created_by' => $authUser->id,
+            //         'company_id' => $authUser->company_id,
+            //         'updated_at' => now(),
+            //     ];
+            // }
 
             $user->companies()->sync($companyIdsToSync);
             // images_ids
@@ -256,29 +257,31 @@ class UserController extends Controller
             $validated['company_id'] = $validated['company_id'] ?? $user->company_id;
             $validated['created_by'] = $validated['created_by'] ?? $user->created_by;
             $user->update($validated);
-            $companyIds = collect($validated['company_ids'] ?? [])
-                ->filter(fn($id) => !empty($id) && is_numeric($id)) // ← يشيل القيم الغلط
-                ->values()
-                ->toArray();
 
-            if (isset($validated['company_ids'])) {
-                $oldCompanyIds = $user->companies()->pluck('companies.id')->toArray();
-                $pivotData = [];
-                foreach ($companyIds as $companyId) {
-                    $pivotData[$companyId] = [
-                        'created_by' => $authUser->id,
-                        'company_id' => $authUser->company_id,
-                        'updated_at' => now(),
-                    ];
-                }
+            if (array_key_exists('company_ids', $validated)) {
+                $companyIds = collect($validated['company_ids'])
+                    ->filter(fn($id) => !empty($id) && is_numeric($id))
+                    ->values()
+                    ->toArray();
+
+                $pivotData = collect($companyIds)
+                    ->mapWithKeys(function ($companyId) use ($authUser) {
+                        return [
+                            $companyId => [
+                                'created_by'  => $authUser->id,
+                                'company_id'  => $authUser->company_id,
+                                'updated_at'  => now(),
+                            ]
+                        ];
+                    })
+                    ->toArray();
                 $user->companies()->sync($pivotData);
-                $newCompanyIds = array_diff($validated['company_ids'], $oldCompanyIds);
+                app(CashBoxService::class)->ensureCashBoxesForUserCompanies($user, $companyIds);
+            }
 
-                app(CashBoxService::class)->ensureCashBoxesForUserCompanies($user, $newCompanyIds);
-            }
-            if (isset($validated['permissions']) && is_array($validated['permissions'])) {
-                $user->syncPermissions($validated['permissions']);
-            }
+            // if (isset($validated['permissions']) && is_array($validated['permissions'])) {
+            //     $user->syncPermissions($validated['permissions']);
+            // }
             // images_ids
             if ($request->has('images_ids')) {
                 $imagesIds = $request->input('images_ids');

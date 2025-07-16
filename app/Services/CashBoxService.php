@@ -82,7 +82,7 @@ class CashBoxService
                         'user_id' => $user->id,
                         'company_id' => $companyId,
                         'cash_box_type_id' => $cashType->id,
-                        'is_default' => true, // هذا حاسم للقيد الفريد
+                        'is_default' => true,
                     ],
                     [
                         'name' => 'الخزنة النقدية',

@@ -9,6 +9,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 use App\Http\Resources\InvoiceItem\InvoiceItemResource;
 use App\Http\Resources\InvoiceType\InvoiceTypeResource;
 use App\Http\Resources\InstallmentPlan\InstallmentPlanResource;
+use App\Http\Resources\InstallmentPlan\InstallmentPlanBasicResource;
 
 class InvoiceResource extends JsonResource
 {
@@ -43,7 +44,7 @@ class InvoiceResource extends JsonResource
             'items' => InvoiceItemResource::collection($this->whenLoaded('items')),
             'company' => new CompanyResource($this->whenLoaded('company')),
             'creator' => new UserBasicResource($this->whenLoaded('creator')),
-            'installment_plan' => new InstallmentPlanResource($this->whenLoaded('installmentPlan')),
+            'installment_plan' => new InstallmentPlanBasicResource($this->whenLoaded('installmentPlan')),
 
             // بيانات إضافية
             'company_id' => $this->company_id,

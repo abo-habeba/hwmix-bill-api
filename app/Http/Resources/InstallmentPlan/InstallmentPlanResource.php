@@ -24,25 +24,32 @@ class InstallmentPlanResource extends JsonResource
             'id' => $this->id,
             'user_id' => $this->user_id,
             'invoice_id' => $this->invoice_id,
+            'name' => $this->name,
+            'description' => $this->description,
+            'status' => $this->status ?? 'pending',
+            'round_step' => $this->round_step ?? null,
+            'remaining_amount' => $this->remaining_amount ?? 0,
+            'number_of_installments' => $this->number_of_installments ?? $this->installment_count,
+
             'total_amount' => number_format($this->total_amount, 2, '.', ''),
-            'total_installments_remaining' => number_format($totalInstallmentsRemaining, 2, '.', ''),  // ← 812.50
-            'total_installments_amount' => number_format($totalInstallmentsAmount, 2, '.', ''),  // ← 812.50
-            'total_installments_pay' => number_format($totalInstallmentsPay, 2, '.', ''),  // ← 453.00
-            'total_pay' => number_format($totalPay, 2, '.', ''),  // ← 453.00
             'down_payment' => $this->down_payment,
             'installment_count' => $this->installment_count,
             'installment_amount' => $this->installment_amount,
+
+            'total_installments_remaining' => number_format($totalInstallmentsRemaining, 2, '.', ''),
+            'total_installments_amount' => number_format($totalInstallmentsAmount, 2, '.', ''),
+            'total_installments_pay' => number_format($totalInstallmentsPay, 2, '.', ''),
+            'total_pay' => number_format($totalPay, 2, '.', ''),
+
             'start_date' => $this->start_date ? $this->start_date->format('Y-m-d H:i:s') : null,
             'due_day' => $this->due_day,
             'notes' => $this->notes,
             'created_at' => $this->created_at ? $this->created_at->format('Y-m-d H:i:s') : null,
             'updated_at' => $this->updated_at ? $this->updated_at->format('Y-m-d H:i:s') : null,
+
             'user' => new UserBasicResource($this->whenLoaded('user')),
             'invoice' => new InvoiceResource($this->whenLoaded('invoice')),
-            // 'invoice_items' => InvoiceItemResource::collection($this->invoice->items),
-
             'invoice_items' => InvoiceItemResource::collection(
-                // نستخدم whenLoaded على علاقة 'invoice' أولاً للتأكد من تحميل الفاتورة
                 $this->whenLoaded('invoice', function () {
                     return $this->invoice->items;
                 })
@@ -51,7 +58,6 @@ class InstallmentPlanResource extends JsonResource
             'installments' => InstallmentResource::collection(
                 $this->whenLoaded('installments')?->sortBy('due_date') ?? collect()
             ),
-
         ];
     }
 }
