@@ -22,7 +22,7 @@ trait LogsActivity
             'ip_address' => request()->ip(),
             'user_agent' => request()->header('User-Agent'),
             'url' => request()->getRequestUri(),
-            'description' => ' قام المستخدم  ' . Auth::user()->nickname
+            'description' => ' قام المستخدم ' . Auth::user()->nickname
                 . $text,
         ]);
     }
@@ -67,6 +67,32 @@ trait LogsActivity
         ]);
     }
 
+    /**
+     * تسجيل عملية إلغاء نموذج.
+     *
+     * @param string $text وصف الإلغاء.
+     * @return void
+     */
+    public function logCanceled($text)
+    {
+        $user = Auth::user();
+        ActivityLog::create([
+            'action' => 'إلغاء',
+            'model' => get_class($this),
+            'row_id' => $this->id,
+            'data_old' => json_encode($this->getOriginal()), // تسجيل الحالة قبل الإلغاء
+            'data_new' => json_encode(['status' => 'canceled']), // تسجيل الحالة الجديدة
+            'user_id' => $user->id,
+            'created_by' => $user->id,
+            'company_id' => Auth::user()->company_id,
+            'ip_address' => request()->ip(),
+            'user_agent' => request()->header('User-Agent'),
+            'url' => request()->getRequestUri(),
+            'description' => 'قام المستخدم ' . Auth::user()->nickname
+                . ' بإلغاء ' . $text,
+        ]);
+    }
+
     public function logRestored($text)
     {
         $user = Auth::user();
@@ -103,7 +129,7 @@ trait LogsActivity
             'user_agent' => request()->header('User-Agent'),
             'url' => request()->getRequestUri(),
             'description' => 'قام المستخدم ' . Auth::user()->nickname
-                . '  بحذف  ' . $text . ' حذف نهائي ',
+                . ' بحذف ' . $text . ' حذف نهائي ',
         ]);
     }
 }

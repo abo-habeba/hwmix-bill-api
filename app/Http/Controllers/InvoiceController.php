@@ -72,6 +72,13 @@ class InvoiceController extends Controller
             if ($request->filled('user_id')) {
                 $query->where('user_id', $request->input('user_id'));
             }
+            // فلتر الحالة: استثناء الملغاة افتراضياً ما لم يتم طلبها صراحةً
+            if ($request->filled('status')) {
+                $query->where('status', $request->input('status'));
+            } else {
+                $query->where('status', '!=', 'canceled');
+            }
+
             // فلاتر التاريخ
             if (!empty($request->get('created_at_from'))) {
                 $query->where('created_at', '>=', $request->get('created_at_from') . ' 00:00:00');

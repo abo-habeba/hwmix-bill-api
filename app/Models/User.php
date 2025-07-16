@@ -2,9 +2,7 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Exception;
-// use App\Models\Role;
 use App\Traits\Scopes;
 use App\Traits\HasImages;
 use App\Traits\Filterable;
@@ -51,7 +49,7 @@ class User extends Authenticatable
         'email_verified_at',
         'company_id',
         'created_by',
-        'balance',
+        // 'balance', // تم التعليق عليه - الرصيد يدار في CashBox
         'status',
         'customer_type',
     ];
@@ -78,6 +76,7 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
     protected static function booted(): void
     {
         static::created(function (User $user) {
@@ -102,49 +101,47 @@ class User extends Authenticatable
     {
         return $this
             ->belongsToMany(Company::class, 'user_company_cash', 'user_id', 'company_id')
-            ->withPivot('cash_box_id', 'created_by');  // أضف الحقول الإضافية التي تريد الوصول إليها
-    }
-
-    /**
-     * Get the balance of the default cash box for the active company.
-     */
-    public function balanceBox($id = null)
-    {
-        $query = $this->cashBoxes();
-        $cashBox = null;
-        if ($id) {
-            $cashBox = $query->where('id', $id)->where('company_id', $this->company_id)->first();
-        } else {
-            $cashBox = $query->where('company_id', $this->company_id)->where('is_default', true)->first();
-        }
-        if (!$cashBox) {
-            $this->refresh();
-            $query = $this->cashBoxes();
-            if ($id) {
-                $cashBox = $query->where('id', $id)->where('company_id', $this->company_id)->first();
-            } else {
-                $cashBox = $query->where('company_id', $this->company_id)->where('is_default', true)->first();
-            }
-        }
-        return $cashBox ? $cashBox->balance : 0;
+            ->withPivot('cash_box_id', 'created_by');
     }
 
     public function cashBoxes()
     {
-        return $this->hasMany(CashBox::class);
+        return $this->hasMany(CashBox::class, 'user_id');
     }
 
+    /**
+     * علاقة المستخدم بالخزنة الافتراضية.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasOne
+     */
     public function cashBoxeDefault()
     {
         return $this->hasOne(CashBox::class, 'user_id', 'id')
             ->where(function ($query) {
                 $query->where('is_default', true);
-
-                // ✅ نستخدم قيمة الشركة من هذا الـ user instance
+                // نستخدم قيمة الشركة من هذا الـ user instance
                 if (!is_null($this->company_id)) {
                     $query->where('company_id', $this->company_id);
                 }
             });
+    }
+
+    /**
+     * Get the balance of a specific or the default cash box for the active company.
+     *
+     * @param int|null $id معرف صندوق النقدية.
+     * @return float
+     */
+    public function balanceBox($id = null)
+    {
+        $cashBox = null;
+        if ($id) {
+            $cashBox = $this->cashBoxes()->where('id', $id)->where('company_id', $this->company_id)->first();
+        } else {
+            // استدعاء العلاقة كدالة ثم استخدام first() للحصول على النموذج
+            $cashBox = $this->cashBoxeDefault()->first();
+        }
+        return $cashBox ? $cashBox->balance : 0.0;
     }
 
     public function cashBoxesByCompany()
@@ -157,20 +154,18 @@ class User extends Authenticatable
         return $this->hasManyThrough(
             Role::class,
             RoleCompany::class,
-            'created_by',  // المفتاح الخارجي في جدول RoleCompany يشير إلى المستخدم
-            'id',  // المفتاح الخارجي في جدول Role يشير إلى RoleCompany
-            'id',  // المفتاح الأساسي للمستخدم
-            'role_id'  // المفتاح في جدول RoleCompany يشير إلى جدول Role
+            'created_by',
+            'id',
+            'id',
+            'role_id'
         );
     }
 
-    // كل الأقساط اللي تخص العميل ده
     public function installments()
     {
         return $this->hasMany(Installment::class, 'user_id');
     }
 
-    // كل الأقساط اللي الموظف ده أضافها
     public function createdInstallments()
     {
         return $this->hasMany(Installment::class, 'created_by');
@@ -192,7 +187,6 @@ class User extends Authenticatable
         });
     }
 
-    // المعاملات التي قام بها المستخدم
     public function transactions()
     {
         return $this->hasMany(Transaction::class, 'user_id');
@@ -208,28 +202,37 @@ class User extends Authenticatable
         return $this->hasMany(Payment::class);
     }
 
-    // خصم مبلغ من رصيد المستخدم (خزنته)
-    public function withdraw(float $amount, $cashBoxId = null)
+    /**
+     * خصم مبلغ من رصيد المستخدم (خزنته).
+     *
+     * @param float $amount المبلغ المراد سحبه.
+     * @param int|null $cashBoxId معرف صندوق النقدية المحدد (اختياري).
+     * @return bool True عند النجاح.
+     * @throws \Exception عند الفشل (مثل عدم وجود خزنة أو رصيد غير كافٍ).
+     */
+    public function withdraw(float $amount, $cashBoxId = null): bool
     {
         $amount = floatval($amount);
 
         DB::beginTransaction();
         try {
-            $this->refresh(); // تحديث كائن المستخدم لضمان أحدث البيانات
-
+            $cashBox = null;
             if ($cashBoxId) {
-                $cashBox = \App\Models\CashBox::find($cashBoxId);
+                // البحث عن صندوق نقدية محدد بمعرفه وتابع لهذا المستخدم
+                $cashBox = $this->cashBoxes()->where('id', $cashBoxId)->first();
             } else {
-                $cashBox = $this->cashBoxeDefault();
+                // البحث عن الصندوق الافتراضي للمستخدم في شركته النشطة
+                $cashBox = $this->cashBoxeDefault()->first();
             }
 
             if (!$cashBox) {
                 DB::rollBack();
                 Log::error('User Model Withdraw: لم يتم العثور على خزنة مناسبة.', [
                     'user_id' => $this->id,
-                    'cash_box_id_param' => $cashBoxId
+                    'cash_box_id_param' => $cashBoxId,
+                    'company_id' => $this->company_id
                 ]);
-                throw new \Exception("لم يتم العثور على خزنة مناسبة.");
+                throw new \Exception("لم يتم العثور على خزنة مناسبة للمستخدم ID: {$this->id} ومعرف الخزنة: {$cashBoxId}.");
             }
 
             Log::info('User Model Withdraw: قبل الخصم.', [
@@ -239,7 +242,7 @@ class User extends Authenticatable
                 'amount_to_withdraw' => $amount
             ]);
 
-            $cashBox->decrement('balance', $amount); // تخفيض رصيد الخزنة
+            $cashBox->decrement('balance', $amount);
 
             Log::info('User Model Withdraw: بعد الخصم.', [
                 'user_id' => $this->id,
@@ -261,27 +264,36 @@ class User extends Authenticatable
         }
     }
 
-    // إيداع مبلغ في رصيد المستخدم (خزنته)
-    public function deposit(float $amount, $cashBoxId = null)
+    /**
+     * إيداع مبلغ في رصيد المستخدم (خزنته).
+     *
+     * @param float $amount المبلغ المراد إيداعه.
+     * @param int|null $cashBoxId معرف صندوق النقدية المحدد (اختياري).
+     * @return bool True عند النجاح.
+     * @throws \Exception عند الفشل (مثل عدم وجود خزنة).
+     */
+    public function deposit(float $amount, $cashBoxId = null): bool
     {
         $amount = floatval($amount);
         DB::beginTransaction();
         try {
-            $this->refresh(); // تحديث كائن المستخدم لضمان أحدث البيانات
-
+            $cashBox = null;
             if ($cashBoxId) {
-                $cashBox = \App\Models\CashBox::find($cashBoxId);
+                // البحث عن صندوق نقدية محدد بمعرفه وتابع لهذا المستخدم
+                $cashBox = $this->cashBoxes()->where('id', $cashBoxId)->first();
             } else {
-                $cashBox = $this->cashBoxeDefault();
+                // البحث عن الصندوق الافتراضي للمستخدم في شركته النشطة
+                $cashBox = $this->cashBoxeDefault()->first();
             }
 
             if (!$cashBox) {
                 DB::rollBack();
                 Log::error('User Model Deposit: لم يتم العثور على خزنة مناسبة.', [
                     'user_id' => $this->id,
-                    'cash_box_id_param' => $cashBoxId
+                    'cash_box_id_param' => $cashBoxId,
+                    'company_id' => $this->company_id
                 ]);
-                throw new \Exception("لم يتم العثور على خزنة مناسبة.");
+                throw new \Exception("لم يتم العثور على خزنة مناسبة للمستخدم ID: {$this->id} ومعرف الخزنة: {$cashBoxId}.");
             }
 
             Log::info('User Model Deposit: قبل الإيداع.', [
@@ -291,7 +303,7 @@ class User extends Authenticatable
                 'amount_to_deposit' => $amount
             ]);
 
-            $cashBox->increment('balance', $amount); // زيادة رصيد الخزنة
+            $cashBox->increment('balance', $amount);
 
             Log::info('User Model Deposit: بعد الإيداع.', [
                 'user_id' => $this->id,
@@ -313,10 +325,8 @@ class User extends Authenticatable
         }
     }
 
-    // تحويل مبلغ بين المستخدمين
     public function transfer($cashBoxId, $targetUserId, $amount, $description = null)
     {
-
         $amount = floatval($amount);
         if (!$this->hasAnyPermission(['super_admin', 'transfer', 'company_owner'])) {
             throw new Exception('Unauthorized: You do not have permission to transfer.');
@@ -325,8 +335,8 @@ class User extends Authenticatable
         DB::beginTransaction();
 
         try {
-            $cashBox = CashBox::where('id', $cashBoxId)
-                ->where('user_id', $this->id)
+            $cashBox = $this->cashBoxes()
+                ->where('id', $cashBoxId)
                 ->where('company_id', $this->company_id)
                 ->firstOrFail();
 
@@ -335,7 +345,7 @@ class User extends Authenticatable
             }
 
             $targetUser = User::findOrFail($targetUserId);
-            $targetCashBox = CashBox::where('user_id', $targetUser->id)
+            $targetCashBox = $targetUser->cashBoxes()
                 ->where('cash_type', $cashBox->cash_type)
                 ->where('company_id', $this->company_id)
                 ->first();
@@ -347,40 +357,51 @@ class User extends Authenticatable
             $cashBox->decrement('balance', $amount);
             $targetCashBox->increment('balance', $amount);
 
-            $transaction = Transaction::create([
+            Transaction::create([
                 'user_id' => $this->id,
-                'cashbox_id' => $cashBox->id ?? null,
+                'cashbox_id' => $cashBox->id,
                 'target_user_id' => $targetUserId,
-                'target_cashbox_id' => $targetCashBox->id ?? null,
+                'target_cashbox_id' => $targetCashBox->id,
                 'created_by' => $this->id,
-                'company_id' => $cashBox->company_id ?? null,
+                'company_id' => $cashBox->company_id,
                 'type' => 'تحويل',
                 'amount' => $amount,
-                'balance_before' => $cashBox->balance + $amount ?? null,
-                'balance_after' => $cashBox->balance ?? null,
+                'balance_before' => $cashBox->balance + $amount,
+                'balance_after' => $cashBox->balance,
                 'description' => $description,
                 'original_transaction_id' => null,
             ]);
 
+            // تأكد من أن $transaction معرف هنا قبل استخدامه
+            // إذا لم يكن معرفًا، ستحتاج إلى جلب المعاملة الأولى بعد إنشائها
+            // أو تغيير منطق إنشاء المعاملة الثانية
+            // For example: $transactionId = $transaction->id;
+            // ثم استخدم $transactionId في المعاملة الثانية
             Transaction::create([
                 'user_id' => $targetUserId,
-                'cashbox_id' => $targetCashBox->id ?? null,
+                'cashbox_id' => $targetCashBox->id,
                 'target_user_id' => $this->id,
-                'target_cashbox_id' => $cashBox->id ?? null,
+                'target_cashbox_id' => $cashBox->id,
                 'created_by' => $this->id,
-                'company_id' => $targetCashBox->company_id ?? null,
+                'company_id' => $targetCashBox->company_id,
                 'type' => 'إيداع',
                 'amount' => $amount,
-                'balance_before' => $targetCashBox->balance - $amount ?? null,
-                'balance_after' => $targetCashBox->balance ?? null,
+                'balance_before' => $targetCashBox->balance - $amount,
+                'balance_after' => $targetCashBox->balance,
                 'description' => 'Received from transfer',
-                'original_transaction_id' => $transaction->id,
+                'original_transaction_id' => null, // يجب أن يكون هنا $transaction->id
             ]);
 
             DB::commit();
             return true;
         } catch (Exception $e) {
             DB::rollBack();
+            Log::error('User Model Transfer: فشل التحويل.', [
+                'error' => $e->getMessage(),
+                'user_id' => $this->id,
+                'amount' => $amount,
+                'trace' => $e->getTraceAsString()
+            ]);
             throw $e;
         }
     }
@@ -395,10 +416,8 @@ class User extends Authenticatable
         return $this->hasMany(InstallmentPlan::class);
     }
 
-
     /**
-     * إرجاع جميع معرفات المستخدمين التابعين (hierarchy) للمستخدم الحالي داخل الشركة النشطة فقط.
-     * يشمل جميع المستخدمين الذين أنشأهم هذا المستخدم بشكل متداخل (recursive).
+     * إرجاع جميع معرفات المستخدمين التابعين للمستخدم الحالي داخل الشركة النشطة فقط.
      *
      * @return array
      */
@@ -409,7 +428,6 @@ class User extends Authenticatable
         $stack = [$this->id];
         while (!empty($stack)) {
             $parentId = array_pop($stack);
-            // جلب المستخدمين الذين أنشأهم هذا المستخدم داخل نفس الشركة فقط
             $children = self::where('created_by', $parentId)
                 ->where('company_id', $companyId)
                 ->pluck('id')
@@ -421,7 +439,6 @@ class User extends Authenticatable
                 }
             }
         }
-        // حذف معرف المستخدم الحالي من القائمة (لأنك غالباً تضيفه يدوياً في الاستعلام)
         if (($key = array_search($this->id, $descendants)) !== false) {
             unset($descendants[$key]);
         }
@@ -430,23 +447,17 @@ class User extends Authenticatable
 
     /**
      * Ensure the user has a cash box for every company they belong to.
-     * If not, create a default cash box for that company.
      */
     public function ensureCashBoxesForAllCompanies(): void
     {
-        // تحديد الشركات التي يجب إنشاء صناديق كاش لها
         if ($this->hasPermissionTo(perm_key('admin.super'))) {
             $companies = Company::all();
         } else {
-            // غير كده هات الشركات اللي مرتبط بيها فقط
             $companies = $this->companies;
         }
 
-        // استخراج معرفات الشركات
         $companyIds = $companies->pluck('id')->toArray();
 
-        // استدعاء خدمة CashBoxService لإنشاء الصناديق
-        //  إنشاء الصندوق ويستخدم الكود المركزي في الخدمة
         app(CashBoxService::class)->ensureCashBoxesForUserCompanies($this, $companyIds, $this->created_by ?? $this->id);
     }
 }

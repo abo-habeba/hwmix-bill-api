@@ -29,6 +29,11 @@ class Installment extends Model
         'company_id', // ✅ مهم جدًا
     ];
 
+    protected $casts = [
+        'due_date' => 'datetime', // أضف هذا السطر
+        'paid_at' => 'datetime',  // أضف هذا السطر
+    ];
+
     // العلاقات
     public function installmentPlan()
     {

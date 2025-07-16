@@ -42,7 +42,7 @@ class InstallmentPlanBasicResource extends JsonResource
             'pending' => 'في الانتظار',
             'active' => 'نشطة',
             'paid' => 'مدفوعة بالكامل',
-            'cancelled' => 'ملغاة',
+            'canceled' => 'ملغاة',
             default => 'غير معروفة',
         };
     }

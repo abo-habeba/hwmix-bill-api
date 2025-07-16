@@ -63,6 +63,12 @@ class InstallmentController extends Controller
             if ($request->filled('status')) {
                 $query->where('status', $request->input('status'));
             }
+            // فلتر الحالة: استثناء الملغاة افتراضياً ما لم يتم طلبها صراحةً
+            if ($request->filled('status')) {
+                $query->where('status', $request->input('status'));
+            } else {
+                $query->where('status', '!=', 'canceled');
+            }
             if ($request->filled('due_date_from')) {
                 $query->where('due_date', '>=', $request->input('due_date_from'));
             }
@@ -89,7 +95,7 @@ class InstallmentController extends Controller
             if ($installments->isEmpty()) {
                 return api_success($installments, 'لم يتم العثور على أقساط.');
             } else {
-                return api_success($installments, 'تم استرداد الأقساط بنجاح.');
+                return api_success(InstallmentResource::collection($installments), 'تم استرداد الأقساط بنجاح.');
             }
         } catch (Throwable $e) {
             return api_exception($e, 500);

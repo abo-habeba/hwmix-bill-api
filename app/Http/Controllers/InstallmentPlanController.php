@@ -65,8 +65,13 @@ class InstallmentPlanController extends Controller
 
             // التصفية بناءً على طلب المستخدم
             if ($request->filled('status')) {
+                // إذا تم تحديد حالة، طبقها
                 $query->where('status', $request->input('status'));
+            } else {
+                // افتراضياً، استثناء خطط التقسيط الملغاة
+                $query->where('status', '!=', 'canceled');
             }
+
             if ($request->filled('invoice_id')) {
                 $query->where('invoice_id', $request->input('invoice_id'));
             }
