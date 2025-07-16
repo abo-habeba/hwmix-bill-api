@@ -134,21 +134,43 @@ class ServiceInvoiceService implements DocumentServiceInterface
      * @return Invoice الفاتورة المحدثة.
      * @throws \Throwable
      */
+    /**
+     * تحديث فاتورة بيع موجودة.
+     *
+     * @param array $data البيانات الجديدة للفاتورة.
+     * @param Invoice $invoice الفاتورة المراد تحديثها.
+     * @return Invoice الفاتورة المحدثة.
+     * @throws \Throwable
+     */
     public function update(array $data, Invoice $invoice): Invoice
     {
         try {
-            Log::info('ServiceInvoiceService: بدء تحديث فاتورة خدمة.', ['invoice_id' => $invoice->id, 'data' => $data]);
-            Log::info('ServiceInvoiceService: حالة الفاتورة قبل التحديث.', [
-                'old_paid_amount' => $invoice->getOriginal('paid_amount'),
-                'old_remaining_amount' => $invoice->getOriginal('remaining_amount'),
+            Log::info('SaleInvoiceService: بدء تحديث فاتورة بيع.', ['invoice_id' => $invoice->id, 'data' => $data]);
+
+            // 1. **الحصول على القيم الأصلية للفاتورة قبل أي تحديث عليها.**
+            $oldPaidAmount = $invoice->getOriginal('paid_amount');
+            $oldRemainingAmount = $invoice->getOriginal('remaining_amount');
+
+            Log::info('SaleInvoiceService: حالة الفاتورة قبل التحديث الفعلي.', [
+                'old_paid_amount_from_invoice_original' => $oldPaidAmount,
+                'old_remaining_amount_from_invoice_original' => $oldRemainingAmount,
                 'new_paid_amount_from_data' => $data['paid_amount'] ?? 0,
                 'new_remaining_amount_from_data' => $data['remaining_amount'] ?? 0,
             ]);
 
-            // 1. معالجة التغيرات المالية (المبالغ المدفوعة)
-            $oldPaidAmount = $invoice->getOriginal('paid_amount');
+            // 2. استرجاع المخزون للعناصر القديمة في الفاتورة
+            $this->returnStockForItems($invoice);
+            Log::info('SaleInvoiceService: تم استرجاع المخزون للعناصر القديمة.');
+
+            // 3. إلغاء خطط الأقساط القديمة المرتبطة بالفاتورة
+            if ($invoice->installmentPlan) {
+                app(InstallmentService::class)->cancelInstallments($invoice);
+                Log::info('SaleInvoiceService: تم إلغاء خطة الأقساط القديمة.');
+            }
+
+            // 4. معالجة التغيرات المالية (المبالغ المدفوعة) - تؤثر على رصيد الموظف/الخزنة
             $newPaidAmount = $data['paid_amount'] ?? 0;
-            $paidAmountDifference = $newPaidAmount - $oldPaidAmount;
+            $paidAmountDifference = $newPaidAmount - $oldPaidAmount; // استخدام $oldPaidAmount التي تم جلبها في البداية
 
             $authUser = Auth::user();
             $cashBoxId = $data['cash_box_id'] ?? null;
@@ -156,8 +178,7 @@ class ServiceInvoiceService implements DocumentServiceInterface
 
             if ($paidAmountDifference !== 0) {
                 if ($paidAmountDifference > 0) {
-                    // تم دفع مبلغ إضافي، يتم إيداعه في خزنة الموظف البائع
-                    Log::info('ServiceInvoiceService: إيداع مبلغ إضافي في خزنة البائع (تحديث).', [
+                    Log::info('SaleInvoiceService: إيداع مبلغ إضافي في خزنة البائع (تحديث).', [
                         'seller_id' => $authUser->id,
                         'amount' => abs($paidAmountDifference),
                         'cash_box_id' => $cashBoxId
@@ -166,10 +187,9 @@ class ServiceInvoiceService implements DocumentServiceInterface
                     if ($depositResult !== true) {
                         throw new \Exception('فشل إيداع المبلغ الإضافي في خزنة الموظف: ' . json_encode($depositResult));
                     }
-                    Log::info('ServiceInvoiceService: تم إيداع مبلغ إضافي في خزنة البائع (تحديث).', ['result' => $depositResult]);
+                    Log::info('SaleInvoiceService: تم إيداع مبلغ إضافي في خزنة البائع (تحديث).', ['result' => $depositResult]);
                 } else {
-                    // تم سحب مبلغ (أو استرجاع)، يتم سحبه من خزنة الموظف البائع
-                    Log::info('ServiceInvoiceService: سحب مبلغ من خزنة البائع (تحديث).', [
+                    Log::info('SaleInvoiceService: سحب مبلغ من خزنة البائع (تحديث).', [
                         'seller_id' => $authUser->id,
                         'amount' => abs($paidAmountDifference),
                         'cash_box_id' => $cashBoxId
@@ -178,94 +198,106 @@ class ServiceInvoiceService implements DocumentServiceInterface
                     if ($withdrawResult !== true) {
                         throw new \Exception('فشل سحب المبلغ من خزنة الموظف: ' . json_encode($withdrawResult));
                     }
-                    Log::info('ServiceInvoiceService: تم سحب مبلغ من خزنة البائع (تحديث).', ['result' => $withdrawResult]);
+                    Log::info('SaleInvoiceService: تم سحب مبلغ من خزنة البائع (تحديث).', ['result' => $withdrawResult]);
                 }
             }
 
-            // 2. تحديث بيانات الفاتورة الرئيسية
+            // 5. تحديث بيانات الفاتورة الرئيسية بعد معالجة القيم الأصلية
             $this->updateInvoice($invoice, $data);
-            Log::info('ServiceInvoiceService: تم تحديث بيانات الفاتورة الرئيسية.');
+            Log::info('SaleInvoiceService: تم تحديث بيانات الفاتورة الرئيسية.');
 
-            // 3. مزامنة بنود الفاتورة (تحديث/إضافة/حذف)
+            // 6. التحقق من مخزون المتغيرات للبنود الجديدة
+            $this->checkVariantsStock($data['items']);
+            Log::info('SaleInvoiceService: تم التحقق من مخزون المتغيرات للبنود الجديدة.');
+
+            // 7. مزامنة بنود الفاتورة (تحديث/إضافة/حذف)
             $this->syncInvoiceItems($invoice, $data['items'], $data['company_id'] ?? null, $data['updated_by'] ?? null);
-            Log::info('ServiceInvoiceService: تم مزامنة بنود الفاتورة.');
+            Log::info('SaleInvoiceService: تم مزامنة بنود الفاتورة.');
 
-            // 4. معالجة الرصيد المتبقي للمستخدم (المدين/الدائن)
-            $oldRemainingAmount = $invoice->getOriginal('remaining_amount');
-            $newRemainingAmount = $invoice->remaining_amount;
+            // 8. خصم المخزون للبنود الجديدة/المحدثة
+            $this->deductStockForItems($data['items']);
+            Log::info('SaleInvoiceService: تم خصم المخزون للبنود الجديدة/المحدثة.');
+
+            // 9. معالجة الرصيد المتبقي للمستخدم (المدين/الدائن) - تؤثر على رصيد العميل
+            // هنا نستخدم $oldRemainingAmount التي تم جلبها في البداية
+            $newRemainingAmount = $invoice->remaining_amount; // هذه ستكون القيمة الجديدة للفاتورة بعد التحديث
 
             $remainingAmountDifference = $newRemainingAmount - $oldRemainingAmount;
 
-            Log::info('ServiceInvoiceService: معالجة رصيد العميل (تحديث).', [
+            Log::info('SaleInvoiceService: معالجة رصيد العميل (تحديث).', [
                 'invoice_user_id' => $invoice->user_id,
                 'auth_user_id' => $authUser->id,
-                'old_remaining_amount' => $oldRemainingAmount,
-                'new_remaining_amount' => $newRemainingAmount,
+                'old_remaining_amount_before_update' => $oldRemainingAmount, // إضافة هذه لتوضيح أنها القيمة الأصلية
+                'new_remaining_amount_after_update' => $newRemainingAmount,
                 'remaining_amount_difference' => $remainingAmountDifference
             ]);
 
             if ($invoice->user_id && $invoice->user_id == $authUser->id) {
-                // المستخدم هو نفسه الذي قام بالشراء (فاتورة ذاتية)
                 if ($remainingAmountDifference > 0) {
-                    // زاد المبلغ المتبقي (زاد الدين على المستخدم)
-                    Log::info('ServiceInvoiceService: تسجيل زيادة دين على المستخدم (فاتورة ذاتية).', ['amount' => abs($remainingAmountDifference)]);
+                    Log::info('SaleInvoiceService: تسجيل زيادة دين على المستخدم (فاتورة ذاتية).', ['amount' => abs($remainingAmountDifference)]);
                     app(UserSelfDebtService::class)->registerPurchase(
                         $authUser,
-                        0, // لا يوجد دفع جديد هنا، فقط زيادة دين
+                        0,
                         abs($remainingAmountDifference),
                         $cashBoxId,
                         $invoice->company_id
                     );
                 } elseif ($remainingAmountDifference < 0) {
-                    // نقص المبلغ المتبقي (نقص الدين على المستخدم)
-                    Log::info('ServiceInvoiceService: تسجيل سداد دين من المستخدم (فاتورة ذاتية).', ['amount' => abs($remainingAmountDifference)]);
+                    Log::info('SaleInvoiceService: تسجيل سداد دين من المستخدم (فاتورة ذاتية).', ['amount' => abs($remainingAmountDifference)]);
                     app(UserSelfDebtService::class)->registerPayment(
                         $authUser,
-                        abs($remainingAmountDifference), // المبلغ الذي تم سداده من الدين
-                        0, // لا يوجد دين متبقي جديد
+                        abs($remainingAmountDifference),
+                        0,
                         $cashBoxId,
                         $invoice->company_id
                     );
                 }
             } elseif ($invoice->user_id && $invoice->user_id != $authUser->id) {
-                // المشتري مستخدم آخر
                 $buyer = User::find($invoice->user_id);
                 if ($buyer) {
                     if ($remainingAmountDifference > 0) {
-                        // زاد المبلغ المتبقي على المشتري (زاد دينه)، رصيد العميل يصبح أكثر سلبية
-                        Log::info('ServiceInvoiceService: سحب مبلغ إضافي من رصيد العميل (زيادة دين).', [
+                        Log::info('SaleInvoiceService: سحب مبلغ إضافي من رصيد العميل (زيادة دين).', [
                             'buyer_id' => $buyer->id,
                             'amount' => abs($remainingAmountDifference),
                             'user_cash_box_id' => $userCashBoxId
                         ]);
                         $withdrawResult = $buyer->withdraw(abs($remainingAmountDifference), $userCashBoxId);
-                        Log::info('ServiceInvoiceService: تم سحب مبلغ إضافي من رصيد العميل.', ['result' => $withdrawResult]);
+                        if ($withdrawResult !== true) {
+                            throw new \Exception('فشل سحب مبلغ إضافي من رصيد العميل: ' . json_encode($withdrawResult));
+                        }
+                        Log::info('SaleInvoiceService: تم سحب مبلغ إضافي من رصيد العميل.', ['result' => $withdrawResult]);
                     } elseif ($remainingAmountDifference < 0) {
-                        // نقص المبلغ المتبقي على المشتري (سدد جزء من دينه أو دفع زيادة)، رصيد العميل يصبح أكثر إيجابية
-                        Log::info('ServiceInvoiceService: إيداع مبلغ في رصيد العميل (سداد دين/دفع زائد).', [
+                        Log::info('SaleInvoiceService: إيداع مبلغ في رصيد العميل (سداد دين/دفع زائد).', [
                             'buyer_id' => $buyer->id,
                             'amount' => abs($remainingAmountDifference),
                             'user_cash_box_id' => $userCashBoxId
                         ]);
                         $depositResult = $buyer->deposit(abs($remainingAmountDifference), $userCashBoxId);
-                        Log::info('ServiceInvoiceService: تم إيداع مبلغ في رصيد العميل.', ['result' => $depositResult]);
+                        if ($depositResult !== true) {
+                            throw new \Exception('فشل إيداع مبلغ في رصيد العميل: ' . json_encode($depositResult));
+                        }
+                        Log::info('SaleInvoiceService: تم إيداع مبلغ في رصيد العميل.', ['result' => $depositResult]);
                     }
                 } else {
-                    Log::warning('ServiceInvoiceService: لم يتم العثور على العميل أثناء تحديث الرصيد.', ['buyer_user_id' => $invoice->user_id]);
+                    Log::warning('SaleInvoiceService: لم يتم العثور على العميل أثناء تحديث الرصيد.', ['buyer_user_id' => $invoice->user_id]);
                 }
             }
 
-            // 5. تسجيل عملية التحديث في سجل النشاط
-            $invoice->logUpdated('تحديث فاتورة خدمة رقم ' . $invoice->invoice_number);
-            Log::info('ServiceInvoiceService: تم تحديث فاتورة الخدمة بنجاح.', ['invoice_id' => $invoice->id]);
+            // 10. إنشاء أو تحديث خطة الأقساط الجديدة
+            if (isset($data['installment_plan'])) {
+                app(InstallmentService::class)->createInstallments($data, $invoice->id);
+                Log::info('SaleInvoiceService: تم إنشاء/تحديث خطة أقساط.');
+            }
+
+            $invoice->logUpdated('تحديث فاتورة بيع رقم ' . $invoice->invoice_number);
+            Log::info('SaleInvoiceService: تم تحديث فاتورة البيع بنجاح.', ['invoice_id' => $invoice->id]);
 
             return $invoice;
         } catch (\Throwable $e) {
-            Log::error('ServiceInvoiceService: فشل في تحديث فاتورة الخدمة.', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+            Log::error('SaleInvoiceService: فشل في تحديث فاتورة البيع.', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
             throw $e;
         }
     }
-
     /**
      * إلغاء فاتورة خدمة.
      *
