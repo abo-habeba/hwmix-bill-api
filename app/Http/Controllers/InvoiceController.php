@@ -30,7 +30,7 @@ class InvoiceController extends Controller
             'invoiceType',
             'items.variant',
             'installmentPlan',
-            'creator', // للمصادقة على createdByUser/OrChildren
+            'creator',
         ];
     }
 
@@ -51,10 +51,10 @@ class InvoiceController extends Controller
             }
 
             $query = Invoice::query()->with($this->relations);
-            // $companyId = $authUser->company_id ?? null;
 
+            // إضافة صلاحيات العرض
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
-                // المسؤول العام يرى جميع الفواتير (لا توجد قيود إضافية على الاستعلام)
+                // لا قيود
             } elseif ($authUser->hasAnyPermission([perm_key('invoices.view_all'), perm_key('admin.company')])) {
                 $query->whereCompanyIsCurrent();
             } elseif ($authUser->hasPermissionTo(perm_key('invoices.view_children'))) {
@@ -92,7 +92,6 @@ class InvoiceController extends Controller
             $sortField = $request->input('sort_by', 'id');
             $sortOrder = $request->input('sort_order', 'desc');
 
-            // $invoices = $query->orderBy($sortField, $sortOrder)->paginate($perPage);
             $invoices = $query->orderByRaw('GREATEST(updated_at, created_at) DESC')->paginate($perPage);
 
             if ($invoices->isEmpty()) {
@@ -122,6 +121,7 @@ class InvoiceController extends Controller
                 return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
+            // إضافة صلاحية الإنشاء
             if (!$authUser->hasPermissionTo(perm_key('admin.super')) && !$authUser->hasPermissionTo(perm_key('invoices.create')) && !$authUser->hasPermissionTo(perm_key('admin.company'))) {
                 return api_forbidden('ليس لديك صلاحية لإنشاء الفواتير.');
             }
@@ -138,7 +138,7 @@ class InvoiceController extends Controller
                 $serviceResolver = new ServiceResolver();
                 $service = $serviceResolver->resolve($invoiceTypeCode);
 
-                $responseDTO = $service->create($validated); // الخدمة يجب أن ترجع كائن Invoice
+                $responseDTO = $service->create($validated);
 
                 if (!$responseDTO || !$responseDTO instanceof \App\Models\Invoice) {
                     \Log::error('لم يتم إنشاء الفاتورة بنجاح من الـ Service', [
@@ -149,7 +149,7 @@ class InvoiceController extends Controller
                     throw new \Exception('فشل إنشاء الفاتورة من الخدمة.');
                 }
 
-                $responseDTO->load($this->relations); // تحميل العلاقات بعد الإنشاء
+                $responseDTO->load($this->relations);
                 DB::commit();
                 return api_success(new InvoiceResource($responseDTO), 'تم إنشاء المستند بنجاح', 201);
             } catch (ValidationException $e) {
@@ -184,6 +184,7 @@ class InvoiceController extends Controller
             $invoice = Invoice::with($this->relations)->findOrFail($id);
 
             $canView = false;
+            // إضافة صلاحيات العرض
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
                 $canView = true;
             } elseif ($authUser->hasAnyPermission([perm_key('invoices.view_all'), perm_key('admin.company')])) {
@@ -208,7 +209,7 @@ class InvoiceController extends Controller
      * تحديث الفاتورة المحددة في قاعدة البيانات.
      *
      * @param UpdateInvoiceRequest $request
-     * @param int $id
+     * @param Invoice $invoice
      * @return \Illuminate\Http\JsonResponse
      */
     public function update(UpdateInvoiceRequest $request, Invoice $invoice): JsonResponse
@@ -221,14 +222,21 @@ class InvoiceController extends Controller
                 return api_unauthorized('يتطلب المصادقة أو الانتماء لشركة.');
             }
 
-            if (
-                !$authUser->hasPermissionTo(perm_key('admin.super')) &&
-                !$authUser->hasPermissionTo(perm_key('invoices.update')) &&
-                !$authUser->hasPermissionTo(perm_key('admin.company'))
-            ) {
-                return api_forbidden('ليس لديك صلاحية لتعديل الفاتورة.');
+            $canUpdate = false;
+            // إضافة صلاحيات التعديل
+            if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
+                $canUpdate = true;
+            } elseif ($authUser->hasAnyPermission([perm_key('invoices.update_all'), perm_key('admin.company')])) {
+                $canUpdate = $invoice->belongsToCurrentCompany();
+            } elseif ($authUser->hasPermissionTo(perm_key('invoices.update_children'))) {
+                $canUpdate = $invoice->belongsToCurrentCompany() && $invoice->createdByUserOrChildren();
+            } elseif ($authUser->hasPermissionTo(perm_key('invoices.update_self'))) {
+                $canUpdate = $invoice->belongsToCurrentCompany() && $invoice->createdByCurrentUser();
             }
 
+            if (!$canUpdate) {
+                return api_forbidden('ليس لديك صلاحية لتعديل هذه الفاتورة.');
+            }
 
             DB::beginTransaction();
             try {
@@ -277,6 +285,7 @@ class InvoiceController extends Controller
             $invoice = Invoice::with(['company', 'creator'])->findOrFail($id);
 
             $canDelete = false;
+            // إضافة صلاحيات الحذف
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
                 $canDelete = true;
             } elseif ($authUser->hasAnyPermission([perm_key('invoices.delete_all'), perm_key('admin.company')])) {
@@ -293,7 +302,6 @@ class InvoiceController extends Controller
 
             DB::beginTransaction();
             try {
-                // حفظ نسخة من الفاتورة قبل حذفها لإرجاعها في الاستجابة
                 $deletedInvoice = $invoice->replicate();
                 $deletedInvoice->setRelations($invoice->getRelations());
 
