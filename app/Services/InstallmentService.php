@@ -123,13 +123,10 @@ class InstallmentService
             $paidAmount = $payment->amount_paid; // المبلغ الإجمالي المدفوع في هذه المعاملة
 
             if ($paidAmount > 0) {
-                // إضافة المبلغ المدفوع إلى الإجمالي الذي سيتم عكسه
                 $totalReversedAmount += $paidAmount;
             }
 
             // حذف سجل الدفع وتفاصيله
-            // من الأفضل تغيير الحالة بدلاً من الحذف للحفاظ على سجلات التدقيق
-            // ولكن بناءً على الكود الحالي وطلبك، سنقوم بالحذف.
             InstallmentPaymentDetail::where('installment_payment_id', $payment->id)->delete();
             Log::info('InstallmentService: تم حذف تفاصيل الدفع المرتبطة.', ['payment_id' => $payment->id]);
             $payment->delete();
@@ -137,10 +134,17 @@ class InstallmentService
         }
 
         // تحديث حالة جميع الأقساط التابعة لخطة الأقساط إلى 'canceled'
-        $installmentPlan->installments()->update(['status' => 'canceled', 'remaining_amount' => 0, 'paid_amount' => 0, 'paid_at' => null]);
+        // باستخدام 'remaining' بدلاً من 'remaining_amount'
+        // وتعيين 'paid_amount' إلى 0 (إذا كان هذا هو المطلوب للدلالة على عدم وجود مدفوعات)
+        $installmentPlan->installments()->update([
+            'status' => 'canceled',
+            'remaining' => \DB::raw('amount'), // إعادة 'remaining' إلى قيمة 'amount' الأصلية للقسط
+            'paid_at' => null,
+        ]);
         Log::info('InstallmentService: تم تحديث حالة جميع الأقساط إلى ملغاة.', ['plan_id' => $installmentPlan->id]);
 
         // تحديث حالة خطة الأقساط إلى 'canceled'
+        // هنا افترض أن installment_plans لديه remaining_amount أو عمود مشابه
         $installmentPlan->update(['status' => 'canceled', 'remaining_amount' => 0]);
         Log::info('InstallmentService: تم إلغاء خطة الأقساط.', ['installment_plan_id' => $installmentPlan->id]);
 

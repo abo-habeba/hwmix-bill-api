@@ -26,7 +26,7 @@ class Installment extends Model
         'remaining',
         'created_by',
         'user_id',
-        'company_id', // ✅ مهم جدًا
+        'company_id',
     ];
 
     protected $casts = [
