@@ -156,14 +156,14 @@ class InstallmentService
                     Log::warning('InstallmentService: لم يتم العثور على الموظف الذي استلم الدفعة.', ['payment_id' => $payment->id]);
                 }
 
-                // 2. إيداع المبلغ في رصيد العميل (المشتري) لأنه يسترد ما دفعه
-                // هنا نستخدم $customer (نموذج User) الذي هو المشتري/العميل
-                $depositResult = $customer->deposit($paidAmount, $userCashBoxId);
-                if ($depositResult !== true) {
-                    Log::error('InstallmentService: فشل إيداع مبلغ الدفعة المسترد في رصيد العميل.', ['customer_id' => $customer->id, 'amount' => $paidAmount, 'result' => $depositResult, 'payment_id' => $payment->id]);
-                    throw new \Exception('فشل إيداع مبلغ الدفعة المسترد في رصيد العميل.');
+                // 2. خصم المبلغ من رصيد العميل (المشتري) لأنه يتم إلغاء الدفعة ويعاد الدين
+                // إذا كان رصيد العميل يمثل دينًا (قيم سالبة)، فإن سحب المبلغ سيزيد من قيمة الدين السالبة.
+                $withdrawResult = $customer->withdraw($paidAmount, $userCashBoxId);
+                if ($withdrawResult !== true) {
+                    Log::error('InstallmentService: فشل خصم مبلغ الدفعة الملغاة من رصيد العميل (زيادة الدين).', ['customer_id' => $customer->id, 'amount' => $paidAmount, 'result' => $withdrawResult, 'payment_id' => $payment->id]);
+                    throw new \Exception('فشل خصم مبلغ الدفعة الملغاة من رصيد العميل.');
                 } else {
-                    Log::info('InstallmentService: تم إيداع مبلغ الدفعة المسترد في رصيد العميل.', ['customer_id' => $customer->id, 'amount' => $paidAmount, 'payment_id' => $payment->id]);
+                    Log::info('InstallmentService: تم خصم مبلغ الدفعة الملغاة من رصيد العميل (زيادة الدين).', ['customer_id' => $customer->id, 'amount' => $paidAmount, 'payment_id' => $payment->id]);
                 }
 
                 $totalReversedAmount += $paidAmount;
