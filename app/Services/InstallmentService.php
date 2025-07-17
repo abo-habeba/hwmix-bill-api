@@ -6,9 +6,11 @@ use Carbon\Carbon;
 use App\Models\Invoice;
 use App\Models\Installment;
 use App\Models\InstallmentPlan;
-use App\Models\User; // تم إضافة استيراد لنموذج المستخدم
+use App\Models\User;
+use App\Models\InstallmentPayment; // تم إضافة استيراد لنموذج دفعات الأقساط
+use App\Models\InstallmentPaymentDetail; // تم إضافة استيراد لنموذج تفاصيل دفعات الأقساط
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Log; // تم إضافة استيراد لـ Log
+use Illuminate\Support\Facades\Log;
 
 class InstallmentService
 {
@@ -23,7 +25,7 @@ class InstallmentService
     public function createInstallments(array $data, int $invoiceId): void
     {
         try {
-            Log::info('[InstallmentService] بدء إنشاء خطة التقسيط للفاتورة رقم: ' . $invoiceId, $data);
+            Log::info('InstallmentService: بدء إنشاء خطة التقسيط.', ['invoice_id' => $invoiceId]);
 
             $planData = $data['installment_plan'];
             $userId = $data['user_id'];
@@ -35,9 +37,8 @@ class InstallmentService
             $installmentsN = (int) $planData['number_of_installments'];
 
             $remaining = bcsub($totalAmount, $downPayment, 2);
-            $avgInst = bcdiv($remaining, $installmentsN, 2);
-            $ceilTo = static fn(string $val, int $step): string => number_format(ceil((float)$val / $step) * $step, 2, '.', '');
-            $stdInst = $ceilTo($avgInst, $roundStep);
+            $avgInst = bcdiv($remaining, (string)$installmentsN, 2);
+            $stdInst = number_format(ceil((float)$avgInst / $roundStep) * $roundStep, 2, '.', '');
 
             $planModel = InstallmentPlan::create([
                 'invoice_id' => $invoiceId,
@@ -49,28 +50,10 @@ class InstallmentService
                 'installment_amount' => $stdInst,
                 'start_date' => $startDate->format('Y-m-d H:i:s'),
                 'end_date' => $startDate->copy()->addMonths($installmentsN)->format('Y-m-d'),
-                'status' => 'لم يتم الدفع', // الحالة الأولية
+                'status' => 'pending',
                 'notes' => $planData['notes'] ?? null,
             ]);
-            Log::info('[InstallmentService] تم إنشاء خطة التقسيط.', ['plan_id' => $planModel->id]);
-
-            // هذا الجزء من معالجة الأرصدة تم نقله إلى InstallmentSaleInvoiceService::create
-            // لضمان فصل المسؤوليات وعدم تكرار منطق التعامل مع الدفعة الأولى ودين العميل الكلي
-            // $cashBoxId = $data['cash_box_id'] ?? null;
-            // $authUser = Auth::user();
-            // if ($userId && $authUser && $userId == $authUser->id) {
-            //     app(UserSelfDebtService::class)->registerInstallmentPayment(
-            //         $authUser,
-            //         $downPayment,
-            //         $remaining,
-            //         $cashBoxId,
-            //         $planModel->company_id ?? null
-            //     );
-            // } else {
-            //     if ($downPayment > 0 && $authUser) {
-            //         $authUser->deposit($downPayment, $cashBoxId);
-            //     }
-            // }
+            Log::info('InstallmentService: تم إنشاء خطة التقسيط بنجاح.', ['plan_id' => $planModel->id]);
 
             $paidSum = '0.00';
             $count = 0;
@@ -78,8 +61,7 @@ class InstallmentService
 
             for ($i = 1; $i <= $installmentsN; $i++) {
                 $left = bcsub($remaining, $paidSum, 2);
-                if (bccomp($left, '0.00', 2) <= 0)
-                    break;
+                if (bccomp($left, '0.00', 2) <= 0) break;
 
                 $amount = (bccomp($stdInst, $left, 2) === 1 || $i === $installmentsN) ? $left : $stdInst;
                 $due = $startDate->copy()->addMonths($i)->format('Y-m-d');
@@ -90,10 +72,11 @@ class InstallmentService
                     'due_date' => $due,
                     'amount' => $amount,
                     'remaining' => $amount,
-                    'status' => 'لم يتم الدفع', // الحالة الأولية للقسط
+                    'status' => 'pending',
                     'user_id' => $userId,
+                    'company_id' => $planModel->company_id, // ربط القسط بالشركة التابع لها خطة الأقساط
                 ]);
-                Log::info('[InstallmentService] تم إنشاء قسط.', ['plan_id' => $planModel->id, 'installment_number' => $i, 'amount' => $amount]);
+                Log::info('InstallmentService: تم إنشاء قسط فردي.', ['installment_plan_id' => $planModel->id, 'installment_number' => $i, 'amount' => $amount]);
 
                 $paidSum = bcadd($paidSum, $amount, 2);
                 $lastDate = $due;
@@ -104,9 +87,9 @@ class InstallmentService
                 'end_date' => $lastDate,
                 'number_of_installments' => $count,
             ]);
-            Log::info('[InstallmentService] تم تحديث نهاية خطة التقسيط وعدد الأقساط.', ['plan_id' => $planModel->id]);
+            Log::info('InstallmentService: تم تحديث بيانات خطة التقسيط النهائية.', ['plan_id' => $planModel->id]);
         } catch (\Throwable $e) {
-            Log::error('[InstallmentService] حصل استثناء أثناء إنشاء خطة التقسيط', [
+            Log::error('InstallmentService: فشل في إنشاء خطة التقسيط.', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
@@ -115,7 +98,7 @@ class InstallmentService
     }
 
     /**
-     * إلغاء خطة الأقساط والأقساط الفردية المرتبطة بفاتورة.
+     * إلغاء خطة الأقساط والأقساط الفردية المرتبطة بفاتورة، وعكس الدفعات المالية.
      *
      * @param Invoice $invoice الفاتورة المرتبطة بخطة الأقساط.
      * @return float إجمالي المبالغ المدفوعة للأقساط الفردية التي تم عكسها.
@@ -123,71 +106,89 @@ class InstallmentService
      */
     public function cancelInstallments(Invoice $invoice): float
     {
-        Log::info('[InstallmentService] بدء إلغاء الأقساط للفاتورة رقم: ' . $invoice->id);
-        $totalPaidAmountFromInstallments = 0;
+        Log::info('InstallmentService: بدء إلغاء الأقساط للفاتورة رقم: ' . $invoice->id);
+        $totalReversedAmount = 0;
 
         if (!$invoice->installmentPlan) {
-            Log::warning('[InstallmentService] لا توجد خطة أقساط للفاتورة رقم: ' . $invoice->id);
-            return $totalPaidAmountFromInstallments;
+            Log::warning('InstallmentService: لا توجد خطة أقساط للفاتورة.', ['invoice_id' => $invoice->id]);
+            return $totalReversedAmount;
         }
 
         $installmentPlan = $invoice->installmentPlan;
-        $buyer = User::find($installmentPlan->user_id); // العميل/المشتري المرتبط بخطة الأقساط
+        $customer = User::find($installmentPlan->user_id); // العميل/المشتري المرتبط بخطة الأقساط
 
-        foreach ($installmentPlan->installments as $installment) {
-            // عكس المعاملات المالية للأقساط المدفوعة أو المدفوعة جزئيًا
-            if (in_array($installment->status, ['مدفوع', 'مدفوع جزئيًا'])) {
-                // افتراض أن payments() هي علاقة للوصول إلى سجلات الدفع للقسط
-                // وأن 'amount_paid' هو الحقل الذي يحتوي على المبلغ المدفوع في هذه السجلات.
-                $paidAmountForThisInstallment = $installment->payments()->sum('amount_paid');
-
-                if ($paidAmountForThisInstallment > 0) {
-                    // يجب أن يكون creator هو الموظف الذي استلم الدفعة
-                    $staff = $installment->creator; // افتراض وجود علاقة creator في نموذج Installment
-
-                    // تحديد معرف صندوق النقدية الذي تم الإيداع فيه
-                    // هذا قد يكون أكثر تعقيدًا، ويفضل أن يكون مسجلًا مع كل معاملة دفع
-                    // هنا سنستخدم cash_box_id من الفاتورة كافتراض، أو يمكن تمريره
-                    $cashBoxId = $invoice->cash_box_id ?? null; // قد تحتاج لتحديد هذا بشكل أدق
-
-                    // 1. سحب المبلغ من خزنة الموظف (لأن الموظف استلمه عند الدفع)
-                    if ($staff) {
-                        $withdrawResult = $staff->withdraw($paidAmountForThisInstallment, $cashBoxId);
-                        if ($withdrawResult !== true) {
-                            Log::error('[InstallmentService] فشل سحب مبلغ القسط المسترد من خزنة الموظف.', ['staff_id' => $staff->id, 'amount' => $paidAmountForThisInstallment, 'result' => $withdrawResult]);
-                            // يمكن رمي استثناء هنا إذا كان الفشل حرجًا
-                        } else {
-                            Log::info('[InstallmentService] تم سحب مبلغ القسط المسترد من خزنة الموظف.', ['staff_id' => $staff->id, 'amount' => $paidAmountForThisInstallment]);
-                        }
-                    } else {
-                        Log::warning('[InstallmentService] لم يتم العثور على الموظف الذي استلم دفع القسط.', ['installment_id' => $installment->id]);
-                    }
-
-                    // 2. إيداع المبلغ في رصيد العميل (لأن العميل يسترد ما دفعه)
-                    if ($buyer) {
-                        $depositResult = $buyer->deposit($paidAmountForThisInstallment, $cashBoxId); // استخدام نفس cashBoxId أو تحديد cashBoxId للعميل
-                        if ($depositResult !== true) {
-                            Log::error('[InstallmentService] فشل إيداع مبلغ القسط المسترد في رصيد العميل.', ['buyer_id' => $buyer->id, 'amount' => $paidAmountForThisInstallment, 'result' => $depositResult]);
-                            // يمكن رمي استثناء هنا إذا كان الفشل حرجًا
-                        } else {
-                            Log::info('[InstallmentService] تم إيداع مبلغ القسط المسترد في رصيد العميل.', ['buyer_id' => $buyer->id, 'amount' => $paidAmountForThisInstallment]);
-                        }
-                    } else {
-                        Log::warning('[InstallmentService] لم يتم العثور على العميل لإيداع مبلغ القسط المسترد.', ['installment_id' => $installment->id]);
-                    }
-
-                    $totalPaidAmountFromInstallments += $paidAmountForThisInstallment;
-                }
-            }
-            // تغيير حالة القسط إلى ملغاة بدلاً من الحذف
-            $installment->update(['status' => 'canceled']);
-            Log::info('[InstallmentService] تم إلغاء القسط.', ['installment_id' => $installment->id, 'old_status' => $installment->getOriginal('status')]);
+        if (!$customer) {
+            Log::error('InstallmentService: لم يتم العثور على العميل المرتبط بخطة الأقساط.', ['user_id' => $installmentPlan->user_id]);
+            throw new \Exception('InstallmentService: لم يتم العثور على العميل المرتبط بخطة الأقساط.');
         }
 
-        // تغيير حالة خطة الأقساط إلى ملغاة بدلاً من الحذف
-        $installmentPlan->update(['status' => 'canceled']);
-        Log::info('[InstallmentService] تم إلغاء خطة الأقساط.', ['installment_plan_id' => $installmentPlan->id, 'old_status' => $installmentPlan->getOriginal('status')]);
+        // استرجاع جميع دفعات خطة التقسيط هذه
+        $paymentsToReverse = InstallmentPayment::where('installment_plan_id', $installmentPlan->id)->get();
 
-        return $totalPaidAmountFromInstallments;
+        foreach ($paymentsToReverse as $payment) {
+            $paidAmount = $payment->amount_paid; // المبلغ الإجمالي المدفوع في هذه المعاملة
+            $staff = User::find($payment->created_by); // الموظف الذي أنشأ سجل الدفعة
+            $companyId = $payment->company_id; // الشركة المرتبطة بهذه الدفعة
+
+            // تحديد صندوق النقدية. يمكن افتراض أن `cash_box_id` من الفاتورة الأصلية
+            // أو يجب أن يكون هناك `cash_box_id` مسجل في `installment_payments`
+            // حاليا، `installment_payments` لا يحتوي على `cash_box_id`، لذا سنستخدم `invoice->cash_box_id` كافتراضي
+            $companyCashBoxId = $invoice->cash_box_id;
+            // صندوق نقدية العميل (يمكن أن يكون هو نفسه صندوق الشركة إذا لم يتم تتبع أرصدة المستخدمين بخزائن منفصلة)
+            $userCashBoxId = $invoice->cash_box_id; // افتراضيا نفسه
+
+            if ($paidAmount > 0) {
+                // 1. سحب المبلغ من خزنة الموظف (الذي استلم الدفعة الأصلية)
+                if ($staff) {
+                    // يجب أن يكون هناك حقل cash_box_id في جدول installment_payments
+                    // لتحديد الخزنة التي دخلها المال أصلاً.
+                    // في حالتك الحالية، لا يوجد cash_box_id في installment_payments،
+                    // لذا سأفترض استخدام cash_box_id من الفاتورة.
+                    // هذا قد لا يكون دقيقًا إذا كان الموظفون يستخدمون خزائن مختلفة.
+                    $withdrawResult = $staff->withdraw($paidAmount, $companyCashBoxId); // استخدم companyCashBoxId هنا
+                    if ($withdrawResult !== true) {
+                        Log::error('InstallmentService: فشل سحب مبلغ الدفعة المسترد من خزنة الموظف.', ['staff_id' => $staff->id, 'amount' => $paidAmount, 'result' => $withdrawResult, 'payment_id' => $payment->id]);
+                        throw new \Exception('فشل سحب مبلغ الدفعة المسترد من خزنة الموظف.');
+                    } else {
+                        Log::info('InstallmentService: تم سحب مبلغ الدفعة المسترد من خزنة الموظف.', ['staff_id' => $staff->id, 'amount' => $paidAmount, 'payment_id' => $payment->id]);
+                    }
+                } else {
+                    Log::warning('InstallmentService: لم يتم العثور على الموظف الذي استلم الدفعة.', ['payment_id' => $payment->id]);
+                }
+
+                // 2. إيداع المبلغ في رصيد العميل (المشتري) لأنه يسترد ما دفعه
+                // هنا نستخدم $customer (نموذج User) الذي هو المشتري/العميل
+                $depositResult = $customer->deposit($paidAmount, $userCashBoxId);
+                if ($depositResult !== true) {
+                    Log::error('InstallmentService: فشل إيداع مبلغ الدفعة المسترد في رصيد العميل.', ['customer_id' => $customer->id, 'amount' => $paidAmount, 'result' => $depositResult, 'payment_id' => $payment->id]);
+                    throw new \Exception('فشل إيداع مبلغ الدفعة المسترد في رصيد العميل.');
+                } else {
+                    Log::info('InstallmentService: تم إيداع مبلغ الدفعة المسترد في رصيد العميل.', ['customer_id' => $customer->id, 'amount' => $paidAmount, 'payment_id' => $payment->id]);
+                }
+
+                $totalReversedAmount += $paidAmount;
+            }
+
+            // حذف سجل الدفع وتفاصيله، أو تغييره حالته إلى 'reversed'
+            // من الأفضل تغيير الحالة بدلاً من الحذف للحفاظ على سجلات التدقيق
+            // إذا كان InstallmentPayment لديه حقل 'status'
+            // $payment->update(['status' => 'reversed']);
+            $payment->delete(); // أو حذف إذا كان هذا هو المطلوب
+            Log::info('InstallmentService: تم حذف سجل الدفع الرئيسي.', ['payment_id' => $payment->id]);
+
+            // حذف تفاصيل الدفع المرتبطة
+            InstallmentPaymentDetail::where('installment_payment_id', $payment->id)->delete();
+            Log::info('InstallmentService: تم حذف تفاصيل الدفع المرتبطة.', ['payment_id' => $payment->id]);
+        }
+
+        // تحديث حالة جميع الأقساط التابعة لخطة الأقساط إلى 'canceled'
+        $installmentPlan->installments()->update(['status' => 'canceled', 'remaining' => 0, 'paid_at' => null]);
+        Log::info('InstallmentService: تم تحديث حالة جميع الأقساط إلى ملغاة.', ['plan_id' => $installmentPlan->id]);
+
+        // تحديث حالة خطة الأقساط إلى 'canceled'
+        $installmentPlan->update(['status' => 'canceled', 'remaining_amount' => 0]);
+        Log::info('InstallmentService: تم إلغاء خطة الأقساط.', ['installment_plan_id' => $installmentPlan->id]);
+
+        return $totalReversedAmount;
     }
 }
