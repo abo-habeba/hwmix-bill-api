@@ -115,74 +115,29 @@ class InstallmentService
         }
 
         $installmentPlan = $invoice->installmentPlan;
-        $customer = User::find($installmentPlan->user_id); // العميل/المشتري المرتبط بخطة الأقساط
-
-        if (!$customer) {
-            Log::error('InstallmentService: لم يتم العثور على العميل المرتبط بخطة الأقساط.', ['user_id' => $installmentPlan->user_id]);
-            throw new \Exception('InstallmentService: لم يتم العثور على العميل المرتبط بخطة الأقساط.');
-        }
 
         // استرجاع جميع دفعات خطة التقسيط هذه
         $paymentsToReverse = InstallmentPayment::where('installment_plan_id', $installmentPlan->id)->get();
 
         foreach ($paymentsToReverse as $payment) {
             $paidAmount = $payment->amount_paid; // المبلغ الإجمالي المدفوع في هذه المعاملة
-            $staff = User::find($payment->created_by); // الموظف الذي أنشأ سجل الدفعة
-            $companyId = $payment->company_id; // الشركة المرتبطة بهذه الدفعة
-
-            // تحديد صندوق النقدية. يمكن افتراض أن `cash_box_id` من الفاتورة الأصلية
-            // أو يجب أن يكون هناك `cash_box_id` مسجل في `installment_payments`
-            // حاليا، `installment_payments` لا يحتوي على `cash_box_id`، لذا سنستخدم `invoice->cash_box_id` كافتراضي
-            $companyCashBoxId = $invoice->cash_box_id;
-            // صندوق نقدية العميل (يمكن أن يكون هو نفسه صندوق الشركة إذا لم يتم تتبع أرصدة المستخدمين بخزائن منفصلة)
-            $userCashBoxId = $invoice->cash_box_id; // افتراضيا نفسه
 
             if ($paidAmount > 0) {
-                // 1. سحب المبلغ من خزنة الموظف (الذي استلم الدفعة الأصلية)
-                if ($staff) {
-                    // يجب أن يكون هناك حقل cash_box_id في جدول installment_payments
-                    // لتحديد الخزنة التي دخلها المال أصلاً.
-                    // في حالتك الحالية، لا يوجد cash_box_id في installment_payments،
-                    // لذا سأفترض استخدام cash_box_id من الفاتورة.
-                    // هذا قد لا يكون دقيقًا إذا كان الموظفون يستخدمون خزائن مختلفة.
-                    $withdrawResult = $staff->withdraw($paidAmount, $companyCashBoxId); // استخدم companyCashBoxId هنا
-                    if ($withdrawResult !== true) {
-                        Log::error('InstallmentService: فشل سحب مبلغ الدفعة المسترد من خزنة الموظف.', ['staff_id' => $staff->id, 'amount' => $paidAmount, 'result' => $withdrawResult, 'payment_id' => $payment->id]);
-                        throw new \Exception('فشل سحب مبلغ الدفعة المسترد من خزنة الموظف.');
-                    } else {
-                        Log::info('InstallmentService: تم سحب مبلغ الدفعة المسترد من خزنة الموظف.', ['staff_id' => $staff->id, 'amount' => $paidAmount, 'payment_id' => $payment->id]);
-                    }
-                } else {
-                    Log::warning('InstallmentService: لم يتم العثور على الموظف الذي استلم الدفعة.', ['payment_id' => $payment->id]);
-                }
-
-                // 2. خصم المبلغ من رصيد العميل (المشتري) لأنه يتم إلغاء الدفعة ويعاد الدين
-                // إذا كان رصيد العميل يمثل دينًا (قيم سالبة)، فإن سحب المبلغ سيزيد من قيمة الدين السالبة.
-                $withdrawResult = $customer->withdraw($paidAmount, $userCashBoxId);
-                if ($withdrawResult !== true) {
-                    Log::error('InstallmentService: فشل خصم مبلغ الدفعة الملغاة من رصيد العميل (زيادة الدين).', ['customer_id' => $customer->id, 'amount' => $paidAmount, 'result' => $withdrawResult, 'payment_id' => $payment->id]);
-                    throw new \Exception('فشل خصم مبلغ الدفعة الملغاة من رصيد العميل.');
-                } else {
-                    Log::info('InstallmentService: تم خصم مبلغ الدفعة الملغاة من رصيد العميل (زيادة الدين).', ['customer_id' => $customer->id, 'amount' => $paidAmount, 'payment_id' => $payment->id]);
-                }
-
+                // إضافة المبلغ المدفوع إلى الإجمالي الذي سيتم عكسه
                 $totalReversedAmount += $paidAmount;
             }
 
-            // حذف سجل الدفع وتفاصيله، أو تغييره حالته إلى 'reversed'
+            // حذف سجل الدفع وتفاصيله
             // من الأفضل تغيير الحالة بدلاً من الحذف للحفاظ على سجلات التدقيق
-            // إذا كان InstallmentPayment لديه حقل 'status'
-            // $payment->update(['status' => 'reversed']);
-            $payment->delete(); // أو حذف إذا كان هذا هو المطلوب
-            Log::info('InstallmentService: تم حذف سجل الدفع الرئيسي.', ['payment_id' => $payment->id]);
-
-            // حذف تفاصيل الدفع المرتبطة
+            // ولكن بناءً على الكود الحالي وطلبك، سنقوم بالحذف.
             InstallmentPaymentDetail::where('installment_payment_id', $payment->id)->delete();
             Log::info('InstallmentService: تم حذف تفاصيل الدفع المرتبطة.', ['payment_id' => $payment->id]);
+            $payment->delete();
+            Log::info('InstallmentService: تم حذف سجل الدفع الرئيسي.', ['payment_id' => $payment->id]);
         }
 
         // تحديث حالة جميع الأقساط التابعة لخطة الأقساط إلى 'canceled'
-        $installmentPlan->installments()->update(['status' => 'canceled', 'remaining' => 0, 'paid_at' => null]);
+        $installmentPlan->installments()->update(['status' => 'canceled', 'remaining_amount' => 0, 'paid_amount' => 0, 'paid_at' => null]);
         Log::info('InstallmentService: تم تحديث حالة جميع الأقساط إلى ملغاة.', ['plan_id' => $installmentPlan->id]);
 
         // تحديث حالة خطة الأقساط إلى 'canceled'

@@ -158,67 +158,104 @@ class InstallmentSaleInvoiceService implements DocumentServiceInterface
             $cashBoxId = $invoice->cash_box_id;
             $userCashBoxId = $invoice->user_cash_box_id;
 
-            // استرجاع المخزون (إلغاء خصم المخزون الأصلي)
+            // متغيرات لتجميع التغيرات النهائية في الأرصدة
+            $netCustomerBalanceChange = 0; // التغيير الصافي في رصيد العميل (موجب = إيداع (سداد دين)، سالب = سحب (تسجيل دين))
+            $netStaffBalanceChange = 0;    // التغيير الصافي في رصيد الموظف (موجب = إيداع، سالب = سحب)
+
+            // 1. استرجاع المخزون (إلغاء خصم المخزون الأصلي)
             $this->returnStockForItems($invoice);
 
-            // إلغاء خطة الأقساط والأقساط المدفوعة (ويقوم بإرجاع المبالغ المدفوعة إلى العميل)
+            // 2. إلغاء خطة الأقساط والأقساط المدفوعة (تجميع المبالغ المدفوعة)
+            // هذه الدالة الآن ترجع فقط إجمالي المبالغ التي دفعها العميل كأقساط.
             $totalPaidInstallmentsAmount = 0;
             if ($invoice->installmentPlan) {
-                // InstallmentService::cancelInstallments يجب أن تقوم بعكس دفعات الأقساط
-                // وإرجاع المبالغ إلى رصيد العميل المناسب
-                $totalPaidInstallmentsAmount = app(InstallmentService::class)->cancelInstallments(
-                    $invoice,
-                    $cashBoxId,
-                    $userCashBoxId
-                );
+                $totalPaidInstallmentsAmount = app(InstallmentService::class)->cancelInstallments($invoice);
+
+                // بالنسبة للعميل: هذه المبالغ كانت قد خصمت من رصيده (سدد بها دين).
+                // الآن يجب أن "تعود كدين عليه"، أي يجب أن تخصم من رصيده مرة أخرى (تجعل رصيده أكثر سلبية).
+                $netCustomerBalanceChange -= $totalPaidInstallmentsAmount;
+
+                // بالنسبة للموظف: هذه المبالغ كانت قد أودعت في رصيده.
+                // الآن يجب أن تخصم من رصيده (تسحب منه).
+                $netStaffBalanceChange -= $totalPaidInstallmentsAmount;
+
+                Log::info('InstallmentSaleInvoiceService: إجمالي الأقساط المدفوعة لعكسها.', ['amount' => $totalPaidInstallmentsAmount]);
             } else {
                 Log::warning('InstallmentSaleInvoiceService: لا توجد خطة أقساط مرتبطة بالفاتورة للإلغاء.', ['invoice_id' => $invoice->id]);
             }
 
-            // عكس الدفعة الأولى التي استلمها الموظف
+            // 3. عكس الدفعة الأولى التي استلمها الموظف
             $initialDownPayment = $invoice->installmentPlan->down_payment ?? 0;
             if ($initialDownPayment > 0) {
-                // المبلغ المستلم كدفعة أولى يجب أن يخصم من خزنة البائع (الموظف)
-                if (!$authUser) {
-                    Log::error('InstallmentSaleInvoiceService: لم يتم العثور على الموظف البائع لعكس الدفعة الأولى.');
-                } else {
-                    $withdrawResult = $authUser->withdraw($initialDownPayment, $cashBoxId);
-                    if ($withdrawResult !== true) {
-                        Log::error('InstallmentSaleInvoiceService: فشل سحب الدفعة الأولى المستردة من خزنة الموظف.', ['result' => $withdrawResult]);
-                    }
-                }
+                // هذا المبلغ تم إيداعه في خزنة الموظف عند إنشاء الفاتورة.
+                // الآن يجب أن يخصم من خزنة البائع (الموظف).
+                $netStaffBalanceChange -= $initialDownPayment;
+                Log::info('InstallmentSaleInvoiceService: الدفعة الأولى لعكسها من الموظف.', ['amount' => $initialDownPayment]);
             }
 
-            // عكس دين التقسيط الذي تحمله العميل
+            // 4. عكس دين التقسيط الكلي الذي تحمله العميل (الدين الأصلي للفاتورة)
             $totalInstallmentDebt = ($invoice->installmentPlan->total_amount ?? 0) - ($invoice->installmentPlan->down_payment ?? 0);
+            if ($totalInstallmentDebt > 0) {
+                // هذا المبلغ يمثل الدين الذي تم تسجيله على العميل عند إنشاء الفاتورة (تم خصمه من رصيده).
+                // الآن يتم إيداعه في رصيد العميل لمسح هذا الدين (إعادته إلى رصيده الطبيعي قبل هذه الفاتورة).
+                $netCustomerBalanceChange += $totalInstallmentDebt;
+                Log::info('InstallmentSaleInvoiceService: إجمالي دين التقسيط الأصلي لعكسه للعميل.', ['amount' => $totalInstallmentDebt]);
+            }
 
-            // المبلغ الإجمالي الذي يجب أن يودع في رصيد العميل لإنهاء دينه
-            // (دين التقسيط الكلي - الأقساط التي تم عكسها بالفعل بواسطة InstallmentService)
-            $netDebtToClearFromCustomer = $totalInstallmentDebt - $totalPaidInstallmentsAmount;
-
+            // تطبيق التغيير الصافي على رصيد العميل
             if ($buyer) {
                 if ($buyer->id == $authUser->id) {
-                    // العميل هو نفس الموظف (البيع للنفس) - عكس الدين يتم عن طريق userSelfDebtService
+                    // العميل هو نفس الموظف (البيع للنفس)
+                    // هنا يجب مراجعة منطق userSelfDebtService->clearSelfSaleDebt
+                    // للتأكد من أنه يتعامل مع netCustomerBalanceChange و netStaffBalanceChange
+                    // أو أنه يقوم بتسوية شاملة تأخذ في الاعتبار الدفعة المقدمة والأقساط والدين الأصلي
+                    // إذا لم يكن كذلك، فقد تحتاج إلى تمرير netCustomerBalanceChange و netStaffBalanceChange
+                    // إلى خدمة userSelfDebtService أو معالجتها هنا مباشرةً
                     $this->userSelfDebtService->clearSelfSaleDebt($authUser, $invoice, $cashBoxId, $userCashBoxId);
+                    Log::info('InstallmentSaleInvoiceService: تم معالجة دين البيع للنفس.', ['user_id' => $authUser->id]);
                 } else {
-                    // العميل هو مستخدم آخر
-                    if ($netDebtToClearFromCustomer > 0) {
-                        // العميل لا يزال مديناً بهذا المبلغ، يتم إيداعه في رصيده لمسح الدين
-                        $depositResult = $buyer->deposit($netDebtToClearFromCustomer, $userCashBoxId);
+                    // العميل هو مستخدم آخر - تطبيق التغيير الصافي
+                    if ($netCustomerBalanceChange > 0) {
+                        $depositResult = $buyer->deposit($netCustomerBalanceChange, $userCashBoxId);
                         if ($depositResult !== true) {
-                            Log::error('InstallmentSaleInvoiceService: فشل إيداع مبلغ الدين الصافي المتبقي الملغى في رصيد العميل.', ['result' => $depositResult]);
+                            Log::error('InstallmentSaleInvoiceService: فشل إيداع التغيير الصافي في رصيد العميل.', ['amount' => $netCustomerBalanceChange, 'result' => $depositResult]);
+                            throw new \Exception('فشل إيداع التغيير الصافي في رصيد العميل.');
                         }
-                    } elseif ($netDebtToClearFromCustomer < 0) {
-                        // هذا يعني أن العميل كان قد دفع أكثر من اللازم، يجب سحب المبلغ الزائد من رصيده
-                        $withdrawResult = $buyer->withdraw(abs($netDebtToClearFromCustomer), $userCashBoxId);
+                        Log::info('InstallmentSaleInvoiceService: تم إيداع التغيير الصافي في رصيد العميل.', ['customer_id' => $buyer->id, 'amount' => $netCustomerBalanceChange]);
+                    } elseif ($netCustomerBalanceChange < 0) {
+                        $withdrawResult = $buyer->withdraw(abs($netCustomerBalanceChange), $userCashBoxId);
                         if ($withdrawResult !== true) {
-                            Log::error('InstallmentSaleInvoiceService: فشل سحب المبلغ الزائد من رصيد العميل.', ['result' => $withdrawResult]);
+                            Log::error('InstallmentSaleInvoiceService: فشل سحب التغيير الصافي من رصيد العميل.', ['amount' => $netCustomerBalanceChange, 'result' => $withdrawResult]);
+                            throw new \Exception('فشل سحب التغيير الصافي من رصيد العميل.');
                         }
+                        Log::info('InstallmentSaleInvoiceService: تم سحب التغيير الصافي من رصيد العميل.', ['customer_id' => $buyer->id, 'amount' => abs($netCustomerBalanceChange)]);
+                    } else {
+                        Log::info('InstallmentSaleInvoiceService: لا يوجد تغيير صافي في رصيد العميل.', ['customer_id' => $buyer->id]);
                     }
                 }
             } else {
                 Log::warning('InstallmentSaleInvoiceService: لم يتم العثور على العميل عند الإلغاء.', ['user_id' => $invoice->user_id]);
             }
+
+            // تطبيق التغيير الصافي على رصيد الموظف (البائع)
+            if ($authUser && $netStaffBalanceChange !== 0) {
+                if ($netStaffBalanceChange < 0) {
+                    $withdrawResult = $authUser->withdraw(abs($netStaffBalanceChange), $cashBoxId);
+                    if ($withdrawResult !== true) {
+                        Log::error('InstallmentSaleInvoiceService: فشل سحب التغيير الصافي من رصيد الموظف.', ['amount' => $netStaffBalanceChange, 'result' => $withdrawResult]);
+                        throw new \Exception('فشل سحب التغيير الصافي من رصيد الموظف.');
+                    }
+                    Log::info('InstallmentSaleInvoiceService: تم سحب التغيير الصافي من رصيد الموظف.', ['staff_id' => $authUser->id, 'amount' => abs($netStaffBalanceChange)]);
+                } elseif ($netStaffBalanceChange > 0) {
+                    $depositResult = $authUser->deposit($netStaffBalanceChange, $cashBoxId);
+                    if ($depositResult !== true) {
+                        Log::error('InstallmentSaleInvoiceService: فشل إيداع التغيير الصافي في رصيد الموظف.', ['amount' => $netStaffBalanceChange, 'result' => $depositResult]);
+                        throw new \Exception('فشل إيداع التغيير الصافي في رصيد الموظف.');
+                    }
+                    Log::info('InstallmentSaleInvoiceService: تم إيداع التغيير الصافي في رصيد الموظف.', ['staff_id' => $authUser->id, 'amount' => $netStaffBalanceChange]);
+                }
+            }
+
 
             // تغيير حالة الفاتورة إلى ملغاة
             $invoice->update(['status' => 'canceled']);
