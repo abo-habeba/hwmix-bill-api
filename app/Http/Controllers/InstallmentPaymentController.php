@@ -2,19 +2,20 @@
 
 namespace App\Http\Controllers;
 
+use Throwable;
+use App\Models\Installment;
+use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
+use Illuminate\Support\Facades\Auth;
+use App\Services\InstallmentPaymentService;
+use Illuminate\Validation\ValidationException;
+use App\Http\Resources\Installment\InstallmentResource;
 use App\Http\Requests\Installment\StoreInstallmentRequest;
 use App\Http\Requests\Installment\UpdateInstallmentRequest;
 use App\Http\Requests\InstallmentPayment\PayInstallmentsRequest;
-use App\Http\Resources\Installment\InstallmentResource;
-use App\Models\Installment;
-use App\Services\InstallmentPaymentService;
-use Illuminate\Http\Request;
-use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
-use Throwable;
+use App\Http\Resources\InstallmentPayment\InstallmentPaymentResource;
 
 class InstallmentPaymentController extends Controller
 {
@@ -323,7 +324,8 @@ class InstallmentPaymentController extends Controller
             DB::beginTransaction();
             try {
                 $service = new InstallmentPaymentService();
-                $service->payInstallments(
+                // استلام الكائن المرتجع الذي يحتوي على البيانات
+                $result = $service->payInstallments(
                     $validatedData['installment_ids'],
                     $validatedData['amount'],
                     [
@@ -337,10 +339,18 @@ class InstallmentPaymentController extends Controller
                     ]
                 );
 
-                $updatedInstallments = Installment::whereIn('id', $validatedData['installment_ids'])->with($this->relations)->get();
+                // يمكنك الآن الوصول إلى سجل الدفعة والأقساط المتأثرة
+                $installmentPayment = $result['installmentPayment'];
+                $affectedInstallments = $result['installments'];
 
                 DB::commit();
-                return api_success(InstallmentResource::collection($updatedInstallments), 'تم دفع الأقساط بنجاح.');
+
+                // يمكنك اختيار ما تريد إرجاعه في الرد JSON.
+                // على سبيل المثال، يمكنك إرجاع سجل الدفعة الرئيسي والأقساط المتأثرة:
+                return api_success([
+                    'payment_record' => new InstallmentPaymentResource($installmentPayment), // إذا كان لديك InstallmentPaymentResource
+                    'paid_installments' => InstallmentResource::collection($affectedInstallments),
+                ], 'تم دفع الأقساط بنجاح.');
             } catch (ValidationException $e) {
                 DB::rollBack();
                 return api_error('فشل التحقق من صحة البيانات أثناء دفع الأقساط.', $e->errors(), 422);

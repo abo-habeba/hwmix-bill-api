@@ -29,41 +29,32 @@ class InstallmentPaymentService
         DB::beginTransaction();
 
         try {
-            $remainingAmountToDistribute = $amount; // المبلغ المتبقي لتوزيعه على الأقساط
-            $totalAmountSuccessfullyPaid = 0; // المبلغ الفعلي الذي تم تطبيقه على الأقساط في هذه العملية
+            $remainingAmountToDistribute = $amount;
+            $totalAmountSuccessfullyPaid = 0;
 
-            $authUser = Auth::user(); // الموظف الذي يقوم بالعملية (الذي يستلم الدفعة)
+            $authUser = Auth::user();
 
-            // جلب خطة التقسيط
             $installmentPlan = InstallmentPlan::with('installments')->find($options['installment_plan_id'] ?? null);
             if (!$installmentPlan) {
                 throw new Exception('InstallmentPaymentService: خطة التقسيط غير موجودة.');
             }
 
-            // تحديد صندوق النقد للموظف (الذي يستلم الدفعة)
-            // استخدام cash_box_id من الـ options أولاً، ثم الافتراضي للموظف
             $cashBoxId = $options['cash_box_id'] ?? $authUser->cashBoxeDefault?->id;
             if (!$cashBoxId) {
                 throw new Exception('InstallmentPaymentService: لم يتم تحديد صندوق نقدي للموظف المستلم.');
             }
 
-            // تحديد العميل (الذي يدفع القسط)
             $clientUser = User::find($installmentPlan->user_id);
             if (!$clientUser) {
                 throw new Exception('InstallmentPaymentService: لم يتم العثور على العميل المرتبط بخطة التقسيط.');
             }
-            // تحديد صندوق النقد للعميل (صندوق النقد الخاص به لتقليل دينه)
-            // يمكن أن يكون هو نفسه صندوق الشركة إذا كان نظام أرصدة المستخدمين مركزياً
             $clientCashBoxId = $options['user_cash_box_id'] ?? $clientUser->cashBoxeDefault?->id;
             if (!$clientCashBoxId) {
-                // إذا لم يكن للعميل صندوق افتراضي، استخدم نفس صندوق الموظف المستلم كافتراضي لعمليات العميل
                 $clientCashBoxId = $cashBoxId;
                 Log::warning('InstallmentPaymentService: لم يتم العثور على صندوق نقدي افتراضي للعميل. استخدام صندوق الموظف المستلم كبديل.', ['user_id' => $clientUser->id, 'fallback_cash_box_id' => $clientCashBoxId]);
             }
 
-
-            // تحديد اسم طريقة الدفع بناءً على payment_method_id
-            $paymentMethodName = 'نقداً'; // قيمة افتراضية منطقية
+            $paymentMethodName = 'نقداً';
             if (isset($options['payment_method_id'])) {
                 $paymentMethod = PaymentMethod::find($options['payment_method_id']);
                 if ($paymentMethod) {
@@ -71,39 +62,41 @@ class InstallmentPaymentService
                 }
             }
 
-            // إنشاء سجل الدفعة الرئيسية
             $installmentPayment = InstallmentPayment::create([
                 'installment_plan_id' => $installmentPlan->id,
                 'company_id' => $installmentPlan->company_id,
                 'created_by' => $authUser->id,
                 'payment_date' => $options['paid_at'] ?? now(),
-                'amount_paid' => 0, // سيبدأ بصفر وسيتم تحديثه بالمبلغ الفعلي الذي تم تطبيقه
+                'amount_paid' => 0,
                 'payment_method' => $paymentMethodName,
                 'notes' => $options['notes'] ?? '',
-                'cash_box_id' => $cashBoxId, // ✅ حفظ صندوق النقد الذي استلم الدفعة
+                'cash_box_id' => $cashBoxId,
             ]);
             Log::info('InstallmentPaymentService: تم إنشاء سجل الدفعة الرئيسي.', ['payment_id' => $installmentPayment->id, 'initial_amount' => $amount]);
 
-            // جلب الأقساط المراد دفعها (مرتبة حسب تاريخ الاستحقاق)
-            // هذا الترتيب يضمن دفع الأقساط الأقدم أولاً
-            $installments = $installmentPlan->installments()
-                ->whereIn('id', $installmentIds) // الأقساط المحددة أولاً
+            // **التعديل هنا: جلب الأقساط بطريقة تسمح بالتدفق التلقائي**
+            // ابدأ بالأقساط المحددة ثم انتقل للمستحقة الأخرى
+            $query = $installmentPlan->installments()
                 ->where('status', '!=', 'canceled')
-                ->where('remaining', '>', 0)
-                ->orderBy('due_date')
-                ->get();
+                ->where('remaining', '>', 0);
 
-            // إذا لم يتم تحديد أقساط، أو كانت جميعها مدفوعة، ابحث عن أقساط أخرى مستحقة
-            if ($installments->isEmpty()) {
-                $installments = $installmentPlan->installments()
-                    ->where('status', '!=', 'canceled')
-                    ->where('remaining', '>', 0)
-                    ->orderBy('due_date')
-                    ->get();
+            if (!empty($installmentIds)) {
+                // قم بترتيب الأقساط المحددة أولاً، ثم باقي الأقساط حسب تاريخ الاستحقاق
+                // هذا يضمن أن الأقساط التي تم تمريرها في $installmentIds ستُعالج أولاً.
+                // إذا كان لديك عدد قليل من الأقساط المحددة، يمكن جلبها ثم جلب البقية.
+                $selectedInstallments = (clone $query)->whereIn('id', $installmentIds)->orderBy('due_date')->get();
+                $otherDueInstallments = (clone $query)->whereNotIn('id', $installmentIds)->orderBy('due_date')->get();
+                $installmentsToProcess = $selectedInstallments->merge($otherDueInstallments);
+            } else {
+                // إذا لم يتم تحديد أقساط، جلب جميع الأقساط المستحقة حسب تاريخ الاستحقاق
+                $installmentsToProcess = $query->orderBy('due_date')->get();
             }
+            // نهاية التعديل
 
-            foreach ($installments as $installment) {
-                if ($remainingAmountToDistribute <= 0) {
+            $affectedInstallments = collect();
+
+            foreach ($installmentsToProcess as $installment) {
+                if (bccomp($remainingAmountToDistribute, '0.00', 2) <= 0) {
                     break; // لا يوجد المزيد من المبلغ لتوزيعه
                 }
 
@@ -117,14 +110,12 @@ class InstallmentPaymentService
                     $newStatus = 'partially_paid'; // مدفوع جزئيًا
                 }
 
-                // تحديث القسط الفردي
                 $installment->update([
                     'remaining' => $newRemaining,
                     'status' => $newStatus,
                     'paid_at' => ($newStatus === 'paid' && !$installment->paid_at) ? ($options['paid_at'] ?? now()) : $installment->paid_at,
                 ]);
 
-                // تسجيل تفاصيل الدفع لهذا القسط
                 InstallmentPaymentDetail::create([
                     'installment_payment_id' => $installmentPayment->id,
                     'installment_id' => $installment->id,
@@ -140,19 +131,16 @@ class InstallmentPaymentService
                     'new_remaining' => $newRemaining,
                     'new_status' => $newStatus
                 ]);
+                // يفضل إعادة تحميل القسط بعد التحديث للتأكد من أنه يمثل حالته الأخيرة قبل إضافته للمجموعة
+                $affectedInstallments->push($installment->fresh());
             }
 
-            // تحديث المبلغ المدفوع الفعلي في سجل الدفعة الرئيسية
             $installmentPayment->update(['amount_paid' => $totalAmountSuccessfullyPaid]);
             Log::info('InstallmentPaymentService: تم تحديث المبلغ المدفوع الكلي في سجل الدفعة الرئيسية.', ['payment_id' => $installmentPayment->id, 'actual_paid' => $totalAmountSuccessfullyPaid]);
 
-
-            // تحديث حالة خطة الأقساط بناءً على حالة الأقساط الفردية
             $this->updateInstallmentPlanStatus($installmentPlan);
             Log::info('InstallmentPaymentService: تم تحديث حالة خطة التقسيط.', ['plan_id' => $installmentPlan->id, 'new_status' => $installmentPlan->status]);
 
-
-            // 1. إيداع المبلغ في خزنة الموظف (الذي استلم الدفعة)
             $depositResultStaff = $authUser->deposit($totalAmountSuccessfullyPaid, $cashBoxId);
             if ($depositResultStaff !== true) {
                 throw new Exception('InstallmentPaymentService: فشل إيداع المبلغ في خزنة الموظف: ' . json_encode($depositResultStaff));
@@ -163,21 +151,6 @@ class InstallmentPaymentService
                 'amount' => $totalAmountSuccessfullyPaid
             ]);
 
-            // 2. خصم المبلغ من رصيد العميل (لتسجيل الدفع وتقليل دينه)
-            // لاحظ أن `deposit` هنا يتم استدعاؤه على `clientUser` لزيادة رصيده،
-            // وهذا منطقي إذا كان رصيد العميل يمثل دينه بالسالب، أي زيادة الرصيد تقلل الدين.
-            // إذا كان رصيد العميل يمثل أمواله، فيجب استخدام `withdraw` هنا لخفض رصيده لأنه دفع المال.
-            // بناءً على سياق "تقليل الدين"، نفترض أن `deposit` هو الإجراء الصحيح الذي يعكس تخفيض المديونية.
-            // ولكن للتوضيح، إذا كان رصيد العميل يعني أمواله المتاحة، فسيحتاج إلى `withdraw` بدلاً من `deposit`
-            // لتمثيل خروج المال منه.
-            // **إذا كان رصيد العميل يعبر عن مديونيته (الأرقام السالبة تعبر عن الدين)، فإن `deposit` ستجعل الرقم أقل سالبية أو إيجابياً، وهذا يمثل سداد الدين.**
-            // **إذا كان رصيد العميل يعبر عن أمواله المتاحة، فإن سداد الدين يتطلب `withdraw` منه.**
-            // بالنظر إلى أنك تستخدم `deposit`، سنفترض أن رصيد العميل يتصرف كمديونية تنخفض عند الدفع (أي يصبح أقل سالبية).
-            // في سياق دفع قسط، العميل يدفع، لذا المال يخرج منه.
-            // *تصحيح محتمل*: إذا كان `$clientUser->deposit` يزيد رصيد العميل (أي أمواله)،
-            // فإن العملية الصحيحة لتقليل دين العميل (خروج المال منه) هي `$clientUser->withdraw`.
-            // يرجى التأكد من سلوك دالتي `deposit` و `withdraw` على نموذج `User` بالنسبة لأرصدة العملاء.
-            // سأفترض هنا أن `deposit` على العميل يعني تقليل مديونيته (وهو أمر شائع في أنظمة الديون).
             $depositResultClient = $clientUser->deposit($totalAmountSuccessfullyPaid, $clientCashBoxId);
             if ($depositResultClient !== true) {
                 throw new Exception('InstallmentPaymentService: فشل تحديث رصيد العميل (تقليل الدين): ' . json_encode($depositResultClient));
@@ -191,7 +164,6 @@ class InstallmentPaymentService
             DB::commit();
             Log::info('InstallmentPaymentService: تمت عملية دفع الأقساط بنجاح.', ['installment_payment_id' => $installmentPayment->id]);
 
-            // إضافة خاصية ديناميكية للكائن للإشارة إلى المبلغ الزائد
             if (bccomp($remainingAmountToDistribute, '0.00', 2) > 0) {
                 $installmentPayment->excess_amount = $remainingAmountToDistribute;
                 Log::info('InstallmentPaymentService: تم دفع جميع الأقساط وبقي مبلغ زائد.', [
@@ -200,7 +172,10 @@ class InstallmentPaymentService
                 ]);
             }
 
-            return $installmentPayment;
+            return [
+                'installmentPayment' => $installmentPayment,
+                'installments' => $affectedInstallments,
+            ];
         } catch (\Throwable $e) {
             DB::rollBack();
             Log::error('InstallmentPaymentService: فشل في دفع الأقساط.', [
@@ -212,7 +187,6 @@ class InstallmentPaymentService
             throw $e;
         }
     }
-
     /**
      * تحديث حالة خطة الأقساط بناءً على حالة الأقساط الفردية.
      *
