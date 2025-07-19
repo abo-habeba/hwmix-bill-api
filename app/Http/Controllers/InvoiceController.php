@@ -273,6 +273,7 @@ class InvoiceController extends Controller
      */
     public function destroy(string $id): JsonResponse
     {
+        DB::beginTransaction(); // بدء المعاملة لضمان اتساق البيانات
         try {
             /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
@@ -284,8 +285,8 @@ class InvoiceController extends Controller
 
             $invoice = Invoice::with(['company', 'creator'])->findOrFail($id);
 
+            // صلاحيات الحذف (يمكن تبسيطها أكثر داخل سياسات Laravel)
             $canDelete = false;
-            // إضافة صلاحيات الحذف
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
                 $canDelete = true;
             } elseif ($authUser->hasAnyPermission([perm_key('invoices.delete_all'), perm_key('admin.company')])) {
@@ -300,19 +301,15 @@ class InvoiceController extends Controller
                 return api_forbidden('ليس لديك صلاحية لحذف هذه الفاتورة.');
             }
 
-            DB::beginTransaction();
-            try {
-                $deletedInvoice = $invoice->replicate();
-                $deletedInvoice->setRelations($invoice->getRelations());
+            $invoiceTypeCode = $invoice->invoice_type_code; // الحصول على نوع الفاتورة
+            $service = ServiceResolver::resolve($invoiceTypeCode); // حل الخدمة المناسبة لنوع الفاتورة
 
-                $invoice->delete();
-                DB::commit();
-                return api_success(new InvoiceResource($deletedInvoice), 'تم حذف الفاتورة بنجاح');
-            } catch (Throwable $e) {
-                DB::rollBack();
-                return api_error('حدث خطأ أثناء حذف المستند.', [], 500);
-            }
+            $canceledInvoice = $service->cancel($invoice); // تفويض الحذف للخدمة
+
+            DB::commit(); // تأكيد المعاملة
+            return api_success(new InvoiceResource($canceledInvoice), 'تم حذف الفاتورة بنجاح');
         } catch (Throwable $e) {
+            DB::rollBack(); // التراجع عن المعاملة في حالة حدوث أي خطأ
             return api_exception($e);
         }
     }

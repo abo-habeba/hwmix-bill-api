@@ -45,13 +45,13 @@ class SaleInvoiceService implements DocumentServiceInterface
 
             // معالجة رصيد الموظفين والعملاء
             if ($invoice->user_id == $authUser->id) { // فاتورة ذاتية للموظف البائع
-                app(UserSelfDebtService::class)->registerPurchase(
-                    $authUser,
-                    $invoice->paid_amount,
-                    $invoice->remaining_amount,
-                    $cashBoxId,
-                    $invoice->company_id
-                );
+                // app(UserSelfDebtService::class)->registerPurchase(
+                //     $authUser,
+                //     $invoice->paid_amount,
+                //     $invoice->remaining_amount,
+                //     $cashBoxId,
+                //     $invoice->company_id
+                // );
             } elseif ($invoice->user_id) { // المشتري مستخدم آخر (عميل)
                 $buyer = User::find($invoice->user_id);
                 if ($buyer) {
@@ -146,21 +146,21 @@ class SaleInvoiceService implements DocumentServiceInterface
             // معالجة رصيد المشتري
             if ($invoice->user_id == $authUser->id) { // المشتري هو الموظف نفسه
                 if ($remainingAmountDifference > 0) {
-                    app(UserSelfDebtService::class)->registerPurchase(
-                        $authUser,
-                        0,
-                        abs($remainingAmountDifference),
-                        $cashBoxId,
-                        $invoice->company_id
-                    );
+                    // app(UserSelfDebtService::class)->registerPurchase(
+                    //     $authUser,
+                    //     0,
+                    //     abs($remainingAmountDifference),
+                    //     $cashBoxId,
+                    //     $invoice->company_id
+                    // );
                 } elseif ($remainingAmountDifference < 0) {
-                    app(UserSelfDebtService::class)->registerPayment(
-                        $authUser,
-                        abs($remainingAmountDifference),
-                        0,
-                        $cashBoxId,
-                        $invoice->company_id
-                    );
+                    // app(UserSelfDebtService::class)->registerPayment(
+                    //     $authUser,
+                    //     abs($remainingAmountDifference),
+                    //     0,
+                    //     $cashBoxId,
+                    //     $invoice->company_id
+                    // );
                 }
                 // المشتري عميل آخر
             }
@@ -212,17 +212,17 @@ class SaleInvoiceService implements DocumentServiceInterface
     {
         try {
             Log::info('SaleInvoiceService: بدء إلغاء فاتورة بيع.', ['invoice_id' => $invoice->id]);
-            if ($invoice->status === 'paid') {
-                throw new \Exception('لا يمكن إلغاء فاتورة مدفوعة بالكامل.');
-            }
+            // if ($invoice->status === 'paid') {
+            //     throw new \Exception('لا يمكن إلغاء فاتورة مدفوعة بالكامل.');
+            // }
 
             $this->returnStockForItems($invoice);
             $invoice->update(['status' => 'canceled']);
             $this->deleteInvoiceItems($invoice);
 
-            if ($invoice->installmentPlan) {
-                app(InstallmentService::class)->cancelInstallments($invoice);
-            }
+            // if ($invoice->installmentPlan) {
+            //     app(InstallmentService::class)->cancelInstallments($invoice);
+            // }
 
             $authUser = Auth::user();
             $cashBoxId = null;
@@ -231,13 +231,13 @@ class SaleInvoiceService implements DocumentServiceInterface
             // معالجة الرصيد المالي للموظفين والعملاء
             if ($invoice->user_id == $authUser->id) { // الفاتورة ذاتية للموظف
                 if ($invoice->remaining_amount > 0) {
-                    app(UserSelfDebtService::class)->registerPayment(
-                        $authUser,
-                        $invoice->remaining_amount,
-                        0,
-                        $cashBoxId,
-                        $invoice->company_id
-                    );
+                    // app(UserSelfDebtService::class)->registerPayment(
+                    //     $authUser,
+                    //     $invoice->remaining_amount,
+                    //     0,
+                    //     $cashBoxId,
+                    //     $invoice->company_id
+                    // );
                 }
                 if ($invoice->paid_amount > 0) {
                     $withdrawResult = $authUser->withdraw($invoice->paid_amount, $cashBoxId);

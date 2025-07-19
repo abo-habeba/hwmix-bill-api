@@ -25,8 +25,19 @@ class Attribute extends Model
     {
         return $this->hasMany(AttributeValue::class);
     }
+
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+    public function productVariants()
+    {
+        return $this->belongsToMany(
+            ProductVariant::class,
+            'product_variant_attributes',
+            'attribute_id',
+            'product_variant_id'
+        )->withPivot(['attribute_value_id', 'company_id', 'created_by'])
+            ->withTimestamps();
     }
 }

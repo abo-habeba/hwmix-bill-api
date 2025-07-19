@@ -29,4 +29,12 @@ class AttributeValue extends Model
     {
         return $this->belongsTo(User::class, 'created_by');
     }
+    public function company()
+    {
+        return $this->belongsTo(Company::class);
+    }
+    public function variantAttributes()
+    {
+        return $this->hasMany(ProductVariantAttribute::class, 'attribute_value_id');
+    }
 }

@@ -372,9 +372,10 @@ class AttributeController extends Controller
 
                 DB::commit();
                 // إرجاع المورد الذي تم حذفه
-                return api_success(new AttributeResource($deletedAttribute->load($this->relations)), 'تم حذف السمة بنجاح.');
+                return api_success([], 'تم حذف السمة بنجاح.');
             } catch (Throwable $e) {
                 DB::rollBack();
+                throw $e;
                 return api_error('حدث خطأ أثناء حذف السمة.', [], 500);
             }
         } catch (Throwable $e) {
