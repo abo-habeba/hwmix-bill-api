@@ -65,17 +65,12 @@ class ProductVariant extends Model
         return $this->hasMany(InvoiceItem::class, 'variant_id');
     }
     // 🔁 المتغير ممكن يكون مرتبط بقيم السمات
+
+
     public function attributes()
     {
-        return $this->belongsToMany(
-            Attribute::class,
-            'product_variant_attributes',
-            'product_variant_id',
-            'attribute_id'
-        )->withPivot(['attribute_value_id', 'company_id', 'created_by'])
-            ->withTimestamps();
+        return $this->hasMany(ProductVariantAttribute::class);
     }
-
     protected static function boot()
     {
         parent::boot();

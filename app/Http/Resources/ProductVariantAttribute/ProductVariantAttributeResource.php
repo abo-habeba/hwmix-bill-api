@@ -16,7 +16,7 @@ class ProductVariantAttributeResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-          return [
+        return [
             'id' => $this->id,
             'attribute_id' => $this->attribute_id,
             'attribute_value_id' => $this->attribute_value_id,
@@ -24,5 +24,4 @@ class ProductVariantAttributeResource extends JsonResource
             'attribute_value' => new AttributeValueResource($this->whenLoaded('attributeValue')),
         ];
     }
-
 }

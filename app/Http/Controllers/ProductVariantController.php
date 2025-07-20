@@ -20,8 +20,8 @@ class ProductVariantController extends Controller
 {
     protected array $relations = [
         'creator',
-        'company', // علاقة مباشرة بالشركة للمتغير
-        'product', // المنتج الأم
+        'company',
+        'product',
         'product.creator',
         'product.company',
         'product.category',
@@ -43,16 +43,9 @@ class ProductVariantController extends Controller
             /** @var \App\Models\User $authUser */
             $authUser = Auth::user();
 
-            if (!$authUser) {
-                return api_unauthorized('يتطلب المصادقة.');
-            }
-
             $query = ProductVariant::with($this->relations);
             $companyId = $authUser->company_id ?? null;
 
-            if (!$authUser->hasPermissionTo(perm_key('admin.super'))) {
-                return api_unauthorized('يجب أن تكون مرتبطًا بشركة أو لديك صلاحية مدير عام.');
-            }
 
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
                 // المسؤول العام يرى جميع المتغيرات

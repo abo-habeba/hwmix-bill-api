@@ -2,30 +2,25 @@
 
 namespace App\Http\Resources\ProductVariant;
 
-use App\Http\Resources\Company\CompanyResource;
-use App\Http\Resources\Product\ProductResource;
-use App\Http\Resources\ProductVariantAttribute\ProductVariantAttributeResource;
+use Illuminate\Http\Request;
+use App\Http\Resources\Brand\BrandResource;
 use App\Http\Resources\Stock\StockResource;
 use App\Http\Resources\User\UserBasicResource;
-use App\Http\Resources\Warehouse\WarehouseResource;
+use App\Http\Resources\Company\CompanyResource;
+use App\Http\Resources\Product\ProductResource;
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Http\Request;
+use App\Http\Resources\Category\CategoryResource;
+use App\Http\Resources\Warehouse\WarehouseResource;
+use App\Http\Resources\ProductVariantAttribute\ProductVariantAttributeResource;
 
 class ProductVariantResource extends JsonResource
 {
-    /**
-     * Transform the resource into an array.
-     *
-     * @return array<string, mixed>
-     */
     public function toArray(Request $request): array
     {
-        // $cost = $this->stocks->where('status', 'available')->sortByDesc('created_at')->first();
         $availableStocks = $this->stocks->where('status', 'available');
-        // dd($availableStocks->sum('quantity'));
+
         return [
             'id' => $this->id,
-            // بيانات متغير المنتج
             'barcode' => $this->barcode,
             'sku' => $this->sku,
             'retail_price' => $this->retail_price,
@@ -34,15 +29,15 @@ class ProductVariantResource extends JsonResource
             'weight' => $this->weight,
             'dimensions' => $this->dimensions,
             'tax' => $this->tax,
-            'cost' => $this->stocks->where('status', 'available')->sortByDesc('created_at')->first()?->cost ?? 0,
+            'cost' => $availableStocks->sortByDesc('created_at')->first()?->cost ?? 0,
             'quantity' => $availableStocks->sum('quantity') ?? null,
-            'min_quantity' => $this->min_quantity ?? null,
-            'stocks' => StockResource::collection($this->whenLoaded('stocks')),
+            'min_quantity' => $this->min_quantity,
             'discount' => $this->discount,
             'status' => $this->status,
             'created_at' => $this->created_at?->format('Y-m-d H:i:s'),
             'updated_at' => $this->updated_at?->format('Y-m-d H:i:s'),
-            // ✅ دي الحقول الخاصة بالمنتج، هنرجعها فقط لو العلاقة محمّلة
+
+            // ✅ علاقات المنتج الأساسية
             $this->mergeWhen($this->relationLoaded('product'), [
                 'product_id' => $this->product->id,
                 'product_name' => $this->product->name,
@@ -57,11 +52,18 @@ class ProductVariantResource extends JsonResource
                 'brand_id' => $this->product->brand_id,
                 'company_id' => $this->product->company_id,
             ]),
-            // العلاقة  لو محمّلة
+
+            // ✅ الخصائص (attributes) + القيم المرتبطة
             'attributes' => ProductVariantAttributeResource::collection($this->whenLoaded('attributes')),
+
+            // ✅ الخزن
+            'stocks' => StockResource::collection($this->whenLoaded('stocks')),
+
+            // ✅ منشئ المتغير
             'creator' => new UserBasicResource($this->whenLoaded('creator')),
+
+            // ✅ الشركة التابعة للمتغير
             'company' => new CompanyResource($this->whenLoaded('company')),
-            // 'stocks' => StockResource::collection($this->whenLoaded('stocks')),
         ];
     }
 }
