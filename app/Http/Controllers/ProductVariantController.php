@@ -26,7 +26,6 @@ class ProductVariantController extends Controller
         'product.company',
         'product.category',
         'product.brand',
-        'attributes.attribute',
         'attributes.attributeValue',
         'stocks.warehouse',
     ];
@@ -121,10 +120,6 @@ class ProductVariantController extends Controller
 
                 // التحقق من أن المنتج الأم تابع لشركة المستخدم أو أن المستخدم super_admin
                 $product = Product::with('company')->find($validated['product_id']);
-                if (!$product || (!$authUser->hasPermissionTo(perm_key('admin.super')) && $product->company_id !== $companyId)) {
-                    DB::rollBack();
-                    return api_forbidden('المنتج غير موجود أو غير متاح ضمن شركتك.');
-                }
 
                 // إذا كان المستخدم super_admin ويحدد company_id، يسمح بذلك. وإلا، استخدم company_id للمنتج الأم.
                 $variantCompanyId = ($authUser->hasPermissionTo(perm_key('admin.super')) && isset($validated['company_id']))
@@ -146,11 +141,10 @@ class ProductVariantController extends Controller
                 if ($request->has('attributes') && is_array($request->input('attributes'))) {
                     foreach ($request->input('attributes') as $attr) {
                         if (!empty($attr['attribute_id']) && !empty($attr['attribute_value_id'])) {
-                            $productVariant->attributes()->create([
-                                'attribute_id' => $attr['attribute_id'],
+                            $productVariant->attributes()->attach($attr['attribute_id'], [
                                 'attribute_value_id' => $attr['attribute_value_id'],
-                                'company_id' => $variantCompanyId, // ربط بنفس شركة المتغير
-                                'created_by' => $authUser->id, // من أنشأ الخاصية
+                                'company_id' => $variantCompanyId,
+                                'created_by' => $authUser->id,
                             ]);
                         }
                     }
@@ -171,8 +165,8 @@ class ProductVariantController extends Controller
                                 'expiry' => $stockData['expiry'] ?? null,
                                 'loc' => $stockData['loc'] ?? null,
                                 'status' => $stockData['status'] ?? 'available',
-                                'company_id' => $variantCompanyId, // ربط بنفس شركة المتغير
-                                'created_by' => $authUser->id, // من أنشأ سجل المخزون
+                                'company_id' => $variantCompanyId,
+                                'created_by' => $authUser->id,
                             ]);
                         }
                     }
@@ -214,15 +208,12 @@ class ProductVariantController extends Controller
             // التحقق من صلاحيات العرض
             $canView = false;
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
-                $canView = true; // المسؤول العام يرى أي متغير
+                $canView = true;
             } elseif ($authUser->hasAnyPermission([perm_key('product_variants.view_all'), perm_key('admin.company')])) {
-                // يرى إذا كان المتغير ينتمي للشركة النشطة (بما في ذلك مديرو الشركة)
                 $canView = $productVariant->belongsToCurrentCompany();
             } elseif ($authUser->hasPermissionTo(perm_key('product_variants.view_children'))) {
-                // يرى إذا كان المتغير أنشأه هو أو أحد التابعين له وتابع للشركة النشطة
                 $canView = $productVariant->belongsToCurrentCompany() && $productVariant->createdByUserOrChildren();
             } elseif ($authUser->hasPermissionTo(perm_key('product_variants.view_self'))) {
-                // يرى إذا كان المتغير أنشأه هو وتابع للشركة النشطة
                 $canView = $productVariant->belongsToCurrentCompany() && $productVariant->createdByCurrentUser();
             }
 
@@ -254,21 +245,17 @@ class ProductVariantController extends Controller
                 return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
-            // يجب تحميل العلاقات الضرورية للتحقق من الصلاحيات (مثل الشركة والمنشئ)
             $productVariant = ProductVariant::with(['company', 'creator', 'product'])->findOrFail($id);
 
             // التحقق من صلاحيات التحديث
             $canUpdate = false;
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
-                $canUpdate = true; // المسؤول العام يمكنه تعديل أي متغير
+                $canUpdate = true;
             } elseif ($authUser->hasAnyPermission([perm_key('product_variants.update_all'), perm_key('admin.company')])) {
-                // يمكنه تعديل أي متغير داخل الشركة النشطة (بما في ذلك مديرو الشركة)
                 $canUpdate = $productVariant->belongsToCurrentCompany();
             } elseif ($authUser->hasPermissionTo(perm_key('product_variants.update_children'))) {
-                // يمكنه تعديل المتغيرات التي أنشأها هو أو أحد التابعين له وتابعة للشركة النشطة
                 $canUpdate = $productVariant->belongsToCurrentCompany() && $productVariant->createdByUserOrChildren();
             } elseif ($authUser->hasPermissionTo(perm_key('product_variants.update_self'))) {
-                // يمكنه تعديل متغيره الخاص الذي أنشأه وتابع للشركة النشطة
                 $canUpdate = $productVariant->belongsToCurrentCompany() && $productVariant->createdByCurrentUser();
             }
 
@@ -281,7 +268,7 @@ class ProductVariantController extends Controller
                 $validated = $request->validated();
                 $updatedBy = $authUser->id;
 
-                // التحقق من أن المنتج الأم المحدث (إذا تم إرساله) تابع لشركة المستخدم أو أن المستخدم super_admin
+                // التحقق من أن المنتج الأم المحدث تابع لشركة المستخدم أو أن المستخدم super_admin
                 if (isset($validated['product_id']) && $validated['product_id'] != $productVariant->product_id) {
                     $newProduct = Product::with('company')->find($validated['product_id']);
                     if (!$newProduct || (!$authUser->hasPermissionTo(perm_key('admin.super')) && $newProduct->company_id !== $companyId)) {
@@ -290,48 +277,56 @@ class ProductVariantController extends Controller
                     }
                 }
 
-                // إذا كان المستخدم سوبر ادمن ويحدد معرف الشركه، يسمح بذلك. وإلا، استخدم معرف الشركه للمتغير.
+                // تحديد معرف الشركة للمتغير المحدث
                 $variantCompanyId = ($authUser->hasPermissionTo(perm_key('admin.super')) && isset($validated['company_id']))
                     ? $validated['company_id']
                     : $productVariant->company_id;
 
-                // التأكد من أن المستخدم مصرح له بتعديل متغير لشركة أخرى (فقط سوبر أدمن)
+                // التأكد من أن المستخدم مصرح له بتعديل متغير لشركة أخرى
                 if ($variantCompanyId != $productVariant->company_id && !$authUser->hasPermissionTo(perm_key('admin.super'))) {
                     DB::rollBack();
                     return api_forbidden('لا يمكنك تغيير شركة متغير المنتج إلا إذا كنت مدير عام.');
                 }
 
-                $validated['company_id'] = $variantCompanyId; // تحديث company_id في البيانات المصدقة
-                $validated['updated_by'] = $updatedBy; // من قام بالتعديل
+                $validated['company_id'] = $variantCompanyId;
+                $validated['updated_by'] = $updatedBy;
 
                 $productVariant->update($validated);
 
                 // تحديث الخصائص (attributes)
                 $requestedAttributeIds = collect($request->input('attributes') ?? [])
                     ->pluck('id')->filter()->all();
-                $productVariant->attributes()->whereNotIn('id', $requestedAttributeIds)->delete(); // حذف الخصائص المحذوفة
+                $productVariant->attributes()->whereNotIn('product_variant_attributes.id', $requestedAttributeIds)->delete();
 
                 if ($request->has('attributes') && is_array($request->input('attributes'))) {
                     foreach ($request->input('attributes') as $attr) {
                         if (!empty($attr['attribute_id']) && !empty($attr['attribute_value_id'])) {
-                            // التحقق من وجود الخاصية وتحديثها أو إنشائها
-                            $productVariant->attributes()->updateOrCreate(
-                                ['id' => $attr['id'] ?? null], // إذا كان هناك ID يتم تحديثه، وإلا يتم إنشاء جديد
-                                [
-                                    'attribute_id' => $attr['attribute_id'],
+                            if (isset($attr['id'])) {
+                                DB::table('product_variant_attributes')
+                                    ->where('id', $attr['id'])
+                                    ->update([
+                                        'attribute_id' => $attr['attribute_id'],
+                                        'attribute_value_id' => $attr['attribute_value_id'],
+                                        'company_id' => $variantCompanyId,
+                                        'updated_by' => $authUser->id,
+                                        'updated_at' => now(),
+                                    ]);
+                            } else {
+                                $productVariant->attributes()->attach($attr['attribute_id'], [
                                     'attribute_value_id' => $attr['attribute_value_id'],
-                                    'company_id' => $variantCompanyId, // ربط بنفس شركة المتغير
-                                    'created_by' => $attr['created_by'] ?? $authUser->id, // إذا تم تحديدها أو المستخدم الحالي
-                                    'updated_by' => $authUser->id,
-                                ]
-                            );
+                                    'company_id' => $variantCompanyId,
+                                    'created_by' => $authUser->id,
+                                    'created_at' => now(),
+                                    'updated_at' => now(),
+                                ]);
+                            }
                         }
                     }
                 }
 
                 // تحديث سجلات المخزون (stocks)
                 $requestedStockIds = collect($request->input('stocks') ?? [])->pluck('id')->filter()->all();
-                $productVariant->stocks()->whereNotIn('id', $requestedStockIds)->delete(); // حذف سجلات المخزون المحذوفة
+                $productVariant->stocks()->whereNotIn('id', $requestedStockIds)->delete();
 
                 if ($request->has('stocks') && is_array($request->input('stocks'))) {
                     foreach ($request->input('stocks') as $stockData) {
@@ -348,7 +343,7 @@ class ProductVariantController extends Controller
                                     'expiry' => $stockData['expiry'] ?? null,
                                     'loc' => $stockData['loc'] ?? null,
                                     'status' => $stockData['status'] ?? 'available',
-                                    'company_id' => $variantCompanyId, // ربط بنفس شركة المتغير
+                                    'company_id' => $variantCompanyId,
                                     'created_by' => $stockData['created_by'] ?? $authUser->id,
                                     'updated_by' => $authUser->id,
                                 ]
@@ -356,7 +351,7 @@ class ProductVariantController extends Controller
                         }
                     }
                 } else {
-                    $productVariant->stocks()->delete(); // حذف كل المخزون إذا لم يتم إرسال أي بيانات
+                    $productVariant->stocks()->delete();
                 }
 
 
@@ -391,21 +386,17 @@ class ProductVariantController extends Controller
                 return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
-            // يجب تحميل العلاقات الضرورية للتحقق من الصلاحيات (مثل الشركة والمنشئ)
             $productVariant = ProductVariant::with(['company', 'creator', 'stocks', 'attributes'])->findOrFail($id);
 
             // التحقق من صلاحيات الحذف
             $canDelete = false;
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
-                $canDelete = true; // المسؤول العام يمكنه حذف أي متغير
+                $canDelete = true;
             } elseif ($authUser->hasAnyPermission([perm_key('product_variants.delete_all'), perm_key('admin.company')])) {
-                // يمكنه حذف أي متغير داخل الشركة النشطة (بما في ذلك مديرو الشركة)
                 $canDelete = $productVariant->belongsToCurrentCompany();
             } elseif ($authUser->hasPermissionTo(perm_key('product_variants.delete_children'))) {
-                // يمكنه حذف المتغيرات التي أنشأها هو أو أحد التابعين له وتابعة للشركة النشطة
                 $canDelete = $productVariant->belongsToCurrentCompany() && $productVariant->createdByUserOrChildren();
             } elseif ($authUser->hasPermissionTo(perm_key('product_variants.delete_self'))) {
-                // يمكنه حذف متغيره الخاص الذي أنشأه وتابع للشركة النشطة
                 $canDelete = $productVariant->belongsToCurrentCompany() && $productVariant->createdByCurrentUser();
             }
 
@@ -413,22 +404,108 @@ class ProductVariantController extends Controller
                 return api_forbidden('ليس لديك صلاحية لحذف متغير المنتج هذا.');
             }
 
+            // التحقق من المخزون قبل الحذف
+            if ($productVariant->stocks()->sum('quantity') > 0) {
+                return api_error('لا يمكن حذف متغير المنتج لوجود كميات مخزنية مرتبطة به.', [], 409); // 409 Conflict
+            }
+
             DB::beginTransaction();
             try {
-                // حفظ نسخة من المتغير قبل حذفه لإرجاعها في الاستجابة
+                // حفظ نسخة من المتغير قبل حذفه
                 $deletedProductVariant = $productVariant->replicate();
                 $deletedProductVariant->setRelations($productVariant->getRelations());
 
-                // حذف العلاقات التابعة لـ ProductVariant (Stocks, Attributes) أولاً
-                $productVariant->stocks()->delete();
-                $productVariant->attributes()->delete();
-                $productVariant->delete();
+                $productVariant->stocks()->delete(); // حذف سجلات المخزون
+                $productVariant->attributes()->detach(); // حذف العلاقات في الجدول الوسيط
+                $productVariant->delete(); // حذف المتغير نفسه
 
                 DB::commit();
                 return api_success(new ProductVariantResource($deletedProductVariant), 'تم حذف متغير المنتج بنجاح.');
             } catch (Throwable $e) {
                 DB::rollBack();
                 return api_error('حدث خطأ أثناء حذف متغير المنتج.', [], 500);
+            }
+        } catch (Throwable $e) {
+            return api_exception($e);
+        }
+    }
+
+    /**
+     * حذف متغيرات منتج متعددة بناءً على مصفوفة من المعرفات.
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function deleteMultiple(Request $request): JsonResponse
+    {
+        try {
+            /** @var \App\Models\User $authUser */
+            $authUser = Auth::user();
+            $companyId = $authUser->company_id ?? null;
+
+            if (!$authUser || !$companyId) {
+                return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
+            }
+
+            // التحقق من صلاحيات الحذف المتعدد
+            if (!$authUser->hasPermissionTo(perm_key('admin.super')) && !$authUser->hasAnyPermission([perm_key('product_variants.delete_all'), perm_key('admin.company'), perm_key('product_variants.delete_children'), perm_key('product_variants.delete_self')])) {
+                return api_forbidden('ليس لديك صلاحية لحذف متغيرات المنتجات.');
+            }
+
+            $request->validate([
+                'ids' => 'required|array',
+                'ids.*' => 'integer|exists:product_variants,id',
+            ]);
+
+            $idsToDelete = $request->input('ids');
+            $cannotDelete = []; // لتخزين المتغيرات التي لا يمكن حذفها بسبب المخزون
+
+            DB::beginTransaction();
+            try {
+                $deletedCount = 0;
+                foreach ($idsToDelete as $id) {
+                    $productVariant = ProductVariant::with(['company', 'creator', 'stocks', 'attributes'])->find($id);
+
+                    if ($productVariant) {
+                        // التحقق من صلاحيات الحذف لكل متغير
+                        $canDelete = false;
+                        if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
+                            $canDelete = true;
+                        } elseif ($authUser->hasAnyPermission([perm_key('product_variants.delete_all'), perm_key('admin.company')])) {
+                            $canDelete = $productVariant->belongsToCurrentCompany();
+                        } elseif ($authUser->hasPermissionTo(perm_key('product_variants.delete_children'))) {
+                            $canDelete = $productVariant->belongsToCurrentCompany() && $productVariant->createdByUserOrChildren();
+                        } elseif ($authUser->hasPermissionTo(perm_key('product_variants.delete_self'))) {
+                            $canDelete = $productVariant->belongsToCurrentCompany() && $productVariant->createdByCurrentUser();
+                        }
+
+                        if ($canDelete) {
+                            // التحقق من المخزون قبل الحذف
+                            if ($productVariant->stocks()->sum('quantity') > 0) {
+                                $cannotDelete[] = $productVariant->id; // إضافة معرف المتغير الذي لا يمكن حذفه
+                            } else {
+                                $productVariant->stocks()->delete();
+                                $productVariant->attributes()->detach();
+                                $productVariant->delete();
+                                $deletedCount++;
+                            }
+                        }
+                    }
+                }
+
+                if (!empty($cannotDelete)) {
+                    DB::rollBack(); // التراجع عن أي عمليات حذف تمت إذا كان هناك أي متغيرات لم تحذف
+                    return api_error('بعض متغيرات المنتجات لا يمكن حذفها لوجود كميات مخزنية مرتبطة بها.', ['ids_with_stock' => $cannotDelete], 409);
+                }
+
+                DB::commit();
+                return api_success([], "تم حذف {$deletedCount} متغير منتج بنجاح.");
+            } catch (ValidationException $e) {
+                DB::rollBack();
+                return api_error('فشل التحقق من صحة البيانات.', $e->errors(), 422);
+            } catch (Throwable $e) {
+                DB::rollBack();
+                return api_error('حدث خطأ أثناء حذف المتغيرات.', [], 500);
             }
         } catch (Throwable $e) {
             return api_exception($e);

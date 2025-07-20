@@ -34,7 +34,6 @@ class ProductController extends Controller
         'creator',
         'category',
         'brand',
-        'variants.attributes.values',
         'variants.stocks.warehouse',
         'variants.attributes.attribute',
         'variants.attributes.attributeValue',
