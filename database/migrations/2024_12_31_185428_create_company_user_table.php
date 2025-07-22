@@ -11,12 +11,16 @@ return new class extends Migration {
     public function up(): void
     {
         Schema::create('company_user', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('company_id')->constrained('companies')->onDelete('cascade');
-            $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
-            $table->foreignId('created_by')->constrained('users')->onDelete('cascade');
-            $table->timestamps();
-        });
+    $table->id();
+    $table->foreignId('company_id')->constrained('companies')->onDelete('cascade');
+    $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
+    $table->foreignId('created_by')->constrained('users')->onDelete('cascade');
+    
+    $table->enum('role', ['manager', 'employee', 'customer'])->default('customer');
+    $table->enum('status', ['active', 'pending', 'suspended'])->default('active');
+    
+    $table->timestamps();
+});
     }
 
     /**
