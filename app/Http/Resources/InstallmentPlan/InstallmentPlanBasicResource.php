@@ -41,7 +41,8 @@ class InstallmentPlanBasicResource extends JsonResource
         return match ($this->status) {
             'pending' => 'في الانتظار',
             'active' => 'نشطة',
-            'paid' => 'مدفوعة بالكامل',
+            'paid' => 'مدفوعة ',
+            'تم الدفع' => 'مدفوعة ',
             'canceled' => 'ملغاة',
             default => 'غير معروفة',
         };

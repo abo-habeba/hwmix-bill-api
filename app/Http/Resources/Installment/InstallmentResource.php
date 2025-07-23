@@ -37,7 +37,9 @@ class InstallmentResource extends JsonResource
     {
         return match ($this->status) {
             'pending' => 'في الانتظار',
+            'لم يتم الدفع' => 'في الانتظار',
             'paid' => 'مدفوع',
+            'تم الدفع' => 'مدفوع',
             'partially_paid' => 'مدفوع جزئياً',
             'canceled' => 'ملغى',
             'overdue' => 'متأخر', // حالة محتملة للأقساط
