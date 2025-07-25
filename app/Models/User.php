@@ -13,6 +13,7 @@ use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Role;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Auth;
 use Spatie\Permission\Traits\HasRoles;
 use Illuminate\Notifications\Notifiable;
 use App\Traits\Translations\Translatable;
@@ -217,47 +218,48 @@ class User extends Authenticatable
         DB::beginTransaction();
         try {
             $cashBox = null;
+
             if ($cashBoxId) {
-                // البحث عن صندوق نقدية محدد بمعرفه وتابع لهذا المستخدم
-                $cashBox = $this->cashBoxes()->where('id', $cashBoxId)->first();
+                // البحث عن صندوق نقدية محدد بمعرفه وتابع لهذا المستخدم مباشرة من قاعدة البيانات
+                $cashBox = CashBox::query()->where('id', $cashBoxId)->where('user_id', $this->id)->first();
+
+                $authCompanyId = Auth::check() ? Auth::user()->active_company_id : null;
+
+                if ($authCompanyId && $cashBox && $cashBox->company_id !== $authCompanyId) {
+                    DB::rollBack();
+                    throw new \Exception("الخزنة المحددة ID: {$cashBoxId} لا تتبع للشركة النشطة للمستخدم الحالي.");
+                }
             } else {
-                // البحث عن الصندوق الافتراضي للمستخدم في شركته النشطة
-                $cashBox = $this->cashBoxeDefault()->first();
+                // البحث عن الخزنة الافتراضية للمستخدم الحالي ($this) والتي تتبع الشركة النشطة للمستخدم الموثق
+                $authCompanyId = Auth::check() ? Auth::user()->active_company_id : null;
+
+                if (is_null($authCompanyId)) {
+                    DB::rollBack();
+                    throw new \Exception("لا توجد شركة نشطة للمستخدم الحالي لتحديد الخزنة الافتراضية.");
+                }
+                $cashBox = CashBox::query()->where('user_id', $this->id)->where('is_default', true)->where('company_id', $authCompanyId)->first();
             }
 
             if (!$cashBox) {
                 DB::rollBack();
-                Log::error('User Model Withdraw: لم يتم العثور على خزنة مناسبة.', [
-                    'user_id' => $this->id,
-                    'cash_box_id_param' => $cashBoxId,
-                    'company_id' => $this->company_id
-                ]);
-                throw new \Exception("لم يتم العثور على خزنة مناسبة للمستخدم ID: {$this->id} ومعرف الخزنة: {$cashBoxId}.");
+                throw new \Exception("لم يتم العثور على خزنة مناسبة للمستخدم ID: {$this->id} أو أنها لا تنتمي للمستخدم.");
             }
 
-            Log::info('User Model Withdraw: قبل الخصم.', [
-                'user_id' => $this->id,
-                'cash_box_id' => $cashBox->id,
-                'current_cash_box_balance' => $cashBox->balance,
-                'amount_to_withdraw' => $amount
-            ]);
+            if ($cashBox->balance < $amount) {
+                DB::rollBack();
+                throw new \Exception("رصيد الخزنة غير كافٍ لإجراء عملية السحب.");
+            }
 
             $cashBox->decrement('balance', $amount);
-
-            Log::info('User Model Withdraw: بعد الخصم.', [
-                'user_id' => $this->id,
-                'cash_box_id' => $cashBox->id,
-                'new_cash_box_balance' => $cashBox->balance
-            ]);
-
             DB::commit();
             return true;
         } catch (\Throwable $e) {
             DB::rollBack();
-            Log::error('User Model Withdraw: فشل السحب.', [
+            \Log::error('User Model Withdraw: فشل السحب.', [
                 'error' => $e->getMessage(),
                 'user_id' => $this->id,
                 'amount' => $amount,
+                'cash_box_id' => $cashBoxId,
                 'trace' => $e->getTraceAsString()
             ]);
             throw $e;
@@ -272,44 +274,47 @@ class User extends Authenticatable
      * @return bool True عند النجاح.
      * @throws \Exception عند الفشل (مثل عدم وجود خزنة).
      */
+
     public function deposit(float $amount, $cashBoxId = null): bool
     {
         $amount = floatval($amount);
         DB::beginTransaction();
         try {
             $cashBox = null;
+
             if ($cashBoxId) {
-                // البحث عن صندوق نقدية محدد بمعرفه وتابع لهذا المستخدم
-                $cashBox = $this->cashBoxes()->where('id', $cashBoxId)->first();
+                $cashBox = CashBox::query()
+                    ->where('id', $cashBoxId)
+                    ->where('user_id', $this->id)
+                    ->first();
+
+                $authCompanyId = Auth::check() ? Auth::user()->active_company_id : null;
+
+                if ($authCompanyId && $cashBox && $cashBox->company_id !== $authCompanyId) {
+                    DB::rollBack();
+                    throw new \Exception("الخزنة المحددة ID: {$cashBoxId} لا تتبع للشركة النشطة للمستخدم الحالي.");
+                }
             } else {
-                // البحث عن الصندوق الافتراضي للمستخدم في شركته النشطة
-                $cashBox = $this->cashBoxeDefault()->first();
+                $authCompanyId = Auth::check() ? Auth::user()->active_company_id : null;
+
+                if (is_null($authCompanyId)) {
+                    DB::rollBack();
+                    throw new \Exception("لا توجد شركة نشطة للمستخدم الحالي لتحديد الخزنة الافتراضية.");
+                }
+
+                $cashBox = CashBox::query()
+                    ->where('user_id', $this->id)
+                    ->where('is_default', true)
+                    ->where('company_id', $authCompanyId)
+                    ->first();
             }
 
             if (!$cashBox) {
                 DB::rollBack();
-                Log::error('User Model Deposit: لم يتم العثور على خزنة مناسبة.', [
-                    'user_id' => $this->id,
-                    'cash_box_id_param' => $cashBoxId,
-                    'company_id' => $this->company_id
-                ]);
-                throw new \Exception("لم يتم العثور على خزنة مناسبة للمستخدم ID: {$this->id} ومعرف الخزنة: {$cashBoxId}.");
+                throw new \Exception("لم يتم العثور على خزنة مناسبة للمستخدم ID: {$this->id} أو أنها لا تنتمي للمستخدم.");
             }
 
-            Log::info('User Model Deposit: قبل الإيداع.', [
-                'user_id' => $this->id,
-                'cash_box_id' => $cashBox->id,
-                'current_cash_box_balance' => $cashBox->balance,
-                'amount_to_deposit' => $amount
-            ]);
-
             $cashBox->increment('balance', $amount);
-
-            Log::info('User Model Deposit: بعد الإيداع.', [
-                'user_id' => $this->id,
-                'cash_box_id' => $cashBox->id,
-                'new_cash_box_balance' => $cashBox->balance
-            ]);
 
             DB::commit();
             return true;
@@ -319,12 +324,12 @@ class User extends Authenticatable
                 'error' => $e->getMessage(),
                 'user_id' => $this->id,
                 'amount' => $amount,
+                'cash_box_id' => $cashBoxId, // إضافة cash_box_id لتسجيل الأخطاء
                 'trace' => $e->getTraceAsString()
             ]);
             throw $e;
         }
     }
-
     public function transfer($cashBoxId, $targetUserId, $amount, $description = null)
     {
         $amount = floatval($amount);
