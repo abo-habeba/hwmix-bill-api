@@ -223,7 +223,7 @@ class User extends Authenticatable
                 // البحث عن صندوق نقدية محدد بمعرفه وتابع لهذا المستخدم مباشرة من قاعدة البيانات
                 $cashBox = CashBox::query()->where('id', $cashBoxId)->where('user_id', $this->id)->first();
 
-                $authCompanyId = Auth::check() ? Auth::user()->active_company_id : null;
+                $authCompanyId = Auth::check() ? Auth::user()->company_id : null;
 
                 if ($authCompanyId && $cashBox && $cashBox->company_id !== $authCompanyId) {
                     DB::rollBack();
@@ -231,7 +231,7 @@ class User extends Authenticatable
                 }
             } else {
                 // البحث عن الخزنة الافتراضية للمستخدم الحالي ($this) والتي تتبع الشركة النشطة للمستخدم الموثق
-                $authCompanyId = Auth::check() ? Auth::user()->active_company_id : null;
+                $authCompanyId = Auth::check() ? Auth::user()->company_id : null;
 
                 if (is_null($authCompanyId)) {
                     DB::rollBack();
@@ -284,18 +284,17 @@ class User extends Authenticatable
                     ->where('user_id', $this->id)
                     ->first();
 
-                $authCompanyId = Auth::check() ? Auth::user()->active_company_id : null;
+                $authCompanyId = Auth::check() ? Auth::user()->company_id : null;
 
                 if ($authCompanyId && $cashBox && $cashBox->company_id !== $authCompanyId) {
                     DB::rollBack();
                     throw new \Exception("الخزنة المحددة ID: {$cashBoxId} لا تتبع للشركة النشطة للمستخدم الحالي.");
                 }
             } else {
-                $authCompanyId = Auth::check() ? Auth::user()->active_company_id : null;
-
+                $authCompanyId = Auth::check() ? Auth::user()->company_id : null;
                 if (is_null($authCompanyId)) {
                     DB::rollBack();
-                    throw new \Exception("لا توجد شركة نشطة للمستخدم الحالي لتحديد الخزنة الافتراضية.");
+                    throw new \Exception("لا توجد شركة نشطة {$authCompanyId} للمستخدم {$this->nickname} الحالي لتحديد الخزنة الافتراضية.");
                 }
 
                 $cashBox = CashBox::query()
