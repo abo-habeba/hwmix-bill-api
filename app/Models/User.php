@@ -242,7 +242,7 @@ class User extends Authenticatable
 
             if (!$cashBox) {
                 DB::rollBack();
-                throw new \Exception("لم يتم العثور على خزنة مناسبة للمستخدم ID: {$this->id} أو أنها لا تنتمي للمستخدم.");
+                throw new \Exception("لم يتم العثور على خزنة مناسبة للمستخدم ID: {$this->nickname} أو أنها لا تنتمي للمستخدم.");
             }
 
 
@@ -307,7 +307,7 @@ class User extends Authenticatable
 
             if (!$cashBox) {
                 DB::rollBack();
-                throw new \Exception("لم يتم العثور على خزنة مناسبة للمستخدم ID: {$this->id} أو أنها لا تنتمي للمستخدم.");
+                throw new \Exception("لم يتم العثور على خزنة مناسبة للمستخدم ID: {$this->nickname} أو أنها لا تنتمي للمستخدم.");
             }
 
             $cashBox->increment('balance', $amount);
