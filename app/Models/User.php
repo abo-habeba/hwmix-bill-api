@@ -277,7 +277,6 @@ class User extends Authenticatable
         DB::beginTransaction();
         try {
             $cashBox = null;
-
             if ($cashBoxId) {
                 $cashBox = CashBox::query()
                     ->where('id', $cashBoxId)
