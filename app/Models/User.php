@@ -245,10 +245,6 @@ class User extends Authenticatable
                 throw new \Exception("لم يتم العثور على خزنة مناسبة للمستخدم ID: {$this->id} أو أنها لا تنتمي للمستخدم.");
             }
 
-            if ($cashBox->balance < $amount) {
-                DB::rollBack();
-                throw new \Exception("رصيد الخزنة غير كافٍ لإجراء عملية السحب.");
-            }
 
             $cashBox->decrement('balance', $amount);
             DB::commit();
