@@ -18,7 +18,7 @@ class InstallmentResource extends JsonResource
             'amount' => number_format($this->amount, 2, '.', ''), // تنسيق الرقم
             'status' => $this->status,
             'status_label' => $this->getStatusLabel(), // إضافة status_label
-            'paid_at' => $this->paid_at ? $this->paid_at->format('Y-m-d H:i:s') : null, // تنسيق التاريخ
+            'paid_at' => $this->paid_at ? $this->paid_at->format('Y-m-d') : null, // تنسيق التاريخ
             'remaining' => number_format($this->remaining, 2, '.', ''), // تنسيق الرقم
             'created_by' => $this->created_by,
             'user_id' => $this->user_id,
