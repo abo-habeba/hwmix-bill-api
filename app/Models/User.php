@@ -281,6 +281,16 @@ class User extends Authenticatable
         try {
             $cashBox = null;
             if ($cashBoxId) {
+                // قم بطباعة هذه القيم هنا للتحقق
+                dd([
+                    'cashBoxId' => $cashBoxId,
+                    'this_id' => $this->id, // ID الخاص بكائن المستخدم الذي تم استدعاء الدالة عليه
+                    'authUser_id' => $authUser->id, // ID الخاص بالمستخدم المسجل دخوله
+                    'cashBoxRecordExists' => CashBox::where('id', $cashBoxId)->exists(), // هل الخزنة بال ID هذا موجودة؟
+                    'cashBoxUserId' => CashBox::where('id', $cashBoxId)->value('user_id'), // ما هو الـ user_id المرتبط بهذه الخزنة؟
+                ]);
+            }
+            if ($cashBoxId) {
                 $cashBox = CashBox::query()->where('id', $cashBoxId)->where('user_id', $this->id)->first();
                 if (!$cashBox) {
                     DB::rollBack();
