@@ -231,8 +231,7 @@ class User extends Authenticatable
                 }
             } else {
                 // البحث عن الخزنة الافتراضية للمستخدم الحالي ($this) والتي تتبع الشركة النشطة للمستخدم الموثق
-                $authCompanyId = Auth::check() ? Auth::user()->company_id : null;
-
+                $authCompanyId =  Auth::user()->company_id ?? null;
                 if (is_null($authCompanyId)) {
                     DB::rollBack();
                     throw new \Exception("لا توجد شركة نشطة للمستخدم الحالي لتحديد الخزنة الافتراضية.");
@@ -242,7 +241,7 @@ class User extends Authenticatable
 
             if (!$cashBox) {
                 DB::rollBack();
-                throw new \Exception("لم يتم العثور على خزنة مناسبة للمستخدم ID: {$this->nickname} أو أنها لا تنتمي للمستخدم.");
+                throw new \Exception("لم يتم العثور على خزنة مناسبة للمستخدم : {$this->nickname}");
             }
 
 
