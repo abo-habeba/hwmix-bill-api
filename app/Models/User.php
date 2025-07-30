@@ -214,6 +214,7 @@ class User extends Authenticatable
     public function withdraw(float $amount, $cashBoxId = null): bool
     {
         $amount = floatval($amount);
+        $authCompanyId = Auth::user()->company_id ?? null;
 
         DB::beginTransaction();
         try {
@@ -223,20 +224,21 @@ class User extends Authenticatable
                 // البحث عن صندوق نقدية محدد بمعرفه وتابع لهذا المستخدم مباشرة من قاعدة البيانات
                 $cashBox = CashBox::query()->where('id', $cashBoxId)->where('user_id', $this->id)->first();
 
-                $authCompanyId = Auth::check() ? Auth::user()->company_id : null;
-
-                if ($authCompanyId && $cashBox && $cashBox->company_id !== $authCompanyId) {
+                if ($cashBox) {
                     DB::rollBack();
-                    throw new \Exception("الخزنة المحددة ID: {$cashBoxId} لا تتبع للشركة النشطة للمستخدم الحالي.");
+                    throw new \Exception("المستخدم ليس له خزنة.");
                 }
             } else {
                 // البحث عن الخزنة الافتراضية للمستخدم الحالي ($this) والتي تتبع الشركة النشطة للمستخدم الموثق
-                $authCompanyId =  Auth::user()->company_id ?? null;
                 if (is_null($authCompanyId)) {
                     DB::rollBack();
                     throw new \Exception("لا توجد شركة نشطة للمستخدم الحالي لتحديد الخزنة الافتراضية.");
                 }
                 $cashBox = CashBox::query()->where('user_id', $this->id)->where('is_default', true)->where('company_id', $authCompanyId)->first();
+                if ($cashBox) {
+                    DB::rollBack();
+                    throw new \Exception("المستخدم ليس له خزنة.");
+                }
             }
 
             if (!$cashBox) {
@@ -274,37 +276,31 @@ class User extends Authenticatable
     {
         $amount = floatval($amount);
         DB::beginTransaction();
+        $authCompanyId = Auth::user()->company_id ?? null;
         try {
             $cashBox = null;
             if ($cashBoxId) {
-                $cashBox = CashBox::query()
-                    ->where('id', $cashBoxId)
-                    ->where('user_id', $this->id)
-                    ->first();
-
-                $authCompanyId = Auth::check() ? Auth::user()->company_id : null;
-
-                if ($authCompanyId && $cashBox && $cashBox->company_id !== $authCompanyId) {
+                $cashBox = CashBox::query()->where('id', $cashBoxId)->where('user_id', $this->id)->first();
+                if ($cashBox) {
                     DB::rollBack();
-                    throw new \Exception("الخزنة المحددة ID: {$cashBoxId} لا تتبع للشركة النشطة للمستخدم الحالي.");
+                    throw new \Exception("المستخدم ليس له خزنة.");
                 }
             } else {
-                $authCompanyId = Auth::check() ? Auth::user()->company_id : null;
                 if (is_null($authCompanyId)) {
                     DB::rollBack();
                     throw new \Exception("لا توجد شركة نشطة {$authCompanyId} للمستخدم {$this->nickname} الحالي لتحديد الخزنة الافتراضية.");
                 }
+                $cashBox = CashBox::query()->where('user_id', $this->id)->where('is_default', true)->where('company_id', $authCompanyId)->first();
 
-                $cashBox = CashBox::query()
-                    ->where('user_id', $this->id)
-                    ->where('is_default', true)
-                    ->where('company_id', $authCompanyId)
-                    ->first();
+                if ($cashBox) {
+                    DB::rollBack();
+                    throw new \Exception("المستخدم ليس له خزنة.");
+                }
             }
 
             if (!$cashBox) {
                 DB::rollBack();
-                throw new \Exception("لم يتم العثور على خزنة مناسبة للمستخدم ID: {$this->nickname} أو أنها لا تنتمي للمستخدم.");
+                throw new \Exception("لم يتم العثور على خزنة مناسبة للمستخدم : {$this->nickname} ");
             }
 
             $cashBox->increment('balance', $amount);
