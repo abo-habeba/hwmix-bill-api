@@ -280,16 +280,13 @@ class User extends Authenticatable
         $authCompanyId = $authUser->company_id ?? null;
         try {
             $cashBox = null;
-            if ($cashBoxId) {
-                // قم بطباعة هذه القيم هنا للتحقق
-                dd([
-                    'cashBoxId' => $cashBoxId,
-                    'this_id' => $this->id, // ID الخاص بكائن المستخدم الذي تم استدعاء الدالة عليه
-                    'authUser_id' => $authUser->id, // ID الخاص بالمستخدم المسجل دخوله
-                    'cashBoxRecordExists' => CashBox::where('id', $cashBoxId)->exists(), // هل الخزنة بال ID هذا موجودة؟
-                    'cashBoxUserId' => CashBox::where('id', $cashBoxId)->value('user_id'), // ما هو الـ user_id المرتبط بهذه الخزنة؟
-                ]);
-            }
+            Log::info('Deposit debug info:', [
+                'cashBoxId' => $cashBoxId,
+                'this_id' => $this->id,
+                'authUser_id' => $authUser->id,
+                'cashBoxRecordExists' => CashBox::where('id', $cashBoxId)->exists(),
+                'cashBoxUserId' => CashBox::where('id', $cashBoxId)->value('user_id'),
+            ]);
             if ($cashBoxId) {
                 $cashBox = CashBox::query()->where('id', $cashBoxId)->where('user_id', $this->id)->first();
                 if (!$cashBox) {
