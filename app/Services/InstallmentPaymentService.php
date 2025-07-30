@@ -50,7 +50,6 @@ class InstallmentPaymentService
             }
             $clientCashBoxId = $options['user_cash_box_id'] ?? null;
             if (!$clientCashBoxId) {
-                $clientCashBoxId = $cashBoxId;
                 Log::warning('InstallmentPaymentService: لم يتم العثور على صندوق نقدي افتراضي للعميل. استخدام صندوق الموظف المستلم كبديل.', ['user_id' => $clientUser->id, 'fallback_cash_box_id' => $clientCashBoxId]);
             }
 
