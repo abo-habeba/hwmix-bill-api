@@ -14,11 +14,11 @@ class InstallmentResource extends JsonResource
             'id' => $this->id,
             'installment_plan_id' => $this->installment_plan_id,
             'installment_number' => $this->installment_number,
-            'due_date' => $this->due_date ? $this->due_date->format('Y-m-d H:i:s') : null, // تنسيق التاريخ
+            'due_date' => $this->due_date ? $this->due_date->format('Y-m-d') : null, // تنسيق التاريخ
             'amount' => number_format($this->amount, 2, '.', ''), // تنسيق الرقم
             'status' => $this->status,
             'status_label' => $this->getStatusLabel(), // إضافة status_label
-            'paid_at' => $this->paid_at ? $this->paid_at->format('Y-m-d') : null, // تنسيق التاريخ
+            'paid_at' => $this->paid_at ? $this->paid_at->format('Y-m-d H:i:s') : null, // تنسيق التاريخ
             'remaining' => number_format($this->remaining, 2, '.', ''), // تنسيق الرقم
             'created_by' => $this->created_by,
             'user_id' => $this->user_id,
