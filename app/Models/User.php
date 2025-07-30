@@ -282,7 +282,7 @@ class User extends Authenticatable
             $cashBox = null;
             if ($cashBoxId) {
                 $cashBox = CashBox::query()->where('id', $cashBoxId)->where('user_id', $this->id)->first();
-                if ($cashBox) {
+                if (!$cashBox) {
                     DB::rollBack();
                     throw new \Exception(" معرف الخزنه cashBoxId{$cashBoxId}المستخدم ليس له خزنة.");
                 }
@@ -293,7 +293,7 @@ class User extends Authenticatable
                 }
                 $cashBox = CashBox::query()->where('user_id', $this->id)->where('is_default', 1)->where('company_id', $authCompanyId)->first();
 
-                if ($cashBox) {
+                if (!$cashBox) {
                     DB::rollBack();
                     throw new \Exception(" المستخدم ليس له خزنة لنفس الشركة");
                 }
