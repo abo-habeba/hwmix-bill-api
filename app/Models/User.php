@@ -284,7 +284,7 @@ class User extends Authenticatable
                 $cashBox = CashBox::query()->where('id', $cashBoxId)->where('user_id', $this->id)->first();
                 if ($cashBox) {
                     DB::rollBack();
-                    throw new \Exception(" $cashBoxId{$cashBoxId}المستخدم ليس له خزنة.");
+                    throw new \Exception(" معرف الخزنه cashBoxId{$cashBoxId}المستخدم ليس له خزنة.");
                 }
             } else {
                 if (is_null($authCompanyId)) {
