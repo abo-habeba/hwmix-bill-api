@@ -276,7 +276,8 @@ class User extends Authenticatable
     {
         $amount = floatval($amount);
         DB::beginTransaction();
-        $authCompanyId = Auth::user()->company_id ?? null;
+        $authUser = Auth::user();
+        $authCompanyId = $authUser->company_id ?? null;
         try {
             $cashBox = null;
             if ($cashBoxId) {
@@ -290,11 +291,11 @@ class User extends Authenticatable
                     DB::rollBack();
                     throw new \Exception("لا توجد شركة نشطة {$authCompanyId} للمستخدم {$this->nickname} الحالي لتحديد الخزنة الافتراضية.");
                 }
-                $cashBox = CashBox::query()->where('user_id', $this->id)->where('is_default', true)->where('company_id', $authCompanyId)->first();
+                $cashBox = CashBox::query()->where('user_id', $this->id)->where('is_default', 1)->where('company_id', $authCompanyId)->first();
 
                 if ($cashBox) {
                     DB::rollBack();
-                    throw new \Exception("المستخدم ليس له خزنة.");
+                    throw new \Exception(" المستخدم ليس له خزنة لنفس الشركة");
                 }
             }
 
