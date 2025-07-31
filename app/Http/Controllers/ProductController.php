@@ -2,19 +2,20 @@
 
 namespace App\Http\Controllers;
 
+use Throwable;
+use App\Models\Stock;
+use App\Models\Product;
+use Illuminate\Http\Request;
+use App\Models\ProductVariant;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\Controller;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\ValidationException;
+use App\Http\Resources\Product\ProductResource;
 use App\Http\Requests\Product\StoreProductRequest;
 use App\Http\Requests\Product\UpdateProductRequest;
-use App\Http\Resources\Product\ProductResource;
-use App\Models\Product;
-use App\Models\ProductVariant;
-use App\Models\Stock;
-use Illuminate\Http\Request;
-use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
-use Throwable;
 
 /**
  * Class ProductController
@@ -49,17 +50,14 @@ class ProductController extends Controller
     public function index(Request $request): JsonResponse
     {
         try {
-            /** @var \App\Models\User|null $authUser */
             $authUser = Auth::user();
-
-
             if (!$authUser) {
                 return api_unauthorized('يتطلب المصادقة.');
             }
-            $query = Product::with($this->relations);
-            $companyId = $authUser->company_id ?? null;
 
-            // تتبع قيم perm_key
+            $companyId = $authUser->company_id;
+
+            // الصلاحيات
             $permKeys = [
                 'super' => perm_key('admin.super'),
                 'view_all' => perm_key('products.view_all'),
@@ -68,98 +66,101 @@ class ProductController extends Controller
                 'view_self' => perm_key('products.view_self'),
             ];
 
-            // منطق الصلاحيات
+            $baseQuery = Product::with($this->relations);
+
             if ($authUser->hasPermissionTo($permKeys['super'])) {
-                // لا شيء إضافي
+                // يرى الجميع
             } elseif ($authUser->hasAnyPermission([$permKeys['view_all'], $permKeys['admin_company']])) {
-                $query->whereCompanyIsCurrent();
+                $baseQuery->whereCompanyIsCurrent();
             } elseif ($authUser->hasPermissionTo($permKeys['view_children'])) {
-                $query->whereCompanyIsCurrent()->whereCreatedByUserOrChildren();
+                $baseQuery->whereCompanyIsCurrent()->whereCreatedByUserOrChildren();
             } elseif ($authUser->hasPermissionTo($permKeys['view_self'])) {
-                $query->whereCompanyIsCurrent()->whereCreatedByUser();
+                $baseQuery->whereCompanyIsCurrent()->whereCreatedByUser();
             } else {
                 return api_forbidden('ليس لديك صلاحية لعرض المنتجات.');
             }
 
-            // تطبيق الفلاتر
+            // إعدادات عامة
+            $perPage = max(1, $request->input('per_page', 20));
+            $page = max(1, $request->input('page', 1));
+            $sortField = $request->input('sort_by', 'created_at');
+            $sortOrder = $request->input('sort_order', 'desc');
+
+            $search = $request->input('search');
+            $baseQueryWithoutSearch = clone $baseQuery;
+
+            // فلترة البحث النصي العادي
             if ($request->filled('search')) {
-                $search = $request->input('search');
-                $query->where(function ($q) use ($search) {
-                    $q
-                        ->where('name', 'like', "%$search%")
+                $baseQuery->where(function ($q) use ($search) {
+                    $q->where('name', 'like', "%$search%")
                         ->orWhere('desc', 'like', "%$search%")
                         ->orWhere('slug', 'like', "%$search%")
-                        ->orWhereHas('category', function ($q) use ($search) {
+                        ->orWhereHas(
+                            'category',
+                            fn($q) =>
                             $q->where('name', 'like', "%$search%")
-                                ->orWhere('desc', 'like', "%$search%");
-                        })
-                        ->orWhereHas('brand', function ($q) use ($search) {
+                                ->orWhere('desc', 'like', "%$search%")
+                        )
+                        ->orWhereHas(
+                            'brand',
+                            fn($q) =>
                             $q->where('name', 'like', "%$search%")
-                                ->orWhere('desc', 'like', "%$search%");
-                        });
+                                ->orWhere('desc', 'like', "%$search%")
+                        );
                 });
             }
 
-            if ($request->filled('category_id')) {
-                $query->where('category_id', $request->input('category_id'));
-            }
+            // فلاتر إضافية
+            $baseQuery
+                ->when($request->filled('category_id'), fn($q) =>
+                $q->where('category_id', $request->input('category_id')))
+                ->when($request->filled('brand_id'), fn($q) =>
+                $q->where('brand_id', $request->input('brand_id')))
+                ->when($request->filled('active'), fn($q) =>
+                $q->where('active', (bool) $request->input('active')))
+                ->when($request->filled('featured'), fn($q) =>
+                $q->where('featured', (bool) $request->input('featured')));
 
-            if ($request->filled('brand_id')) {
-                $query->where('brand_id', $request->input('brand_id'));
-            }
+            // الترتيب
+            $baseQuery->orderBy($sortField, $sortOrder);
 
-            if ($request->filled('active')) {
-                $query->where('active', (bool) $request->input('active'));
-            }
+            // النتائج الأساسية
+            $products = $baseQuery->paginate($perPage);
 
-            if ($request->filled('featured')) {
-                $query->where('featured', (bool) $request->input('featured'));
-            }
-
-            // ترتيب و pagination
-            $perPage = (int) $request->input('per_page', 20);
-            $sortField = $request->input('sort_by', 'created_at');
-            $sortOrder = $request->input('sort_order', 'desc');
-            $products = $query->orderBy($sortField, $sortOrder);
-
-            if ($perPage == -1) {
-                $products = $products->get();
-            } else {
-                $products = $products->paginate(max(1, $perPage));
-            }
-
-            // لو فيه بحث ومفيش نتائج - نرجع اقتراحات
+            // البحث الذكي لو مفيش نتائج
             if ($products->isEmpty() && $request->filled('search')) {
-                $search = $request->input('search');
+                $allProducts = (clone $baseQueryWithoutSearch)->limit(300)->get();
 
-                $all = Product::limit(100)->get();
-                $similar = [];
-
-                foreach ($all as $product) {
-                    similar_text($product->name, $search, $percent);
-                    if ($percent >= 70) {
-                        $similar[] = $product;
-                    }
-                }
-
-                $page = $request->input('page', 1);
-                $perPage = max(1, $perPage);
-                $pagedResults = array_slice($similar, ($page - 1) * $perPage, $perPage);
-                $paginated = new \Illuminate\Pagination\LengthAwarePaginator(
-                    $pagedResults,
-                    count($similar),
+                $paginated = smart_search_paginated(
+                    $allProducts,
+                    $search,
+                    ['name', 'desc'],
+                    $request->query(),
+                    null,
                     $perPage,
-                    $page,
-                    ['path' => url()->current(), 'query' => $request->query()]
+                    $page
                 );
 
-                return api_success(ProductResource::collection($products), 'تم جلب نتائج مشابهة بناءً على البحث.');
+                return api_success(ProductResource::collection($paginated), 'تم إرجاع نتائج مقترحة بناءً على البحث.');
             }
+
+            if ($products->isEmpty()) {
+                return api_success([], 'لم يتم العثور على منتجات.');
+            }
+
             return api_success(ProductResource::collection($products), 'تم جلب المنتجات بنجاح.');
         } catch (Throwable $e) {
+            Log::error("فشل جلب المنتجات: " . $e->getMessage(), [
+                'exception' => $e,
+                'user_id' => $authUser->id ?? null,
+                'request_data' => $request->all()
+            ]);
+
             return api_exception($e);
         }
     }
+
+
     /**
      * Store a newly created resource in storage.
      *

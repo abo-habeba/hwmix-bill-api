@@ -32,6 +32,8 @@ if (!function_exists('api_success')) {
                 return response()->json([
                     'data' => $data->collection,
                     'total' => $original->total(),
+                    'message' => $message,
+                    'status' => true,
                 ], $code);
             }
         }

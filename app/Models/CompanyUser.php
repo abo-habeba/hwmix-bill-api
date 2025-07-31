@@ -2,13 +2,20 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
+use App\Traits\Scopes;
+use App\Traits\HasImages;
+use App\Traits\Filterable;
+use App\Traits\LogsActivity;
+use Spatie\Permission\Traits\HasRoles;
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\Translations\Translatable;
+use Spatie\Permission\Traits\HasPermissions;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class CompanyUser extends Model
 {
-    use HasFactory;
+    use HasFactory, Translatable, HasRoles, Filterable, Scopes, HasPermissions, LogsActivity, HasImages;
 
     /**
      * اسم الجدول المرتبط بالموديل.
