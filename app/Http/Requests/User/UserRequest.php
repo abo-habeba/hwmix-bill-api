@@ -22,12 +22,12 @@ class UserRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'phone' => 'required|string|max:15|unique:users,phone',
-            'password' => 'required|string|min:8',
-            'email' => "nullable|email|unique:users,email",
+            'phone' => 'nullable|string|max:15',
+            'password' => 'nullable|string|min:8',
+            'email' => "nullable|email",
             'full_name' => 'nullable|string|max:255',
             'nickname' => 'nullable|string|max:255',
-            'username' => "nullable|string|max:255|unique:users,username",
+            'username' => "nullable|string|max:255",
             'position' => 'nullable|string|max:255',
             'settings' => 'nullable|json',
             'last_login_at' => 'nullable|date',

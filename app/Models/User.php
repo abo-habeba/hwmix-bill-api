@@ -7,7 +7,6 @@ use App\Traits\Scopes;
 use App\Traits\HasImages;
 use App\Traits\Filterable;
 use App\Traits\LogsActivity;
-use App\Traits\RolePermissions;
 use App\Services\CashBoxService;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Support\Facades\DB;
@@ -22,6 +21,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany; // إضافة HasMany
+use Illuminate\Database\Eloquent\Relations\HasOne;   // إضافة HasOne
+
 
 /**
  * @method void deposit(float|int $amount)
@@ -30,30 +32,15 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable, Translatable, HasRoles, HasApiTokens, Filterable, Scopes, RolePermissions, LogsActivity, HasPermissions, HasImages;
+    use HasFactory, Notifiable, Translatable, HasRoles, HasApiTokens, Filterable, Scopes, HasPermissions, LogsActivity, HasImages;
 
     /**
      * The attributes that are mass assignable.
      *
      * @var array<int, string>
      */
-    protected $fillable = [
-        'nickname',
-        'full_name',
-        'username',
-        'email',
-        'password',
-        'phone',
-        'position',
-        'settings',
-        'last_login_at',
-        'email_verified_at',
-        'company_id',
-        'created_by',
-        // 'balance', // تم التعليق عليه - الرصيد يدار في CashBox
-        'status',
-        'customer_type',
-    ];
+
+    protected $guarded = [];
 
     /**
      * The attributes that should be hidden for serialization.
@@ -82,6 +69,8 @@ class User extends Authenticatable
     {
         static::created(function (User $user) {
             app(\App\Services\CashBoxService::class)->ensureCashBoxForUser($user);
+            // يجب تحديث هذه الدالة لإنشاء سجل CompanyUser الافتراضي أيضاً
+            // For new users, ensure a default CompanyUser entry is created if not already (e.g., for system default company)
         });
     }
 
@@ -90,32 +79,12 @@ class User extends Authenticatable
         return $this->morphMany(Translation::class, 'model');
     }
 
-    public function companies()
-    {
-        return $this
-            ->belongsToMany(Company::class, 'company_user', 'user_id', 'company_id')
-            ->withTimestamps()
-            ->withPivot('created_by');
-    }
-
-    public function companyUsersCash()
-    {
-        return $this
-            ->belongsToMany(Company::class, 'user_company_cash', 'user_id', 'company_id')
-            ->withPivot('cash_box_id', 'created_by');
-    }
-
-    public function cashBoxes()
-    {
-        return $this->hasMany(CashBox::class, 'user_id');
-    }
-
     /**
      * علاقة المستخدم بالخزنة الافتراضية.
      *
      * @return \Illuminate\Database\Eloquent\Relations\HasOne
      */
-    public function cashBoxeDefault()
+    public function cashBoxDefault()
     {
         return $this->hasOne(CashBox::class, 'user_id', 'id')
             ->where(function ($query) {
@@ -126,35 +95,96 @@ class User extends Authenticatable
                 }
             });
     }
+    /**
+     * علاقة المستخدم بالشركات التي ينتمي إليها عبر جدول الوسيط company_user.
+     */
+    public function companies(): BelongsToMany
+    {
+        return $this
+            ->belongsToMany(Company::class, 'company_users', 'user_id', 'company_id')
+            ->withTimestamps()
+            ->withPivot([
+                'nickname_in_company', // إضافة الحقول الجديدة هنا
+                'full_name_in_company',
+                'position_in_company',
+                'balance_in_company',
+                'customer_type_in_company',
+                'status', // الحقل 'status' موجود في جدول company_users الأصلي لديك
+                'user_phone',
+                'user_email',
+                'user_username',
+                'created_by'
+            ]);
+    }
 
     /**
-     * Get the balance of a specific or the default cash box for the active company.
+     * علاقة المستخدم بسجلات CompanyUser الخاصة به.
+     */
+    public function companyUsers(): HasMany
+    {
+        return $this->hasMany(CompanyUser::class, 'user_id');
+    }
+
+    /**
+     * الحصول على سجل CompanyUser الخاص بالمستخدم للشركة النشطة حاليًا.
+     * يفترض أنك تخزن company_id في المستخدم الموثق أو تمررها بطريقة ما.
+     */
+    public function activeCompanyUser(): HasOne
+    {
+        //  نفترض أن $this->company_id يمثل الـ company_id النشطة للمستخدم الموثق.
+        //  إذا كان الـ company_id ليس جزءًا من User Model، يجب الحصول عليه من سياق الطلب (Auth::user()->company_id)
+        //  أو تمريره كمعامل.
+        $activeCompanyId = Auth::user()->company_id ?? null; // أو أي طريقة أخرى للحصول على الشركة النشطة
+
+        return $this->hasOne(CompanyUser::class, 'user_id')
+            ->where('company_id', $activeCompanyId);
+    }
+
+
+    public function companyUsersCash()
+    {
+        return $this
+            ->belongsToMany(Company::class, 'user_company_cash', 'user_id', 'company_id')
+            ->withPivot('cash_box_id', 'created_by');
+    }
+
+    public function cashBoxes(): HasMany
+    {
+        return $this->hasMany(CashBox::class, 'user_id');
+    }
+
+
+    /**
+     * الحصول على رصيد صندوق نقدية محدد أو صندوق النقدية الافتراضي للشركة النشطة.
      *
      * @param int|null $id معرف صندوق النقدية.
      * @return float
      */
-    public function balanceBox($id = null)
+    public function balanceBox($id = null): float
     {
         $cashBox = null;
         if ($id) {
-            $cashBox = $this->cashBoxes()->where('id', $id)->where('company_id', $this->company_id)->first();
+            // البحث عن صندوق نقدية محدد يخص هذا المستخدم والشركة النشطة
+            $cashBox = $this->cashBoxes()->where('id', $id)
+                ->where('company_id', Auth::user()->company_id ?? null)
+                ->first();
         } else {
             // استدعاء العلاقة كدالة ثم استخدام first() للحصول على النموذج
-            $cashBox = $this->cashBoxeDefault()->first();
+            $cashBox = $this->cashBoxDefault()->first();
         }
         return $cashBox ? $cashBox->balance : 0.0;
     }
 
-    public function cashBoxesByCompany()
+    public function cashBoxesByCompany(): \Illuminate\Database\Eloquent\Collection
     {
-        return $this->cashBoxes()->where('company_id', $this->company_id)->get();
+        return $this->cashBoxes()->where('company_id', Auth::user()->company_id ?? null)->get();
     }
 
     public function createdRoles()
     {
         return $this->hasManyThrough(
             Role::class,
-            RoleCompany::class,
+            RoleCompany::class, // يفترض وجود RoleCompany Model أو جدول وسيط
             'created_by',
             'id',
             'id',
@@ -162,12 +192,12 @@ class User extends Authenticatable
         );
     }
 
-    public function installments()
+    public function installments(): HasMany
     {
         return $this->hasMany(Installment::class, 'user_id');
     }
 
-    public function createdInstallments()
+    public function createdInstallments(): HasMany
     {
         return $this->hasMany(Installment::class, 'created_by');
     }
@@ -188,7 +218,7 @@ class User extends Authenticatable
         });
     }
 
-    public function transactions()
+    public function transactions(): HasMany
     {
         return $this->hasMany(Transaction::class, 'user_id');
     }
@@ -198,7 +228,7 @@ class User extends Authenticatable
         return $this->belongsTo(User::class, 'created_by');
     }
 
-    public function payments()
+    public function payments(): HasMany
     {
         return $this->hasMany(Payment::class);
     }
@@ -327,19 +357,28 @@ class User extends Authenticatable
             throw $e;
         }
     }
+
     public function transfer($cashBoxId, $targetUserId, $amount, $description = null)
     {
         $amount = floatval($amount);
-        if (!$this->hasAnyPermission(['super_admin', 'transfer', 'company_owner'])) {
+        // التحقق من الصلاحيات يجب أن يتم بناءً على السياق (شركة معينة)
+        // قد تحتاج إلى صلاحية مثل 'transfer_in_company'
+        if (!$this->hasAnyPermission(['super_admin', 'transfer'])) { // أزلت 'company_owner' هنا لتبسيط المثال، لكن يجب أن تحدد الصلاحيات بدقة
             throw new Exception('Unauthorized: You do not have permission to transfer.');
         }
 
         DB::beginTransaction();
 
         try {
+            // جلب صندوق النقدية للمرسل مع التأكد أنه يخص الشركة النشطة للمستخدم الموثق
+            $authCompanyId = Auth::user()->company_id ?? null;
+            if (is_null($authCompanyId)) {
+                throw new Exception("لا توجد شركة نشطة للمستخدم الموثق لإجراء التحويل.");
+            }
+
             $cashBox = $this->cashBoxes()
                 ->where('id', $cashBoxId)
-                ->where('company_id', $this->company_id)
+                ->where('company_id', $authCompanyId) // استخدام الشركة النشطة للمستخدم الموثق
                 ->firstOrFail();
 
             if ($cashBox->balance < $amount) {
@@ -347,51 +386,49 @@ class User extends Authenticatable
             }
 
             $targetUser = User::findOrFail($targetUserId);
+            // جلب صندوق نقدية المستلم بنفس نوع النقدية ونفس الشركة النشطة
             $targetCashBox = $targetUser->cashBoxes()
                 ->where('cash_type', $cashBox->cash_type)
-                ->where('company_id', $this->company_id)
+                ->where('company_id', $authCompanyId) // المستلم يجب أن يكون لديه خزنة في نفس الشركة
                 ->first();
 
             if (!$targetCashBox) {
-                throw new Exception('Target user does not have a matching cash box.');
+                throw new Exception('Target user does not have a matching cash box in the active company.');
             }
 
             $cashBox->decrement('balance', $amount);
             $targetCashBox->increment('balance', $amount);
 
-            Transaction::create([
+            // إنشاء المعاملة للمرسل
+            $senderTransaction = Transaction::create([
                 'user_id' => $this->id,
                 'cashbox_id' => $cashBox->id,
                 'target_user_id' => $targetUserId,
                 'target_cashbox_id' => $targetCashBox->id,
                 'created_by' => $this->id,
-                'company_id' => $cashBox->company_id,
-                'type' => 'تحويل',
+                'company_id' => $authCompanyId,
+                'type' => 'تحويل_صادر', // نوع المعاملة ليكون أوضح
                 'amount' => $amount,
-                'balance_before' => $cashBox->balance + $amount,
-                'balance_after' => $cashBox->balance,
+                'balance_before' => $cashBox->balance + $amount, // الرصيد قبل التحديث
+                'balance_after' => $cashBox->balance, // الرصيد بعد التحديث
                 'description' => $description,
                 'original_transaction_id' => null,
             ]);
 
-            // تأكد من أن $transaction معرف هنا قبل استخدامه
-            // إذا لم يكن معرفًا، ستحتاج إلى جلب المعاملة الأولى بعد إنشائها
-            // أو تغيير منطق إنشاء المعاملة الثانية
-            // For example: $transactionId = $transaction->id;
-            // ثم استخدم $transactionId في المعاملة الثانية
+            // إنشاء المعاملة للمستلم
             Transaction::create([
                 'user_id' => $targetUserId,
                 'cashbox_id' => $targetCashBox->id,
                 'target_user_id' => $this->id,
                 'target_cashbox_id' => $cashBox->id,
                 'created_by' => $this->id,
-                'company_id' => $targetCashBox->company_id,
-                'type' => 'إيداع',
+                'company_id' => $authCompanyId,
+                'type' => 'تحويل_وارد', // نوع المعاملة ليكون أوضح
                 'amount' => $amount,
-                'balance_before' => $targetCashBox->balance - $amount,
-                'balance_after' => $targetCashBox->balance,
+                'balance_before' => $targetCashBox->balance - $amount, // الرصيد قبل التحديث
+                'balance_after' => $targetCashBox->balance, // الرصيد بعد التحديث
                 'description' => 'Received from transfer',
-                'original_transaction_id' => null, // يجب أن يكون هنا $transaction->id
+                'original_transaction_id' => $senderTransaction->id, // ربط المعاملتين
             ]);
 
             DB::commit();
@@ -408,39 +445,53 @@ class User extends Authenticatable
         }
     }
 
-    public function invoices()
+    public function invoices(): HasMany
     {
         return $this->hasMany(Invoice::class);
     }
 
-    public function installmentPlans()
+    public function installmentPlans(): HasMany
     {
         return $this->hasMany(InstallmentPlan::class);
     }
 
     /**
      * إرجاع جميع معرفات المستخدمين التابعين للمستخدم الحالي داخل الشركة النشطة فقط.
+     * يجب أن تأخذ هذه الدالة في الاعتبار العلاقة الجديدة CompanyUser
+     * وتعتمد على 'created_by' في جدول company_user.
      *
      * @return array
      */
     public function getDescendantUserIds(): array
     {
-        $companyId = $this->company_id;
+        // يجب أن نحدد الشركة النشطة بشكل واضح
+        $companyId = Auth::user()->company_id ?? null; // أو أي طريقة أخرى للحصول على الشركة النشطة
+
+        if (is_null($companyId)) {
+            return []; // إذا لم تكن هناك شركة نشطة، لا يوجد تابعون في سياق الشركة
+        }
+
         $descendants = [];
         $stack = [$this->id];
+
         while (!empty($stack)) {
             $parentId = array_pop($stack);
-            $children = self::where('created_by', $parentId)
+            // البحث عن التابعين في جدول company_user بناءً على created_by_id في company_user
+            // هذا يتطلب أن يكون لديك حقل created_by_id في جدول company_user يشير إلى user_id
+            // إذا كان 'created_by' في company_user يشير إلى user_id في users، فهذا هو الصحيح.
+            $children = CompanyUser::where('created_by', $parentId)
                 ->where('company_id', $companyId)
-                ->pluck('id')
+                ->pluck('user_id') // نأخذ user_id من CompanyUser
                 ->toArray();
-            foreach ($children as $childId) {
-                if (!in_array($childId, $descendants)) {
-                    $descendants[] = $childId;
-                    $stack[] = $childId;
+
+            foreach ($children as $childUserId) {
+                if (!in_array($childUserId, $descendants)) {
+                    $descendants[] = $childUserId;
+                    $stack[] = $childUserId;
                 }
             }
         }
+        // إزالة المستخدم الحالي من قائمة التابعين إذا كان موجودًا
         if (($key = array_search($this->id, $descendants)) !== false) {
             unset($descendants[$key]);
         }
@@ -448,18 +499,41 @@ class User extends Authenticatable
     }
 
     /**
-     * Ensure the user has a cash box for every company they belong to.
+     * التأكد من وجود صناديق نقدية للمستخدم في جميع الشركات التي ينتمي إليها.
+     * يجب تحديث هذه الدالة لتعمل مع هيكل CompanyUser الجديد.
      */
     public function ensureCashBoxesForAllCompanies(): void
     {
+        // إذا كان المستخدم super_admin، يتم إنشاء صناديق نقدية له في جميع الشركات
         if ($this->hasPermissionTo(perm_key('admin.super'))) {
             $companies = Company::all();
         } else {
-            $companies = $this->companies;
+            // جلب الشركات التي يرتبط بها المستخدم مباشرة عبر جدول company_user
+            // لاحظ أن العلاقة companies() هنا ستجلب Companies المرتبطة بـ CompanyUser
+            $companies = $this->companies; // هذه العلاقة تجلب موديلات Company
         }
 
         $companyIds = $companies->pluck('id')->toArray();
 
+        // تمرير معرفات الشركات إلى خدمة CashBoxService
+        // created_by سيكون هو معرف المستخدم الذي أضاف هذا المستخدم للشركة (من جدول company_user)
+        // أو إذا كان المستخدم هو نفسه الذي أنشأ، فسيكون $this->id
+        // هذه الدالة في CashBoxService ستحتاج إلى تحديث لتتعامل مع CompanyUser
         app(CashBoxService::class)->ensureCashBoxesForUserCompanies($this, $companyIds, $this->created_by ?? $this->id);
+    }
+
+    public function getVisibleCompaniesForUser()
+    {
+        // Debugging: تحقق من محتوى $this->companies
+
+        // Debugging: تأكد من أن $this->companies هو Collection فارغة إذا لم تكن هناك علاقات
+        if ($this->companies->isEmpty()) {
+        } else {
+        }
+
+        if ($this->hasPermissionTo(perm_key('admin.super'))) {
+            return \App\Models\Company::all();
+        }
+        return $this->companies;
     }
 }

@@ -25,7 +25,7 @@ class InvoiceController extends Controller
     public function __construct()
     {
         $this->relations = [
-            'user.cashBoxeDefault',
+            'user.cashBoxDefault',
             'company',
             'invoiceType',
             'items.variant',
