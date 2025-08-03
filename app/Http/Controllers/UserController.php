@@ -439,78 +439,48 @@ class UserController extends Controller
         $canUpdateChildren = $authUser->hasPermissionTo(perm_key('users.update_children'));
         $canUpdateSelf = $authUser->hasPermissionTo(perm_key('users.update_self'));
 
-        Log::info('Update User Request Initiated', [
-            'auth_user_id' => $authUser->id,
-            'target_user_id' => $user->id,
-            'is_super_admin' => $isSuperAdmin,
-            'is_company_admin' => $isCompanyAdmin,
-            'can_update_all_users' => $canUpdateAllUsers,
-            'can_update_children' => $canUpdateChildren,
-            'can_update_self' => $canUpdateSelf,
-            'validated_data' => $validated, // عرض جميع البيانات المتحقق منها
-        ]);
-
         DB::beginTransaction();
         try {
             // متغير لتتبع ما إذا كان المستخدم الحالي هو نفسه المستخدم المستهدف
             $isUpdatingSelf = ($authUser->id === $user->id);
 
-            // --- تحديث جدول المستخدمين (users) ---
+            // --- تحضير بيانات تحديث جدول users ---
             $userDataToUpdate = [];
             if (isset($validated['username'])) $userDataToUpdate['username'] = $validated['username'];
-            if (isset($validated['email']))    $userDataToUpdate['email']    = $validated['email'];
-            if (isset($validated['phone']))    $userDataToUpdate['phone']    = $validated['phone'];
-            if (isset($validated['password'])) $userDataToUpdate['password'] = $validated['password'];
-            if (isset($validated['full_name'])) $userDataToUpdate['full_name'] = $validated['full_name'];
-            if (isset($validated['position'])) $userDataToUpdate['position'] = $validated['position'];
-            if (isset($validated['settings'])) $userDataToUpdate['settings'] = $validated['settings'];
+            if (isset($validated['email']))      $userDataToUpdate['email']      = $validated['email'];
+            if (isset($validated['phone']))      $userDataToUpdate['phone']      = $validated['phone'];
+            if (isset($validated['password']))   $userDataToUpdate['password']   = $validated['password'];
+            if (isset($validated['full_name']))  $userDataToUpdate['full_name']  = $validated['full_name'];
+            if (isset($validated['position']))   $userDataToUpdate['position']   = $validated['position'];
+            if (isset($validated['settings']))   $userDataToUpdate['settings']   = $validated['settings'];
             if (isset($validated['last_login_at'])) $userDataToUpdate['last_login_at'] = $validated['last_login_at'];
             if (isset($validated['email_verified_at'])) $userDataToUpdate['email_verified_at'] = $validated['email_verified_at'];
-            // created_by لا يتم تحديثه عادةً هنا
 
-            Log::info('User Data To Update (users table)', ['data' => $userDataToUpdate]);
-
-            // منطق تحديث جدول users: المستخدم نفسه بصلاحية update_self أو السوبر أدمن
-            if ($isUpdatingSelf) {
-                Log::info('Updating self scenario');
-                if (!$canUpdateSelf) {
-                    DB::rollback();
-                    Log::warning('Forbidden: User attempting to update self without users.update_self permission.');
-                    return api_forbidden('ليس لديك صلاحية لتعديل حسابك الشخصي.');
-                }
+            // --- حالة تحديث المستخدم لنفسه ---
+            if ($isUpdatingSelf && $canUpdateSelf) {
                 if (!empty($userDataToUpdate)) {
                     $user->update($userDataToUpdate);
-                    Log::info('User (self) table updated successfully.', ['user_id' => $user->id, 'updated_fields' => array_keys($userDataToUpdate)]);
-                } else {
-                    Log::info('User (self) table not updated: No user data to update provided.');
                 }
-            } elseif ($isSuperAdmin) {
-                Log::info('Super Admin updating other user scenario');
-                if (!empty($userDataToUpdate)) {
-                    $user->update($userDataToUpdate);
-                    Log::info('User (super admin) table updated successfully.', ['user_id' => $user->id, 'updated_fields' => array_keys($userDataToUpdate)]);
-                } else {
-                    Log::info('User (super admin) table not updated: No user data to update provided.');
+                if ($request->has('images_ids')) {
+                    $user->syncImages($request->input('images_ids'), 'avatar');
                 }
-            } else {
-                Log::info('User (non-super admin, non-self) attempting to update users table. No update allowed for users table.');
+                $user->logUpdated('بتحديث المستخدم ' . ($user->activeCompanyUser->nickname_in_company ?? $user->username));
+                DB::commit();
+                Log::info('User self-update transaction committed successfully and function ended.', ['user_id' => $user->id]);
+                return api_success(new UserResource($user->load($this->relations)), 'تم تحديث المستخدم بنجاح');
             }
 
-
-            // --- تحديث جدول الشركة-المستخدم الوسيط (company_users) ---
+            // --- تحضير بيانات تحديث جدول الشركة-المستخدم الوسيط (company_users) ---
             $companyUserDataToUpdate = [];
-            // الحقول التي يمكن تحديثها في جدول company_users من الـ $validated
             if (isset($validated['nickname'])) $companyUserDataToUpdate['nickname_in_company'] = $validated['nickname'];
             if (isset($validated['full_name'])) $companyUserDataToUpdate['full_name_in_company'] = $validated['full_name'];
             if (isset($validated['position'])) $companyUserDataToUpdate['position_in_company'] = $validated['position'];
             if (isset($validated['customer_type'])) $companyUserDataToUpdate['customer_type_in_company'] = $validated['customer_type'];
             if (isset($validated['status'])) $companyUserDataToUpdate['status'] = $validated['status'];
             if (isset($validated['balance'])) $companyUserDataToUpdate['balance_in_company'] = $validated['balance'];
-
-            // هذه الحقول يجب أن تأتي من User Model بعد تحديثه، لضمان التناسق
-            $companyUserDataToUpdate['user_phone']    = $user->phone;
-            $companyUserDataToUpdate['user_email']    = $user->email;
-            $companyUserDataToUpdate['user_username'] = $user->username;
+            if (isset($validated['phone'])) $companyUserDataToUpdate['user_phone'] = $validated['phone'];
+            if (isset($validated['email'])) $companyUserDataToUpdate['user_email'] = $validated['email'];
+            if (isset($validated['username'])) $companyUserDataToUpdate['user_username'] = $validated['username'];
 
             Log::info('CompanyUser Data To Update (company_users table) - Base data for syncing:', ['data' => $companyUserDataToUpdate]);
 
@@ -521,85 +491,68 @@ class UserController extends Controller
             } elseif ($canUpdateChildren) {
                 $descendantUserIds = $authUser->getDescendantUserIds();
                 $canUpdateAnyCompanyUser = in_array($user->id, $descendantUserIds);
-            } elseif ($isUpdatingSelf && $canUpdateSelf) {
-                $canUpdateAnyCompanyUser = true;
             }
 
-            // Scenario 1: Super Admin or Company Admin with company_ids array for multi-company sync
-            if ($authUser->hasAnyPermission([perm_key('admin.super'), perm_key('admin.company')]) && array_key_exists('company_ids', $validated)) {
+            // --- منطق تحديث المسؤولين ---
+            if ($isSuperAdmin) {
+                // تحديث جدول users للمستخدم المستهدف
+                if (!empty($userDataToUpdate)) {
+                    $user->update($userDataToUpdate);
+                }
+            } elseif ($canUpdateChildren) {
+                // تحقق من صلاحية تحديث الأبناء
+                $descendantUserIds = $authUser->getDescendantUserIds();
+                if (!in_array($user->id, $descendantUserIds)) {
+                    DB::rollback();
+                    return api_forbidden('ليس لديك صلاحية لتعديل هذا المستخدم.');
+                }
+            }
+
+            // --- تحديث العلاقات بين المستخدم والشركات (للمسؤولين) ---
+            if ($authUser->hasAnyPermission([perm_key('admin.super'), perm_key('admin.company')]) && array_key_exists('company_ids', $validated) && !empty($validated['company_ids'])) {
                 Log::info('Admin/Super Admin syncing multiple company_ids for user.', ['user_id' => $user->id, 'company_ids_from_request' => $validated['company_ids']]);
+
                 $companyIdsFromRequest = collect($validated['company_ids'])
                     ->filter(fn($id) => !empty($id) && is_numeric($id))
                     ->values()
                     ->toArray();
 
-                // للحفاظ على مزامنة company_id في جدول users مع إحدى الشركات النشطة
                 if (!empty($companyIdsFromRequest)) {
-                    if ($user->company_id && !in_array($user->company_id, $companyIdsFromRequest)) {
-                        $user->update(['company_id' => $companyIdsFromRequest[0]]);
-                        Log::info('User main company_id updated.', ['user_id' => $user->id, 'new_company_id' => $companyIdsFromRequest[0]]);
-                    } elseif (!$user->company_id) {
-                        $user->update(['company_id' => $companyIdsFromRequest[0]]);
-                        Log::info('User main company_id set for the first time.', ['user_id' => $user->id, 'new_company_id' => $companyIdsFromRequest[0]]);
+                    foreach ($companyIdsFromRequest as $companyId) {
+                        CompanyUser::updateOrCreate(
+                            ['user_id' => $user->id, 'company_id' => $companyId],
+                            array_merge($companyUserDataToUpdate, [
+                                'created_by' => $authUser->id,
+                            ])
+                        );
+                        Log::info('CompanyUser relation updated/created.', ['user_id' => $user->id, 'company_id' => $companyId]);
                     }
-                } else {
-                    $user->update(['company_id' => null]);
-                    Log::info('User main company_id set to null as no companies provided.', ['user_id' => $user->id]);
                 }
-
-                foreach ($companyIdsFromRequest as $companyId) {
-                    CompanyUser::updateOrCreate(
-                        ['user_id' => $user->id, 'company_id' => $companyId],
-                        array_merge($companyUserDataToUpdate, [
-                            'created_by' => $authUser->id,
-                        ])
-                    );
-                    Log::info('CompanyUser relation updated/created (from company_ids loop).', ['user_id' => $user->id, 'company_id' => $companyId]);
-                }
-                // حذف العلاقات التي لم تعد موجودة في الطلب
-                $user->companyUsers()->whereNotIn('company_id', $companyIdsFromRequest)->delete();
-                Log::info('CompanyUser relations deleted for removed companies.', ['user_id' => $user->id, 'removed_companies' => $user->companyUsers()->whereNotIn('company_id', $companyIdsFromRequest)->pluck('company_id')->toArray()]);
-                app(CashBoxService::class)->ensureCashBoxesForUserCompanies($user, $companyIdsFromRequest); // تحديث صناديق الكاش بناءً على الشركات المحدثة
-                Log::info('Cash boxes ensured for user companies.', ['user_id' => $user->id]);
-            }
-            // Scenario 2: Other permissions (e.g., users.update_all, users.update_children, users.update_self)
-            // or if company_ids was NOT provided/handled by the first block
-            elseif ($canUpdateAnyCompanyUser && $activeCompanyId) { // Check general permission and active company
+            } elseif ($canUpdateAnyCompanyUser && $activeCompanyId) {
                 Log::info('Updating active company user record.', ['user_id' => $user->id, 'active_company_id' => $activeCompanyId]);
-                $companyUser = CompanyUser::where('user_id', $user->id)
-                    ->where('company_id', $activeCompanyId)
-                    ->first();
 
-                if (!$companyUser) {
+                $companyUser = CompanyUser::where('user_id', $user->id)->where('company_id', $activeCompanyId)->first();
+
+                if ($companyUser) {
+                    $companyUser->update($companyUserDataToUpdate);
+                    Log::info('CompanyUser table (active company) updated successfully.', ['company_user_id' => $companyUser->id, 'updated_fields' => array_keys($companyUserDataToUpdate)]);
+                } else {
                     DB::rollback();
                     Log::warning('Forbidden: CompanyUser not found for target user in active company.', ['user_id' => $user->id, 'company_id' => $activeCompanyId]);
                     return api_not_found('المستخدم غير مرتبط بالشركة النشطة لتعديل بياناته.');
                 }
-                if (!empty($companyUserDataToUpdate)) {
-                    $companyUser->update($companyUserDataToUpdate);
-                    Log::info('CompanyUser table (active company) updated successfully.', ['company_user_id' => $companyUser->id, 'updated_fields' => array_keys($companyUserDataToUpdate)]);
-                } else {
-                    Log::info('CompanyUser table (active company) not updated: No company user data to update provided.');
-                }
-            } else {
-                // إذا لم يكن هناك صلاحية لتحديث بيانات company_users (لأي سيناريو)
-                // ولم يتم إرسال company_ids، فلن يتم تحديث أي سجلات company_users.
-                Log::info('CompanyUser update skipped: No relevant permission or company_ids not provided/handled.');
             }
 
-
-            // معالجة images_ids (تظل كما هي)
+            // معالجة images_ids
             if ($request->has('images_ids')) {
                 $imagesIds = $request->input('images_ids');
                 $user->syncImages($imagesIds, 'avatar');
                 Log::info('Images synced for user.', ['user_id' => $user->id, 'image_ids' => $imagesIds]);
             }
-
             $user->logUpdated('بتحديث المستخدم ' . ($user->activeCompanyUser->nickname_in_company ?? $user->username));
             DB::commit();
             Log::info('User update transaction committed successfully.', ['user_id' => $user->id]);
 
-            // العودة بـ UserResource محملًا بالبيانات المحدثة (خاصة activeCompanyUser)
             return api_success(new UserResource($user->load($this->relations)), 'تم تحديث المستخدم بنجاح');
         } catch (Throwable $e) {
             DB::rollback();
@@ -738,8 +691,6 @@ class UserController extends Controller
 
             // قد تحتاج هنا إلى إعادة تحميل العلاقات لضمان أن activeCompanyUser تعكس التغيير
             $user->load('activeCompanyUser.company');
-
-            $user->logUpdated('بتغيير الشركة النشطة للمستخدم ' . $user->username . ' إلى الشركة رقم ' . $newCompanyId);
             DB::commit();
 
             return api_success(new UserResource($user), 'تم تغيير الشركة النشطة للمستخدم بنجاح.');
