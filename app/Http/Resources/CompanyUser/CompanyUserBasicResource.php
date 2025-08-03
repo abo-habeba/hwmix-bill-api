@@ -15,8 +15,6 @@ class CompanyUserBasicResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        // هذا الـ Resource يتلقى نموذج CompanyUser
-        // لذا، للوصول إلى بيانات المستخدم الأساسية، نستخدم $this->user
 
         // الحصول على صورة الأفاتار للمستخدم من علاقة المستخدم
         $avatarImage = $this->whenLoaded('user', function () {
@@ -26,12 +24,13 @@ class CompanyUserBasicResource extends JsonResource
 
         return [
             // البيانات الأساسية للمستخدم (من جدول users)
-            'id' => $this->user_id, // معرف المستخدم من جدول users
-            'username' => $this->whenLoaded('user', fn() => $this->user->username),
-            'email' => $this->whenLoaded('user', fn() => $this->user->email),
-            'phone' => $this->whenLoaded('user', fn() => $this->user->phone),
-            'company_id' => $this->company_id, // معرف الشركة التي ينتمي إليها سجل company_user هذا
-
+            'id' => $this->user_id,
+            'id_company_user' => $this->id,
+            'username' =>  $this->user_username,
+            'email' =>  $this->user_email,
+            'phone' =>  $this->user_phone,
+            'company_id' => $this->company_id,
+            'company_name' => $this->whenLoaded('company', fn() => $this->company->name),
             // البيانات الخاصة بالشركة (من جدول company_user)
             // هذه الحقول تعكس المفاتيح الموجودة في UserBasicResource
             'nickname' => $this->nickname_in_company,

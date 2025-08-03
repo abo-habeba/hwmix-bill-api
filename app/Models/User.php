@@ -131,9 +131,6 @@ class User extends Authenticatable
      */
     public function activeCompanyUser(): HasOne
     {
-        //  نفترض أن $this->company_id يمثل الـ company_id النشطة للمستخدم الموثق.
-        //  إذا كان الـ company_id ليس جزءًا من User Model، يجب الحصول عليه من سياق الطلب (Auth::user()->company_id)
-        //  أو تمريره كمعامل.
         $activeCompanyId = Auth::user()->company_id ?? null; // أو أي طريقة أخرى للحصول على الشركة النشطة
 
         return $this->hasOne(CompanyUser::class, 'user_id')

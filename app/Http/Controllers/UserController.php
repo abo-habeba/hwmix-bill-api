@@ -4,22 +4,16 @@ namespace App\Http\Controllers;
 
 use Throwable;
 use App\Models\User;
-use App\Models\CashBox;
-use App\Models\CashBoxType;
 use App\Models\CompanyUser;
 use Illuminate\Http\Request;
-use App\Services\CashBoxService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Auth;
 use App\Http\Requests\User\UserRequest;
 use App\Http\Resources\User\UserResource;
-use Illuminate\Database\Eloquent\Builder;
 use App\Http\Requests\User\UserUpdateRequest;
-use Illuminate\Pagination\LengthAwarePaginator;
 use App\Http\Resources\CompanyUser\CompanyUserResource;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use App\Http\Resources\CompanyUser\CompanyUserBasicResource;
 
 
@@ -732,7 +726,6 @@ class UserController extends Controller
             ]);
 
             if ($isSuperAdmin) {
-                // يرى الجميع
             } elseif ($activeCompanyId) {
                 $baseQuery->where('company_id', $activeCompanyId);
 
