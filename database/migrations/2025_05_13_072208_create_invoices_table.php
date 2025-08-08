@@ -29,7 +29,7 @@ return new class extends Migration {
             $table->decimal('remaining_amount', 15, 2)->default(0);
 
             // إضافة حقل الربح التقديري الإجمالي للفاتورة
-            $table->decimal('estimated_profit', 15, 2)->default(0)->after('total_discount');
+            $table->decimal('estimated_profit', 15, 2)->default(0);
 
             // حالة الفاتورة (تم إضافة 'partially_paid' و 'paid')
             $table->enum('status', ['draft', 'confirmed', 'canceled', 'partially_paid', 'paid'])->default('confirmed');

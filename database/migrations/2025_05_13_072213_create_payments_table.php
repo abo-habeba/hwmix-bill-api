@@ -33,8 +33,9 @@ return new class extends Migration
 
             // ربط الدفعة بالقيد المحاسبي في جدول financial_transactions
             $table->foreignId('financial_transaction_id')->nullable()->constrained('financial_transactions')->onDelete('set null');
+            $table->foreignId('payment_method_id')->nullable()->constrained('payment_methods')->nullOnDelete();
             // إضافة الحقل الجديد لـ 'realized_profit_amount'
-            $table->decimal('realized_profit_amount', 15, 2)->default(0)->after('amount'); // الربح الفعلي المحقق من الدفعة
+            $table->decimal('realized_profit_amount', 15, 2)->default(0); // الربح الفعلي المحقق من الدفعة
 
             $table->timestamps();
         });
