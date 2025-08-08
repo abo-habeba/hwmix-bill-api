@@ -250,11 +250,6 @@ class User extends Authenticatable
             if ($cashBoxId) {
                 // البحث عن صندوق نقدية محدد بمعرفه وتابع لهذا المستخدم مباشرة من قاعدة البيانات
                 $cashBox = CashBox::query()->where('id', $cashBoxId)->where('user_id', $this->id)->first();
-
-                if ($cashBox) {
-                    DB::rollBack();
-                    throw new \Exception("المستخدم ليس له خزنة.");
-                }
             } else {
                 // البحث عن الخزنة الافتراضية للمستخدم الحالي ($this) والتي تتبع الشركة النشطة للمستخدم الموثق
                 if (is_null($authCompanyId)) {
@@ -262,17 +257,12 @@ class User extends Authenticatable
                     throw new \Exception("لا توجد شركة نشطة للمستخدم الحالي لتحديد الخزنة الافتراضية.");
                 }
                 $cashBox = CashBox::query()->where('user_id', $this->id)->where('is_default', true)->where('company_id', $authCompanyId)->first();
-                if ($cashBox) {
-                    DB::rollBack();
-                    throw new \Exception("المستخدم ليس له خزنة.");
-                }
             }
 
             if (!$cashBox) {
                 DB::rollBack();
                 throw new \Exception("لم يتم العثور على خزنة مناسبة للمستخدم : {$this->nickname}");
             }
-
 
             $cashBox->decrement('balance', $amount);
             DB::commit();
@@ -307,13 +297,6 @@ class User extends Authenticatable
         $authCompanyId = $authUser->company_id ?? null;
         try {
             $cashBox = null;
-            Log::info('Deposit debug info:', [
-                'cashBoxId' => $cashBoxId,
-                'this_id' => $this->id,
-                'authUser_id' => $authUser->id,
-                'cashBoxRecordExists' => CashBox::where('id', $cashBoxId)->exists(),
-                'cashBoxUserId' => CashBox::where('id', $cashBoxId)->value('user_id'),
-            ]);
             if ($cashBoxId) {
                 $cashBox = CashBox::query()->where('id', $cashBoxId)->where('user_id', $this->id)->first();
                 if (!$cashBox) {
