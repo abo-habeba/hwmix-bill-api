@@ -1,20 +1,27 @@
 <?php
 
-namespace App\Services;
+namespace App\Services\Invoice; // تم تعديل namespace ليكون App\Services\Invoice
 
 use App\Models\User;
 use App\Models\Invoice;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use App\Services\DocumentServiceInterface;
 use App\Services\Traits\InvoiceHelperTrait;
-use App\Services\InstallmentService;
-use App\Services\UserSelfDebtService;
-use Illuminate\Validation\ValidationException;
-use Illuminate\Support\Facades\Log;
+use App\Services\Invoice\InstallmentService;
+use App\Services\Financial\FinancialServiceInterface; // استيراد الواجهة الجديدة
+
 
 class SaleInvoiceService implements DocumentServiceInterface
 {
     use InvoiceHelperTrait;
+
+    protected FinancialServiceInterface $financialService;
+
+    // حقن FinancialService عبر Constructor
+    public function __construct(FinancialServiceInterface $financialService)
+    {
+        $this->financialService = $financialService;
+    }
 
     /**
      * إنشاء فاتورة بيع جديدة.
@@ -28,56 +35,48 @@ class SaleInvoiceService implements DocumentServiceInterface
         try {
             Log::info('SaleInvoiceService: بدء إنشاء فاتورة بيع.', ['data' => $data]);
 
+            // 1. التحقق من توفر المخزون قبل أي عملية مالية أو إنشاء فاتورة
             $this->checkVariantsStock($data['items']);
 
+            // 2. حساب البيانات المالية للفاتورة (الربح التقديري، الحالة، المتبقي) باستخدام الخدمة المالية
+            $data = $this->financialService->calculateInvoiceFinancials($data);
+
+            // 3. إنشاء الفاتورة نفسها
             $invoice = $this->createInvoice($data);
             if (!$invoice || !$invoice->id) {
                 throw new \Exception('فشل في إنشاء الفاتورة.');
             }
 
-            $this->createInvoiceItems($invoice, $data['items'], $data['company_id'] ?? null, $data['created_by'] ?? null);
+            // 4. إنشاء بنود الفاتورة
+            $this->createInvoiceItems($invoice, $data['items'], $data['company_id'], $data['created_by']);
 
+            // 5. خصم المخزون
             $this->deductStockForItems($data['items']);
 
-            $authUser = Auth::user();
+            // 6. إنشاء المعاملات المالية للفاتورة (قيود الاستحقاق)
+            $this->financialService->createInvoiceFinancialTransactions(
+                $invoice,
+                $data,
+                $data['company_id'],
+                $data['user_id'],
+                $data['created_by']
+            );
+
+            // 7. معالجة الدفعة الأولية إذا كانت موجودة
+            $paidAmount = $data['paid_amount'] ?? 0;
             $cashBoxId = $data['cash_box_id'] ?? null;
-            $userCashBoxId = $data['user_cash_box_id'] ?? null;
-
-            // معالجة رصيد الموظفين والعملاء
-            if ($invoice->user_id == $authUser->id) { // فاتورة ذاتية للموظف البائع
-                // app(UserSelfDebtService::class)->registerPurchase(
-                //     $authUser,
-                //     $invoice->paid_amount,
-                //     $invoice->remaining_amount,
-                //     $cashBoxId,
-                //     $invoice->company_id
-                // );
-            } elseif ($invoice->user_id) { // المشتري مستخدم آخر (عميل)
-                $buyer = User::find($invoice->user_id);
-                if ($buyer) {
-                    if ($invoice->paid_amount > 0) {
-                        $depositResult = $authUser->deposit($invoice->paid_amount, $cashBoxId);
-                        if ($depositResult !== true) {
-                            throw new \Exception('فشل إيداع المبلغ المدفوع في خزنة البائع: ' . json_encode($depositResult));
-                        }
-                    }
-
-                    if ($invoice->remaining_amount > 0) {
-                        $withdrawResult = $buyer->withdraw($invoice->remaining_amount, $userCashBoxId);
-                        if ($withdrawResult !== true) {
-                            throw new \Exception('فشل سحب مبلغ متبقي من رصيد العميل: ' . json_encode($withdrawResult));
-                        }
-                    } elseif ($invoice->remaining_amount < 0) {
-                        $depositResult = $buyer->deposit(abs($invoice->remaining_amount), $userCashBoxId);
-                        if ($depositResult !== true) {
-                            throw new \Exception('فشل إيداع مبلغ زائد في رصيد العميل: ' . json_encode($depositResult));
-                        }
-                    }
-                } else {
-                    Log::warning('SaleInvoiceService: لم يتم العثور على العميل (إنشاء).', ['buyer_user_id' => $invoice->user_id]);
-                }
+            if ($paidAmount > 0 && $cashBoxId) {
+                $this->financialService->handleInvoicePayment(
+                    $invoice,
+                    $paidAmount,
+                    $cashBoxId,
+                    $data['company_id'],
+                    $data['user_id'],
+                    $data['created_by']
+                );
             }
 
+            // 8. إنشاء خطة الأقساط إذا كانت موجودة
             if (isset($data['installment_plan'])) {
                 app(InstallmentService::class)->createInstallments($data, $invoice->id);
             }
@@ -104,89 +103,87 @@ class SaleInvoiceService implements DocumentServiceInterface
         try {
             Log::info('SaleInvoiceService: بدء تحديث فاتورة بيع.', ['invoice_id' => $invoice->id, 'data' => $data]);
 
-            $freshInvoice = Invoice::find($invoice->id);
+            // جلب الفاتورة بحالتها الأصلية قبل التحديث للحصول على القيم القديمة
+            // يجب تحميل العلاقات الضرورية هنا إذا كانت FinancialService تعتمد عليها
+            $freshInvoice = Invoice::with(['items', 'payments', 'financialTransactions'])->find($invoice->id);
             if (!$freshInvoice) {
                 throw new \Exception("فشل العثور على الفاتورة (ID: {$invoice->id}) أثناء التحديث.");
             }
+
             $oldPaidAmount = $freshInvoice->paid_amount;
-            $oldRemainingAmount = $freshInvoice->remaining_amount;
+            $oldEstimatedProfit = $freshInvoice->estimated_profit;
 
-            $this->returnStockForItems($invoice);
+            // 1. إعادة المخزون للبنود القديمة قبل تحديثها أو حذفها
+            $this->returnStockForItems($freshInvoice);
 
-            if ($invoice->installmentPlan) {
-                app(InstallmentService::class)->cancelInstallments($invoice);
+            // 2. إلغاء خطة الأقساط القديمة إذا كانت موجودة (سيتم إعادة إنشائها لاحقاً إذا لزم الأمر)
+            if ($freshInvoice->installmentPlan) {
+                app(InstallmentService::class)->cancelInstallments($freshInvoice);
             }
 
+            // 3. حساب البيانات المالية للفاتورة (الربح التقديري، الحالة، المتبقي) باستخدام الخدمة المالية
+            $data = $this->financialService->calculateInvoiceFinancials($data);
+
+            // 4. تحديث الفاتورة نفسها
             $this->updateInvoice($invoice, $data);
 
-            $newPaidAmount = $data['paid_amount'] ?? 0;
+            // 5. مزامنة بنود الفاتورة وتخصيم المخزون للبنود الجديدة/المحدثة
+            $this->checkVariantsStock($data['items'] ?? []); // التحقق من المخزون للبنود الجديدة
+            $this->syncInvoiceItems($invoice, $data['items'] ?? [], $data['company_id'], $data['updated_by']);
+            $this->deductStockForItems($data['items'] ?? []);
+
+            // 6. تحديث المعاملات المالية المرتبطة بالفاتورة
+            $this->financialService->updateInvoiceFinancialTransactions(
+                $invoice,
+                $data,
+                $data['company_id'],
+                $data['user_id'] ?? $freshInvoice->user_id,
+                $data['updated_by']
+            );
+
+            // 7. معالجة فرق المبلغ المدفوع (إنشاء دفعة جديدة أو تعديل الدفعات الموجودة)
+            $newPaidAmount = $data['paid_amount'] ?? $oldPaidAmount;
             $paidAmountDifference = $newPaidAmount - $oldPaidAmount;
 
-            $newRemainingAmount = $invoice->remaining_amount;
-            $remainingAmountDifference = $newRemainingAmount - $oldRemainingAmount;
-
-            $authUser = Auth::user();
-            $cashBoxId = $data['cash_box_id'] ?? null;
-            $userCashBoxId = $data['user_cash_box_id'] ?? null;
-
-            // معالجة رصيد الموظف (الخزنة)
-            if ($paidAmountDifference !== 0) {
-                if ($paidAmountDifference > 0) {
-                    $depositResult = $authUser->deposit(abs($paidAmountDifference), $cashBoxId);
-                    if ($depositResult !== true) {
-                        throw new \Exception('فشل إيداع المبلغ الإضافي في خزنة الموظف: ' . json_encode($depositResult));
-                    }
+            if ($paidAmountDifference > 0) {
+                // تم دفع مبلغ إضافي، إنشاء دفعة جديدة
+                $cashBoxId = $data['cash_box_id'] ?? null;
+                if ($cashBoxId) {
+                    $this->financialService->handleInvoicePayment(
+                        $invoice,
+                        $paidAmountDifference,
+                        $cashBoxId,
+                        $data['company_id'],
+                        $data['user_id'] ?? $freshInvoice->user_id,
+                        $data['updated_by']
+                    );
                 } else {
-                    $withdrawResult = $authUser->withdraw(abs($paidAmountDifference), $cashBoxId);
-                    if ($withdrawResult !== true) {
-                        throw new \Exception('فشل سحب المبلغ من خزنة الموظف: ' . json_encode($withdrawResult));
-                    }
+                    Log::warning('SaleInvoiceService: لا يمكن معالجة دفعة إضافية بدون cash_box_id.', ['invoice_id' => $invoice->id, 'paid_amount_difference' => $paidAmountDifference]);
                 }
+            } elseif ($paidAmountDifference < 0) {
+                // تم تقليل المبلغ المدفوع (مبلغ مسترد أو تعديل)
+                // هذا يتطلب عملية "إرجاع" أو "إشعار دائن" منفصلة يتم التعامل معها بواسطة FinancialService
+                Log::warning('SaleInvoiceService: محاولة تقليل المبلغ المدفوع في تحديث الفاتورة. هذا يتطلب عملية إرجاع منفصلة.', [
+                    'invoice_id' => $invoice->id,
+                    'old_paid_amount' => $oldPaidAmount,
+                    'new_paid_amount' => $newPaidAmount
+                ]);
+                // يمكنك هنا رمي استثناء إذا كنت لا تسمح بهذا مباشرة
+                // throw new \Exception('لا يمكن تقليل المبلغ المدفوع مباشرة من تحديث الفاتورة. يرجى استخدام عملية الإرجاع.');
             }
-            // معالجة رصيد المشتري
-            if ($invoice->user_id == $authUser->id) { // المشتري هو الموظف نفسه
-                if ($remainingAmountDifference > 0) {
-                    // app(UserSelfDebtService::class)->registerPurchase(
-                    //     $authUser,
-                    //     0,
-                    //     abs($remainingAmountDifference),
-                    //     $cashBoxId,
-                    //     $invoice->company_id
-                    // );
-                } elseif ($remainingAmountDifference < 0) {
-                    // app(UserSelfDebtService::class)->registerPayment(
-                    //     $authUser,
-                    //     abs($remainingAmountDifference),
-                    //     0,
-                    //     $cashBoxId,
-                    //     $invoice->company_id
-                    // );
-                }
-                // المشتري عميل آخر
-            }
-            if ($invoice->user_id) {
-                $buyer = User::find($invoice->user_id);
-                if ($buyer) {
-                    if ($remainingAmountDifference > 0) {
-                        $withdrawResult = $buyer->withdraw(abs($remainingAmountDifference), $userCashBoxId);
-                        if ($withdrawResult !== true) {
-                            throw new \Exception('فشل سحب مبلغ إضافي من رصيد العميل: ' . json_encode($withdrawResult));
-                        }
-                    } elseif ($remainingAmountDifference < 0) {
-                        $depositResult = $buyer->deposit(abs($remainingAmountDifference), $userCashBoxId);
-                        if ($depositResult !== true) {
-                            throw new \Exception('فشل إيداع مبلغ في رصيد العميل: ' . json_encode($depositResult));
-                        }
-                    }
-                } else {
-                    Log::warning('SaleInvoiceService: لم يتم العثور على العميل أثناء تحديث الرصيد.', ['buyer_user_id' => $invoice->user_id]);
+
+            // 8. تحديث الربح الفعلي المحقق في الدفعات الموجودة إذا تغير الربح التقديري للفاتورة
+            if ($invoice->estimated_profit != $oldEstimatedProfit && $oldEstimatedProfit != 0) {
+                // هذه العملية يمكن أن تكون جزءًا من FinancialService
+                // ولكن بما أننا نحتاج إلى تكرار على دفعات الفاتورة، يمكن تركها هنا أو نقلها إلى FinancialService
+                foreach ($invoice->payments as $payment) {
+                    $newRealizedProfit = ($invoice->net_amount > 0) ? ($payment->amount / $invoice->net_amount) * $invoice->estimated_profit : 0;
+                    $payment->update(['realized_profit_amount' => $newRealizedProfit]);
                 }
             }
 
-            $this->checkVariantsStock($data['items']);
-            $this->syncInvoiceItems($invoice, $data['items'], $data['company_id'] ?? null, $data['updated_by'] ?? null);
-            $this->deductStockForItems($data['items']);
 
+            // 9. إعادة إنشاء خطة الأقساط إذا كانت موجودة في البيانات الجديدة
             if (isset($data['installment_plan'])) {
                 app(InstallmentService::class)->createInstallments($data, $invoice->id);
             }
@@ -212,64 +209,24 @@ class SaleInvoiceService implements DocumentServiceInterface
     {
         try {
             Log::info('SaleInvoiceService: بدء إلغاء فاتورة بيع.', ['invoice_id' => $invoice->id]);
-            // if ($invoice->status === 'paid') {
-            //     throw new \Exception('لا يمكن إلغاء فاتورة مدفوعة بالكامل.');
-            // }
 
-            $this->returnStockForItems($invoice);
-            $invoice->update(['status' => 'canceled']);
-            $this->deleteInvoiceItems($invoice);
-
-            // if ($invoice->installmentPlan) {
-            //     app(InstallmentService::class)->cancelInstallments($invoice);
-            // }
-
-            $authUser = Auth::user();
-            $cashBoxId = null;
-            $userCashBoxId = null;
-
-            // معالجة الرصيد المالي للموظفين والعملاء
-            if ($invoice->user_id == $authUser->id) { // الفاتورة ذاتية للموظف
-                if ($invoice->remaining_amount > 0) {
-                    // app(UserSelfDebtService::class)->registerPayment(
-                    //     $authUser,
-                    //     $invoice->remaining_amount,
-                    //     0,
-                    //     $cashBoxId,
-                    //     $invoice->company_id
-                    // );
-                }
-                if ($invoice->paid_amount > 0) {
-                    $withdrawResult = $authUser->withdraw($invoice->paid_amount, $cashBoxId);
-                    if ($withdrawResult !== true) {
-                        Log::error('SaleInvoiceService: فشل سحب مبلغ مدفوع مسترجع من خزنة الموظف (فاتورة ذاتية).', ['result' => $withdrawResult]);
-                    }
-                }
-            } elseif ($invoice->user_id) { // المشتري عميل
-                $buyer = User::find($invoice->user_id);
-                if ($buyer) {
-                    if ($invoice->remaining_amount > 0) {
-                        $depositResult = $buyer->deposit($invoice->remaining_amount, $userCashBoxId);
-                        if ($depositResult !== true) {
-                            Log::error('SaleInvoiceService: فشل إيداع مبلغ دين العميل الملغى في رصيد العميل.', ['result' => $depositResult]);
-                        }
-                    } elseif ($invoice->remaining_amount < 0) {
-                        $withdrawResult = $buyer->withdraw(abs($invoice->remaining_amount), $userCashBoxId);
-                        if ($withdrawResult !== true) {
-                            Log::error('SaleInvoiceService: فشل سحب مبلغ زائد مدفوع من رصيد العميل.', ['result' => $withdrawResult]);
-                        }
-                    }
-
-                    if ($invoice->paid_amount > 0) {
-                        $withdrawResult = $authUser->withdraw($invoice->paid_amount, $cashBoxId);
-                        if ($withdrawResult !== true) {
-                            Log::error('SaleInvoiceService: فشل سحب مبلغ مدفوع من خزنة البائع (إلغاء).', ['result' => $withdrawResult]);
-                        }
-                    }
-                } else {
-                    Log::warning('SaleInvoiceService: لم يتم العثور على العميل أثناء الإلغاء.', ['buyer_user_id' => $invoice->user_id]);
-                }
+            // 1. عكس تأثير الأقساط المرتبطة (إذا كانت موجودة)
+            if ($invoice->installmentPlan) {
+                app(InstallmentService::class)->cancelInstallments($invoice);
             }
+
+            // 2. عكس تأثير المخزون (إعادة المنتجات إلى المخزون)
+            $this->returnStockForItems($invoice);
+
+            // 3. عكس/حذف الدفعات والمعاملات المالية المرتبطة بها باستخدام الخدمة المالية
+            $this->financialService->reverseInvoicePayments($invoice);
+
+            // 4. عكس/حذف المعاملات المالية المرتبطة بالفاتورة نفسها (الإيرادات، تكلفة البضاعة المباعة)
+            $this->financialService->reverseInvoiceFinancialTransactions($invoice);
+
+            // 5. تحديث حالة الفاتورة إلى 'canceled' والقيام بـ soft delete لبنودها
+            $invoice->update(['status' => 'canceled']);
+            $this->deleteInvoiceItems($invoice); // يقوم بـ soft delete لبنود الفاتورة
 
             $invoice->logCanceled('إلغاء فاتورة بيع رقم ' . $invoice->invoice_number);
 

@@ -7,6 +7,8 @@ use App\Http\Requests\InstallmentPaymentDetail\StoreInstallmentPaymentDetailRequ
 use App\Http\Requests\InstallmentPaymentDetail\UpdateInstallmentPaymentDetailRequest;
 use App\Http\Resources\InstallmentPaymentDetail\InstallmentPaymentDetailResource;
 use App\Models\InstallmentPaymentDetail;
+use App\Models\Payment; // إضافة نموذج الدفعة الجديد
+use App\Models\Installment; // لإمكانية الوصول إلى القسط وتحديث حالته
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
@@ -21,10 +23,10 @@ class InstallmentPaymentDetailController extends Controller
     public function __construct()
     {
         $this->relations = [
-            'installmentPayment', // العلاقة مع InstallmentPayment
-            'installment',        // العلاقة مع Installment
-            'company',            // للتحقق من belongsToCurrentCompany
-            'creator',            // للتحقق من createdByCurrentUser/OrChildren
+            'payment', // تم تغيير العلاقة من installmentPayment إلى payment
+            'installment', // العلاقة مع Installment
+            'company', // للتحقق من belongsToCurrentCompany
+            'creator', // للتحقق من createdByCurrentUser/OrChildren
         ];
     }
 
@@ -61,15 +63,16 @@ class InstallmentPaymentDetailController extends Controller
                 return api_forbidden('ليس لديك إذن لعرض تفاصيل دفعات الأقساط.');
             }
 
-            // التصفية بناءً على طلب المستخدم (يمكن إضافة المزيد هنا)
-            if ($request->filled('installment_payment_id')) {
-                $query->where('installment_payment_id', $request->input('installment_payment_id'));
+            // التصفية بناءً على طلب المستخدم
+            // تم تغيير installment_payment_id إلى payment_id
+            if ($request->filled('payment_id')) {
+                $query->where('payment_id', $request->input('payment_id'));
             }
             if ($request->filled('installment_id')) {
                 $query->where('installment_id', $request->input('installment_id'));
             }
-            if ($request->filled('amount')) {
-                $query->where('amount', $request->input('amount'));
+            if ($request->filled('amount_paid')) { // تم تغيير 'amount' إلى 'amount_paid'
+                $query->where('amount_paid', $request->input('amount_paid'));
             }
 
             $perPage = max(1, (int) $request->get('limit', 20));
@@ -114,7 +117,29 @@ class InstallmentPaymentDetailController extends Controller
                 $validatedData['created_by'] = $authUser->id;
                 $validatedData['company_id'] = $companyId; // ربط بتفاصيل الشركة الحالية
 
+                // التحقق من وجود الدفعة والقسط
+                $payment = Payment::where('id', $validatedData['payment_id'])
+                    ->where('company_id', $companyId)
+                    ->firstOrFail();
+                $installment = Installment::where('id', $validatedData['installment_id'])
+                    ->where('company_id', $companyId)
+                    ->firstOrFail();
+
                 $detail = InstallmentPaymentDetail::create($validatedData);
+
+                // --------------------------------------------------------------------
+                // تحديث حالة القسط بناءً على الدفعة
+                // --------------------------------------------------------------------
+                $installment->remaining -= $validatedData['amount_paid'];
+                if ($installment->remaining <= 0) {
+                    $installment->status = 'paid'; // أو 'fully_paid'
+                    $installment->paid_at = now();
+                } elseif ($installment->remaining < $installment->amount) {
+                    $installment->status = 'partially_paid';
+                }
+                $installment->save();
+                // --------------------------------------------------------------------
+
                 $detail->load($this->relations);
                 DB::commit();
                 return api_success(new InstallmentPaymentDetailResource($detail), 'تم إنشاء تفاصيل دفعة القسط بنجاح.', 201);
@@ -123,7 +148,7 @@ class InstallmentPaymentDetailController extends Controller
                 return api_error('فشل التحقق من صحة البيانات أثناء تخزين تفاصيل دفعة القسط.', $e->errors(), 422);
             } catch (Throwable $e) {
                 DB::rollBack();
-                return api_error('حدث خطأ أثناء حفظ تفاصيل دفعة القسط.', [], 500);
+                return api_error('حدث خطأ أثناء حفظ تفاصيل دفعة القسط: ' . $e->getMessage(), [], 500);
             }
         } catch (Throwable $e) {
             return api_exception($e, 500);
@@ -210,7 +235,34 @@ class InstallmentPaymentDetailController extends Controller
                 $validatedData = $request->validated();
                 $validatedData['updated_by'] = $authUser->id;
 
+                // استرجاع المبلغ المدفوع القديم قبل التحديث
+                $oldAmountPaid = $installmentPaymentDetail->amount_paid;
+
                 $installmentPaymentDetail->update($validatedData);
+
+                // --------------------------------------------------------------------
+                // تحديث حالة القسط بعد التحديث
+                // --------------------------------------------------------------------
+                $installment = $installmentPaymentDetail->installment; // جلب القسط المرتبط
+                if ($installment) {
+                    // عكس تأثير المبلغ القديم ثم تطبيق تأثير المبلغ الجديد
+                    $installment->remaining += $oldAmountPaid; // إضافة المبلغ القديم مرة أخرى
+                    $installment->remaining -= $installmentPaymentDetail->amount_paid; // طرح المبلغ الجديد
+
+                    if ($installment->remaining <= 0) {
+                        $installment->status = 'paid';
+                        $installment->paid_at = now();
+                    } elseif ($installment->remaining < $installment->amount) {
+                        $installment->status = 'partially_paid';
+                        $installment->paid_at = null; // إزالة تاريخ الدفع الكامل إذا أصبح جزئياً
+                    } else {
+                        $installment->status = 'unpaid'; // أو 'pending' إذا كان لا يزال مستحقًا بالكامل
+                        $installment->paid_at = null;
+                    }
+                    $installment->save();
+                }
+                // --------------------------------------------------------------------
+
                 $installmentPaymentDetail->load($this->relations);
                 DB::commit();
                 return api_success(new InstallmentPaymentDetailResource($installmentPaymentDetail), 'تم تحديث تفاصيل دفعة القسط بنجاح.');
@@ -219,7 +271,7 @@ class InstallmentPaymentDetailController extends Controller
                 return api_error('فشل التحقق من صحة البيانات أثناء تحديث تفاصيل دفعة القسط.', $e->errors(), 422);
             } catch (Throwable $e) {
                 DB::rollBack();
-                return api_error('حدث خطأ أثناء تحديث تفاصيل دفعة القسط.', [], 500);
+                return api_error('حدث خطأ أثناء تحديث تفاصيل دفعة القسط: ' . $e->getMessage(), [], 500);
             }
         } catch (Throwable $e) {
             return api_exception($e, 500);
@@ -243,7 +295,7 @@ class InstallmentPaymentDetailController extends Controller
                 return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
-            $installmentPaymentDetail->load(['company', 'creator']); // تحميل العلاقات للتحقق من الصلاحيات
+            $installmentPaymentDetail->load(['company', 'creator', 'installment']); // تحميل العلاقات للتحقق من الصلاحيات والقسط
 
             $canDelete = false;
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
@@ -262,8 +314,22 @@ class InstallmentPaymentDetailController extends Controller
 
             DB::beginTransaction();
             try {
-                // لا يوجد فحص إضافي للعلاقات هنا، حيث أن تفاصيل الدفع هي عادةً سجلات نهائية.
-                // إذا كانت هناك علاقات أخرى تمنع الحذف، يجب إضافتها هنا.
+                // --------------------------------------------------------------------
+                // عكس تأثير الدفعة على القسط عند الحذف
+                // --------------------------------------------------------------------
+                $installment = $installmentPaymentDetail->installment;
+                if ($installment) {
+                    $installment->remaining += $installmentPaymentDetail->amount_paid; // إعادة المبلغ للقسط
+                    if ($installment->remaining >= $installment->amount) {
+                        $installment->status = 'unpaid'; // أو 'pending'
+                        $installment->paid_at = null;
+                    } elseif ($installment->remaining > 0 && $installment->remaining < $installment->amount) {
+                        $installment->status = 'partially_paid';
+                        $installment->paid_at = null;
+                    }
+                    $installment->save();
+                }
+                // --------------------------------------------------------------------
 
                 $deletedDetail = $installmentPaymentDetail->replicate();
                 $deletedDetail->setRelations($installmentPaymentDetail->getRelations());
@@ -273,7 +339,7 @@ class InstallmentPaymentDetailController extends Controller
                 return api_success(new InstallmentPaymentDetailResource($deletedDetail), 'تم حذف تفاصيل دفعة القسط بنجاح.');
             } catch (Throwable $e) {
                 DB::rollBack();
-                return api_error('حدث خطأ أثناء حذف تفاصيل دفعة القسط.', [], 500);
+                return api_error('حدث خطأ أثناء حذف تفاصيل دفعة القسط: ' . $e->getMessage(), [], 500);
             }
         } catch (Throwable $e) {
             return api_exception($e, 500);

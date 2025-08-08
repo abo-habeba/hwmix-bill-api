@@ -1,16 +1,17 @@
 <?php
 
-namespace App\Services;
+namespace App\Services\Invoice;
 
 use Carbon\Carbon;
 use App\Models\Invoice;
 use App\Models\Installment;
 use App\Models\InstallmentPlan;
 use App\Models\User;
-use App\Models\InstallmentPayment; // تم إضافة استيراد لنموذج دفعات الأقساط
-use App\Models\InstallmentPaymentDetail; // تم إضافة استيراد لنموذج تفاصيل دفعات الأقساط
+// تم إزالة استيرادات InstallmentPayment و InstallmentPaymentDetail
+// لأن هذه النماذج لم تعد موجودة وتم استبدالها بنموذج Payment
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB; // إضافة DB facade
 
 class InstallmentService
 {
@@ -29,6 +30,7 @@ class InstallmentService
 
             $planData = $data['installment_plan'];
             $userId = $data['user_id'];
+            $companyId = $data['company_id'] ?? null; // التأكد من وجود company_id
             $startDate = Carbon::parse($planData['start_date']);
             $roundStep = isset($planData['round_step']) && $planData['round_step'] > 0 ? (int)$planData['round_step'] : 10;
 
@@ -52,6 +54,7 @@ class InstallmentService
                 'end_date' => $startDate->copy()->addMonths($installmentsN)->format('Y-m-d'),
                 'status' => 'pending',
                 'notes' => $planData['notes'] ?? null,
+                'company_id' => $companyId, // إضافة company_id لخطة الأقساط
             ]);
             Log::info('InstallmentService: تم إنشاء خطة التقسيط بنجاح.', ['plan_id' => $planModel->id]);
 
@@ -74,7 +77,7 @@ class InstallmentService
                     'remaining' => $amount,
                     'status' => 'pending',
                     'user_id' => $userId,
-                    'company_id' => $planModel->company_id, // ربط القسط بالشركة التابع لها خطة الأقساط
+                    'company_id' => $companyId, // ربط القسط بالشركة
                 ]);
                 Log::info('InstallmentService: تم إنشاء قسط فردي.', ['installment_plan_id' => $planModel->id, 'installment_number' => $i, 'amount' => $amount]);
 
@@ -98,16 +101,20 @@ class InstallmentService
     }
 
     /**
-     * إلغاء خطة الأقساط والأقساط الفردية المرتبطة بفاتورة، وعكس الدفعات المالية.
+     * إلغاء خطة الأقساط والأقساط الفردية المرتبطة بفاتورة.
+     *
+     * هذه الوظيفة تقوم بتحديث حالة الأقساط وخطة الأقساط إلى "ملغاة".
+     * لا تقوم بمعالجة الدفعات المالية أو عكسها بشكل مباشر، حيث يتم ذلك
+     * في خدمة الفاتورة الرئيسية (مثل SaleInvoiceService) أو الخدمة المالية المركزية.
      *
      * @param Invoice $invoice الفاتورة المرتبطة بخطة الأقساط.
-     * @return float إجمالي المبالغ المدفوعة للأقساط الفردية التي تم عكسها.
+     * @return float إجمالي المبالغ المدفوعة للأقساط الفردية التي تم عكسها (للتتبع فقط، لا يتم عكسها هنا).
      * @throws \Throwable
      */
     public function cancelInstallments(Invoice $invoice): float
     {
         Log::info('InstallmentService: بدء إلغاء الأقساط للفاتورة رقم: ' . $invoice->id);
-        $totalReversedAmount = 0;
+        $totalReversedAmount = 0; // هذا المبلغ سيكون للتتبع فقط، لن يتم عكسه مالياً هنا.
 
         if (!$invoice->installmentPlan) {
             Log::warning('InstallmentService: لا توجد خطة أقساط للفاتورة.', ['invoice_id' => $invoice->id]);
@@ -116,38 +123,24 @@ class InstallmentService
 
         $installmentPlan = $invoice->installmentPlan;
 
-        // استرجاع جميع دفعات خطة التقسيط هذه
-        $paymentsToReverse = InstallmentPayment::where('installment_plan_id', $installmentPlan->id)->get();
-
-        foreach ($paymentsToReverse as $payment) {
-            $paidAmount = $payment->amount_paid; // المبلغ الإجمالي المدفوع في هذه المعاملة
-
-            if ($paidAmount > 0) {
-                $totalReversedAmount += $paidAmount;
-            }
-
-            // حذف سجل الدفع وتفاصيله
-            InstallmentPaymentDetail::where('installment_payment_id', $payment->id)->delete();
-            Log::info('InstallmentService: تم حذف تفاصيل الدفع المرتبطة.', ['payment_id' => $payment->id]);
-            $payment->delete();
-            Log::info('InstallmentService: تم حذف سجل الدفع الرئيسي.', ['payment_id' => $payment->id]);
-        }
+        // لا نقوم بحذف سجلات الدفع هنا لأنها مرتبطة بجدول Payments العام
+        // ويجب أن يتم التعامل معها بواسطة الخدمة المالية المركزية أو خدمة الفاتورة الرئيسية.
+        // بدلاً من ذلك، نجمع المبالغ المدفوعة سابقاً لأغراض التتبع أو الإبلاغ.
+        // يمكن الوصول إلى المدفوعات المرتبطة بالأقساط عبر InstallmentPaymentDetail
+        // ولكن عملية عكسها تتم في طبقة أعلى.
 
         // تحديث حالة جميع الأقساط التابعة لخطة الأقساط إلى 'canceled'
-        // باستخدام 'remaining' بدلاً من 'remaining_amount'
-        // وتعيين 'paid_amount' إلى 0 (إذا كان هذا هو المطلوب للدلالة على عدم وجود مدفوعات)
         $installmentPlan->installments()->update([
             'status' => 'canceled',
-            'remaining' => \DB::raw('amount'), // إعادة 'remaining' إلى قيمة 'amount' الأصلية للقسط
-            'paid_at' => null,
+            'remaining' => DB::raw('amount'), // إعادة 'remaining' إلى قيمة 'amount' الأصلية للقسط
+            'paid_at' => null, // مسح تاريخ الدفع
         ]);
         Log::info('InstallmentService: تم تحديث حالة جميع الأقساط إلى ملغاة.', ['plan_id' => $installmentPlan->id]);
 
         // تحديث حالة خطة الأقساط إلى 'canceled'
-        // هنا افترض أن installment_plans لديه remaining_amount أو عمود مشابه
         $installmentPlan->update(['status' => 'canceled', 'remaining_amount' => 0]);
         Log::info('InstallmentService: تم إلغاء خطة الأقساط.', ['installment_plan_id' => $installmentPlan->id]);
 
-        return $totalReversedAmount;
+        return $totalReversedAmount; // لا يزال يعيد 0 لأنه لا يعكس مدفوعات هنا
     }
 }

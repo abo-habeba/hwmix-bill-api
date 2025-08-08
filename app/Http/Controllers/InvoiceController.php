@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use Throwable;
 use App\Models\Invoice;
 use App\Models\InvoiceType;
+// تم إزالة استيرادات FinancialTransaction, Account, Payment, CashBox من هنا
+// لأن منطقها سيتم نقله إلى الخدمات
 use Illuminate\Http\Request;
 use App\Services\ServiceResolver;
 use Illuminate\Http\JsonResponse;
@@ -25,12 +27,14 @@ class InvoiceController extends Controller
     public function __construct()
     {
         $this->relations = [
-            'user.cashBoxeDefault',
+            'user.cashBoxeDefault', // تم إرجاع العلاقة إلى cashBoxeDefault
             'company',
             'invoiceType',
-            'items.variant',
+            'items.variant', // تم الإبقاء على هذه العلاقة كما هي
             'installmentPlan',
             'creator',
+            'payments', // إضافة علاقة المدفوعات
+            'cashBox', // إضافة علاقة الصندوق النقدي المباشرة للفاتورة
         ];
     }
 
@@ -76,7 +80,15 @@ class InvoiceController extends Controller
             if ($request->filled('status')) {
                 $query->where('status', $request->input('status'));
             } else {
+                // التأكد من أن الفلتر يستثني 'canceled' فقط إذا لم يتم تحديد حالة
                 $query->where('status', '!=', 'canceled');
+            }
+            // فلتر الربح التقديري
+            if ($request->filled('estimated_profit_from')) {
+                $query->where('estimated_profit', '>=', $request->input('estimated_profit_from'));
+            }
+            if ($request->filled('estimated_profit_to')) {
+                $query->where('estimated_profit', '<=', $request->input('estimated_profit_to'));
             }
 
             // فلاتر التاريخ
@@ -138,26 +150,28 @@ class InvoiceController extends Controller
                 $serviceResolver = new ServiceResolver();
                 $service = $serviceResolver->resolve($invoiceTypeCode);
 
-                $responseDTO = $service->create($validated);
+                // تفويض عملية إنشاء الفاتورة بما في ذلك حساب الأرباح، تحديد الحالة،
+                // وإنشاء المعاملات المالية والدفعات الأولية إلى الخدمة.
+                $invoice = $service->create($validated);
 
-                if (!$responseDTO || !$responseDTO instanceof \App\Models\Invoice) {
+                if (!$invoice || !$invoice instanceof Invoice) {
                     \Log::error('لم يتم إنشاء الفاتورة بنجاح من الـ Service', [
-                        'returned_value' => $responseDTO,
+                        'returned_value' => $invoice,
                         'invoice_type_code' => $invoiceTypeCode,
                         'validated_data' => $validated,
                     ]);
                     throw new \Exception('فشل إنشاء الفاتورة من الخدمة.');
                 }
 
-                $responseDTO->load($this->relations);
+                $invoice->load($this->relations);
                 DB::commit();
-                return api_success(new InvoiceResource($responseDTO), 'تم إنشاء المستند بنجاح', 201);
+                return api_success(new InvoiceResource($invoice), 'تم إنشاء المستند بنجاح', 201);
             } catch (ValidationException $e) {
                 DB::rollBack();
                 return api_error('فشل التحقق من صحة البيانات أثناء إنشاء المستند.', $e->errors(), 422);
             } catch (Throwable $e) {
                 DB::rollBack();
-                return api_exception($e);
+                return api_error('حدث خطأ أثناء حفظ المستند: ' . $e->getMessage(), [], 500);
             }
         } catch (Throwable $e) {
             return api_exception($e);
@@ -167,7 +181,7 @@ class InvoiceController extends Controller
     /**
      * عرض الفاتورة المحددة.
      *
-     * @param int $id
+     * @param string $id
      * @return \Illuminate\Http\JsonResponse
      */
     public function show(string $id): JsonResponse
@@ -247,6 +261,8 @@ class InvoiceController extends Controller
                 $invoiceTypeCode = $invoice->invoice_type_code;
                 $service = ServiceResolver::resolve($invoiceTypeCode);
 
+                // تفويض عملية تحديث الفاتورة بما في ذلك إعادة حساب الأرباح، تحديد الحالة،
+                // وتحديث المعاملات المالية والدفعات المرتبطة إلى الخدمة.
                 $updatedInvoice = $service->update($validated, $invoice);
                 $updatedInvoice->load($this->relations);
 
@@ -257,7 +273,7 @@ class InvoiceController extends Controller
                 return api_error('خطأ في التحقق من البيانات', $e->errors(), 422);
             } catch (Throwable $e) {
                 DB::rollBack();
-                return api_exception($e);
+                return api_error('حدث خطأ أثناء تحديث الفاتورة: ' . $e->getMessage(), [], 500);
             }
         } catch (Throwable $e) {
             return api_exception($e);
@@ -268,7 +284,7 @@ class InvoiceController extends Controller
     /**
      * حذف الفاتورة المحددة من قاعدة البيانات.
      *
-     * @param int $id
+     * @param string $id
      * @return \Illuminate\Http\JsonResponse
      */
     public function destroy(string $id): JsonResponse
@@ -283,7 +299,7 @@ class InvoiceController extends Controller
                 return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
-            $invoice = Invoice::with(['company', 'creator'])->findOrFail($id);
+            $invoice = Invoice::with(['company', 'creator', 'financialTransactions', 'payments'])->findOrFail($id);
 
             // صلاحيات الحذف (يمكن تبسيطها أكثر داخل سياسات Laravel)
             $canDelete = false;
@@ -304,13 +320,14 @@ class InvoiceController extends Controller
             $invoiceTypeCode = $invoice->invoice_type_code; // الحصول على نوع الفاتورة
             $service = ServiceResolver::resolve($invoiceTypeCode); // حل الخدمة المناسبة لنوع الفاتورة
 
-            $canceledInvoice = $service->cancel($invoice); // تفويض الحذف للخدمة
+            // تفويض عملية حذف الفاتورة بما في ذلك حذف المعاملات المالية والدفعات المرتبطة إلى الخدمة.
+            $canceledInvoice = $service->cancel($invoice); // تفويض الحذف للخدمة (يقوم بـ soft delete للفاتورة وبنودها)
 
             DB::commit(); // تأكيد المعاملة
             return api_success(new InvoiceResource($canceledInvoice), 'تم حذف الفاتورة بنجاح');
         } catch (Throwable $e) {
             DB::rollBack(); // التراجع عن المعاملة في حالة حدوث أي خطأ
-            return api_exception($e);
+            return api_error('حدث خطأ أثناء حذف الفاتورة: ' . $e->getMessage(), [], 500);
         }
     }
 }

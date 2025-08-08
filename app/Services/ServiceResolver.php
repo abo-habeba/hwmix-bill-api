@@ -2,8 +2,11 @@
 
 namespace App\Services;
 
-use App\Exceptions\InvalidInvoiceTypeCodeException;
 use App\Services\DocumentServiceInterface;
+use App\Services\Invoice\SaleInvoiceService;
+use App\Services\Invoice\PurchaseInvoiceService;
+use App\Exceptions\InvalidInvoiceTypeCodeException;
+use App\Services\Invoice\InstallmentSaleInvoiceService;
 // ... (باقي الاستيرادات)
 
 class ServiceResolver

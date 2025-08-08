@@ -32,6 +32,7 @@ use App\Http\Controllers\InstallmentPlanController;
 use App\Http\Controllers\InstallmentPaymentController;
 use App\Http\Controllers\InstallmentPaymentDetailController;
 
+
 Route::post('register', [AuthController::class, 'register']);
 Route::post('login', [AuthController::class, 'login']);
 Route::middleware(['auth:sanctum'])->group(function () {
@@ -39,6 +40,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/auth/check', [AuthController::class, 'checkLogin']);
     // Auth Controller
     Route::get('me', [AuthController::class, 'me']);
+
     // User Controller
     Route::controller(UserController::class)
         ->group(function () {
@@ -52,7 +54,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::put('user/{user}/cashbox/{cashBoxId}/set-default', 'setDefaultCashBox');
             Route::post('users/delete', 'destroy');
         });
-    // company Controller
+
+    // Company Controller
     Route::controller(CompanyController::class)
         ->group(function () {
             Route::get('companys', 'index');
@@ -62,7 +65,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::post('company/delete', 'destroy');
         });
 
-    // Image Controller 
+    // Image Controller
     Route::controller(ImageController::class)
         ->group(function () {
             Route::get('images', 'index');
@@ -71,8 +74,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::post('images/delete', 'destroy');
         });
 
-
-    // Transaction Controller
+    // Transaction Controller (للمعاملات القديمة، سيتم مراجعته لاحقًا)
     Route::controller(TransactionController::class)
         ->group(function () {
             Route::post('/transfer', 'transfer');
@@ -82,6 +84,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::get('transactions/user/{cashBoxId?}', 'userTransactions');
             Route::post('/transactions/{transaction}/reverse', 'reverseTransaction');
         });
+
     // Role Controller
     Route::controller(RoleController::class)
         ->group(function () {
@@ -92,15 +95,17 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::delete('role/{role}', 'destroy');
             Route::post('role/assignRole', 'assignRole');
         });
-    // cashBoxTypes Controller
-    Route::controller(CashBoxTypeController::class)
-        ->group(function () {
-            Route::get('cashBoxTypes', 'index');
-            Route::post('cashBoxType', 'store');
-            Route::get('cashBoxType/{cashBoxType}', 'show');
-            Route::put('cashBoxType/{cashBoxType}', 'update');
-            Route::delete('cashBoxType/{cashBoxType}', 'destroy');
-        });
+
+    // تم حذف روابط CashBoxTypeController
+    // Route::controller(CashBoxTypeController::class)
+    //     ->group(function () {
+    //         Route::get('cashBoxTypes', 'index');
+    //         Route::post('cashBoxType', 'store');
+    //         Route::get('cashBoxType/{cashBoxType}', 'show');
+    //         Route::put('cashBoxType/{cashBoxType}', 'update');
+    //         Route::delete('cashBoxType/{cashBoxType}', 'destroy');
+    //     });
+
     // CashBox Controller
     Route::controller(CashBoxController::class)
         ->group(function () {
@@ -111,6 +116,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::delete('cashBox/{cashBox}', 'destroy');
             Route::post('cashBox/transfer', 'transferFunds');
         });
+
     // Logs Controller
     Route::controller(LogController::class)
         ->group(function () {
@@ -127,6 +133,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::put('product/{product}', 'update');
             Route::delete('product/delete/{product}', 'destroy');
         });
+
     // Attribute Controller
     Route::controller(AttributeController::class)
         ->group(function () {
@@ -137,6 +144,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::delete('attribute/{attribute}', 'destroy');
             Route::post('attribute/deletes', 'deleteMultiple');
         });
+
     // Attribute Value Controller
     Route::controller(AttributeValueController::class)
         ->group(function () {
@@ -147,6 +155,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::delete('attribute-value/{attributeValue}', 'destroy');
             Route::post('attribute-value/deletes', 'deleteMultiple');
         });
+
     // Product Variant Controller
     Route::controller(ProductVariantController::class)
         ->group(function () {
@@ -158,6 +167,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::post('product-variant/delete', 'deleteMultiple');
             Route::get('product-variants/search-by-product', 'searchByProduct');
         });
+
     // Warehouse Controller
     Route::controller(WarehouseController::class)
         ->group(function () {
@@ -167,6 +177,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::put('warehouse/{warehouse}', 'update');
             Route::post('warehouse/delete', 'destroy');
         });
+
     // Stock Controller
     Route::controller(StockController::class)
         ->group(function () {
@@ -176,6 +187,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::put('stock/{stock}', 'update');
             Route::post('stock/delete', 'destroy');
         });
+
     // Category Controller
     Route::controller(CategoryController::class)
         ->group(function () {
@@ -185,6 +197,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::put('category/{category}', 'update');
             Route::post('category/delete', 'destroy');
         });
+
     // Brand Controller
     Route::controller(BrandController::class)
         ->group(function () {
@@ -194,6 +207,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::put('brand/{brand}', 'update');
             Route::delete('brand/delete/{brand}', 'destroy');
         });
+
     // InvoiceType Controller
     Route::controller(InvoiceTypeController::class)->group(function () {
         Route::get('invoice-types', 'index');
@@ -202,6 +216,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::put('invoice-type/{invoiceType}', 'update');
         Route::delete('invoice-type/{invoiceType}', 'destroy');
     });
+
     // Invoice Controller
     Route::controller(InvoiceController::class)->group(function () {
         Route::get('invoices', 'index');
@@ -210,6 +225,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::put('invoice/{invoice}', 'update');
         Route::delete('invoice/{invoice}', 'destroy');
     });
+
     // InvoiceItem Controller
     Route::controller(InvoiceItemController::class)->group(function () {
         Route::get('invoice-items', 'index');
@@ -218,6 +234,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::put('invoice-item/{invoiceItem}', 'update');
         Route::delete('invoice-item/{invoiceItem}', 'destroy');
     });
+
     // InstallmentPlan Controller
     Route::controller(InstallmentPlanController::class)->group(function () {
         Route::get('installment-plans', 'index');
@@ -226,6 +243,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::put('installment-plan/{installmentPlan}', 'update');
         Route::delete('installment-plan/{installmentPlan}', 'destroy');
     });
+
     // Installment Controller
     Route::controller(InstallmentController::class)->group(function () {
         Route::get('installments', 'index');
@@ -234,6 +252,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::put('installment/{installment}', 'update');
         Route::delete('installment/{installment}', 'destroy');
     });
+
     // Payment Controller
     Route::controller(PaymentController::class)->group(function () {
         Route::get('payments', 'index');
@@ -242,43 +261,48 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::put('payment/{payment}', 'update');
         Route::delete('payment/{payment}', 'destroy');
     });
+
     // PaymentMethod Controller
     Route::controller(PaymentMethodController::class)
         ->group(function () {
             Route::get('payment-methods', 'index');
             Route::post('payment-method', 'store');
-
             Route::get('payment-method/{paymentMethod}', 'show');
             Route::put('payment-method/{paymentMethod}', 'update');
             Route::delete('payment-method/delete/{paymentMethod}', 'destroy');
         });
-    Route::controller(InstallmentPaymentController::class)
-        ->group(function () {
-            Route::get('installment-payments', 'index');
-            Route::post('installment-payment', 'store');
-            Route::post('installment-payment/pay', 'payInstallments');
-            Route::get('installment-payment/{installmentPayment}', 'show');
-            Route::put('installment-payment/{installmentPayment}', 'update');
-            Route::delete('installment-payment/delete/{installmentPayment}', 'destroy');
-        });
-    // Revenue Controller
-    Route::controller(RevenueController::class)
-        ->group(function () {
-            Route::get('revenues', 'index');
-            Route::post('revenue', 'store');
-            Route::get('revenue/{revenue}', 'show');
-            Route::put('revenue/{revenue}', 'update');
-            Route::delete('revenue/delete/{revenue}', 'destroy');
-        });
-    // Profit Controller
-    Route::controller(ProfitController::class)
-        ->group(function () {
-            Route::get('profits', 'index');
-            Route::post('profit', 'store');
-            Route::get('profit/{profit}', 'show');
-            Route::put('profit/{profit}', 'update');
-            Route::delete('profit/delete/{profit}', 'destroy');
-        });
+
+    // تم حذف روابط InstallmentPaymentController
+    // Route::controller(InstallmentPaymentController::class)
+    //     ->group(function () {
+    //         Route::get('installment-payments', 'index');
+    //         Route::post('installment-payment', 'store');
+    //         Route::post('installment-payment/pay', 'payInstallments');
+    //         Route::get('installment-payment/{installmentPayment}', 'show');
+    //         Route::put('installment-payment/{installmentPayment}', 'update');
+    //         Route::delete('installment-payment/delete/{installmentPayment}', 'destroy');
+    //     });
+
+    // تم حذف روابط RevenueController
+    // Route::controller(RevenueController::class)
+    //     ->group(function () {
+    //         Route::get('revenues', 'index');
+    //         Route::post('revenue', 'store');
+    //         Route::get('revenue/{revenue}', 'show');
+    //         Route::put('revenue/{revenue}', 'update');
+    //         Route::delete('revenue/delete/{revenue}', 'destroy');
+    //     });
+
+    // تم حذف روابط ProfitController
+    // Route::controller(ProfitController::class)
+    //     ->group(function () {
+    //         Route::get('profits', 'index');
+    //         Route::post('profit', 'store');
+    //         Route::get('profit/{profit}', 'show');
+    //         Route::put('profit/{profit}', 'update');
+    //         Route::delete('profit/delete/{profit}', 'destroy');
+    //     });
+
     // InstallmentPaymentDetail Controller
     Route::controller(InstallmentPaymentDetailController::class)
         ->group(function () {
@@ -288,11 +312,37 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::put('installment-payment-detail/{installmentPaymentDetail}', 'update');
             Route::delete('installment-payment-detail/delete/{installmentPaymentDetail}', 'destroy');
         });
+
+    // Permissions Controller
     Route::get('/permissions', [PermissionController::class, 'index']);
+
+    // --------------------------------------------------------------------
+    // روابط الكنترولرات الجديدة
+    // --------------------------------------------------------------------
+
+    // Account Controller
+    Route::controller(AccountController::class)
+        ->group(function () {
+            Route::get('accounts', 'index');
+            Route::post('account', 'store');
+            Route::get('account/{account}', 'show');
+            Route::put('account/{account}', 'update');
+            Route::delete('account/{account}', 'destroy');
+        });
+
+    // FinancialTransaction Controller
+    Route::controller(FinancialTransactionController::class)
+        ->group(function () {
+            Route::get('financial-transactions', 'index');
+            Route::post('financial-transaction', 'store');
+            Route::get('financial-transaction/{financialTransaction}', 'show');
+            Route::put('financial-transaction/{financialTransaction}', 'update');
+            Route::delete('financial-transaction/{financialTransaction}', 'destroy');
+        });
 });
 // Artisan commands routes
 Route::controller(ArtisanController::class)->prefix('php')->group(function () {
-    Route::get('runComposerDump', 'runComposerDump'); // عمل اوتو لود للملفات 
+    Route::get('runComposerDump', 'runComposerDump'); // عمل اوتو لود للملفات
     Route::get('generateBackup', 'generateBackup'); //  توليد السيدرز الاحتياطية
     Route::get('migrateAndSeed', 'migrateAndSeed'); // ميجريشن ريفرش وعمل سيدرنج لقاعدة البيانات من جديد
     Route::get('applyBackup', 'applyBackup');     //  تطبيق السيدرز الاحتياطية

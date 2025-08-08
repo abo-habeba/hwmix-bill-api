@@ -3,28 +3,21 @@
 namespace App\Traits;
 
 use App\Models\User;
+use App\Scopes\CompanyScope; // استيراد الـ Global Scope
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 
 trait Scopes
 {
     /**
-     * نطاق لجلب السجلات المرتبطة بشركة المستخدم الحالي (المالك/المدير) فقط.
-     * يفترض أن المستخدم الذي يستخدم هذا النطاق هو "مالك" أو "مدير" للشركة.
-     * لا يتضمن السجلات التي company_id لها null.
+     * يتم استدعاء هذه الدالة تلقائيًا بواسطة Laravel عند استخدام الـ Trait في النموذج.
+     * هنا نقوم بتطبيق Global Scope.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder $query
-     * @return \Illuminate\Database\Eloquent\Builder
+     * @return void
      */
-    public function scopeWhereCompanyIsCurrent(Builder $query): Builder
+    protected static function bootScopes()
     {
-        $user = Auth::user();
-
-        if (!$user || !$user->company_id) {
-            return $query->whereRaw('0 = 1');  // إرجاع استعلام لا يعيد أي نتائج
-        }
-
-        return $query->where('company_id', $user->company_id);
+        static::addGlobalScope(new CompanyScope);
     }
 
     /**
@@ -38,12 +31,12 @@ trait Scopes
         $user = Auth::user();
 
         if ($user) {
-            $subUsers = User::where('created_by', $user->id)->pluck('id')->toArray();
-            $subUsers[] = $user->id;  // أضف المستخدم نفسه إلى قائمة المستخدمين التابعين
-            return $query->whereIn('created_by', $subUsers);
+            $descendantUserIds = $user->getDescendantUserIds();
+            $descendantUserIds[] = $user->id;
+            return $query->whereIn('created_by', $descendantUserIds);
         }
 
-        return $query->whereRaw('0 = 1');  // لا ترجع شيئًا إذا لم يكن هناك مستخدم
+        return $query->whereRaw('0 = 1');
     }
 
     /**
@@ -60,31 +53,48 @@ trait Scopes
             return $query->where('created_by', $user->id);
         }
 
-        return $query->whereRaw('0 = 1');  // لا ترجع شيئًا إذا لم يكن هناك مستخدم
+        return $query->whereRaw('0 = 1');
     }
 
+    /**
+     * التحقق مما إذا كان الكائن ينتمي إلى الشركة النشطة للمستخدم الحالي.
+     *
+     * @return bool
+     */
     public function belongsToCurrentCompany(): bool
     {
         $user = Auth::user();
         return $user && $this->company_id && $this->company_id === $user->company_id;
     }
 
+    /**
+     * التحقق مما إذا كان الكائن قد أنشأه المستخدم الحالي.
+     *
+     * @return bool
+     */
     public function createdByCurrentUser(): bool
     {
         $user = Auth::user();
         return $user && $this->created_by === $user->id;
     }
 
+    /**
+     * التحقق مما إذا كان الكائن قد أنشأه المستخدم الحالي أو أحد المستخدمين التابعين له.
+     *
+     * @return bool
+     */
     public function createdByUserOrChildren(): bool
     {
         $user = Auth::user();
-        if (!$user || !$this->created_by)
+        if (!$user || !$this->created_by) {
             return false;
+        }
 
         if ($this->created_by === $user->id) {
             return true;
         }
 
-        return User::where('created_by', $user->id)->where('id', $this->created_by)->exists();
+        $descendantUserIds = $user->getDescendantUserIds();
+        return in_array($this->created_by, $descendantUserIds);
     }
 }

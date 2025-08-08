@@ -7,6 +7,9 @@ use App\Http\Requests\Payment\StorePaymentRequest;
 use App\Http\Requests\Payment\UpdatePaymentRequest;
 use App\Http\Resources\Payment\PaymentResource;
 use App\Models\Payment;
+use App\Models\FinancialTransaction; // إضافة نموذج المعاملات المالية
+use App\Models\Account; // إضافة نموذج الحسابات
+use App\Models\CashBox; // لإحضار معلومات الصندوق النقدي
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
@@ -22,11 +25,13 @@ class PaymentController extends Controller
     {
         $this->relations = [
             'user',
-            'installments',
+            // 'installments', // تم حذف هذا الربط المباشر، الآن يتم عبر installmentPaymentDetails
             'cashBox',
-            'paymentMethod',
-            'creator', // للمصادقة على createdByUser/OrChildren
-            'company', // للتحقق من belongsToCurrentCompany
+            // 'paymentMethod', // تم استبداله بـ 'method' كحقل نصي، ليس علاقة مباشرة
+            'creator',
+            'company',
+            'financialTransaction', // إضافة العلاقة مع المعاملة المالية
+            'payable', // إضافة العلاقة Polymorphic (للفاتورة، القسط، إلخ)
         ];
     }
 
@@ -69,8 +74,9 @@ class PaymentController extends Controller
             if ($request->filled('user_id')) {
                 $query->where('user_id', $request->input('user_id'));
             }
-            if ($request->filled('payment_method_id')) {
-                $query->where('payment_method_id', $request->input('payment_method_id'));
+            // تم استبدال payment_method_id بـ method
+            if ($request->filled('method')) {
+                $query->where('method', $request->input('method'));
             }
             if ($request->filled('cash_box_id')) {
                 $query->where('cash_box_id', $request->input('cash_box_id'));
@@ -81,16 +87,30 @@ class PaymentController extends Controller
             if ($request->filled('amount_to')) {
                 $query->where('amount', '<=', $request->input('amount_to'));
             }
-            if ($request->filled('paid_at_from')) {
-                $query->where('paid_at', '>=', $request->input('paid_at_from') . ' 00:00:00');
+            // تم تغيير paid_at إلى payment_date
+            if ($request->filled('payment_date_from')) {
+                $query->where('payment_date', '>=', $request->input('payment_date_from') . ' 00:00:00');
             }
-            if ($request->filled('paid_at_to')) {
-                $query->where('paid_at', '<=', $request->input('paid_at_to') . ' 23:59:59');
+            if ($request->filled('payment_date_to')) {
+                $query->where('payment_date', '<=', $request->input('payment_date_to') . ' 23:59:59');
             }
+            // إضافة فلتر لـ payment_type
+            if ($request->filled('payment_type')) {
+                $query->where('payment_type', $request->input('payment_type'));
+            }
+            // إضافة فلتر لـ payable_type (مثلاً: App\Models\Invoice)
+            if ($request->filled('payable_type')) {
+                $query->where('payable_type', $request->input('payable_type'));
+            }
+            // إضافة فلتر لـ payable_id
+            if ($request->filled('payable_id')) {
+                $query->where('payable_id', $request->input('payable_id'));
+            }
+
 
             // تحديد عدد العناصر في الصفحة والفرز
             $perPage = max(1, (int) $request->input('per_page', 20));
-            $sortField = $request->input('sort_by', 'paid_at');
+            $sortField = $request->input('sort_by', 'payment_date'); // تم تغيير paid_at إلى payment_date
             $sortOrder = $request->input('sort_order', 'desc');
 
             $payments = $query->orderBy($sortField, $sortOrder)->paginate($perPage);
@@ -132,15 +152,74 @@ class PaymentController extends Controller
                 $validatedData['created_by'] = $authUser->id;
                 $validatedData['company_id'] = $companyId;
 
-                // التحقق من أن صندوق النقد وطريقة الدفع ينتميان لنفس الشركة
-                $cashBox = \App\Models\CashBox::where('id', $validatedData['cash_box_id'])
-                    ->where('company_id', $companyId)
-                    ->firstOrFail();
-                $paymentMethod = \App\Models\PaymentMethod::where('id', $validatedData['payment_method_id'])
+                // التحقق من أن صندوق النقد ينتمي لنفس الشركة
+                // (تم حذف التحقق من payment_method_id لأنه أصبح حقل نصي)
+                $cashBox = CashBox::where('id', $validatedData['cash_box_id'])
                     ->where('company_id', $companyId)
                     ->firstOrFail();
 
+                // إنشاء الدفعة
                 $payment = Payment::create($validatedData);
+
+                // --------------------------------------------------------------------
+                // جزء المحاسبة: إنشاء قيد مالي في FinancialTransactions
+                // --------------------------------------------------------------------
+                $debitAccountId = null;
+                $creditAccountId = null;
+
+                // تحديد حسابات المدين والدائن بناءً على نوع الدفعة
+                if ($validatedData['payment_type'] === 'inflow') { // دفعة واردة (إيراد)
+                    // المدين: حساب الصندوق النقدي (الذي استقبل المبلغ)
+                    // يجب أن يكون لكل صندوق نقدي حساب محاسبي مقابل
+                    $debitAccountId = $cashBox->account_id ?? Account::where('company_id', $companyId)->where('name', 'like', '%Cash%')->first()->id; // مثال: حساب النقدية
+
+                    // الدائن: حساب الإيرادات (أو حساب وسيط إذا كان هناك كيان Payable)
+                    // يمكنك جلب هذا الحساب بناءً على نوع payable_type أو افتراضيًا
+                    if ($validatedData['payable_type'] === 'App\\Models\\Invoice') {
+                        // مثال: إذا كانت فاتورة، قد يكون حساب إيرادات المبيعات
+                        $creditAccountId = Account::where('company_id', $companyId)->where('name', 'like', '%Sales Revenue%')->first()->id;
+                    } else {
+                        // حساب إيرادات عام
+                        $creditAccountId = Account::where('company_id', $companyId)->where('name', 'like', '%General Revenue%')->first()->id;
+                    }
+                } elseif ($validatedData['payment_type'] === 'outflow') { // دفعة صادرة (مصروف)
+                    // المدين: حساب المصروفات (أو حساب وسيط إذا كان هناك كيان Payable)
+                    if ($validatedData['payable_type'] === 'App\\Models\\Purchase') {
+                        // مثال: إذا كانت دفعة شراء، قد يكون حساب المشتريات
+                        $debitAccountId = Account::where('company_id', $companyId)->where('name', 'like', '%Purchases%')->first()->id;
+                    } else {
+                        // حساب مصروفات عام
+                        $debitAccountId = Account::where('company_id', $companyId)->where('name', 'like', '%General Expense%')->first()->id;
+                    }
+
+                    // الدائن: حساب الصندوق النقدي (الذي دفع المبلغ)
+                    $creditAccountId = $cashBox->account_id ?? Account::where('company_id', $companyId)->where('name', 'like', '%Cash%')->first()->id; // مثال: حساب النقدية
+                }
+
+                if (!$debitAccountId || !$creditAccountId) {
+                    throw new \Exception('لم يتم العثور على حسابات المدين أو الدائن للمعاملة المالية.');
+                }
+
+                $financialTransaction = FinancialTransaction::create([
+                    'transaction_type' => $validatedData['payment_type'] === 'inflow' ? 'Payment Received' : 'Payment Made',
+                    'debit_account_id' => $debitAccountId,
+                    'credit_account_id' => $creditAccountId,
+                    'amount' => $validatedData['amount'],
+                    'source_type' => Payment::class, // مصدر المعاملة هو الدفعة نفسها
+                    'source_id' => $payment->id,
+                    'user_id' => $validatedData['user_id'] ?? null,
+                    'company_id' => $companyId,
+                    'cash_box_id' => $validatedData['cash_box_id'],
+                    'transaction_date' => $validatedData['payment_date'],
+                    'note' => $validatedData['notes'] ?? 'دفعة مالية',
+                    'created_by' => $authUser->id,
+                ]);
+
+                // ربط الدفعة بالمعاملة المالية
+                $payment->financial_transaction_id = $financialTransaction->id;
+                $payment->save();
+                // --------------------------------------------------------------------
+
                 $payment->load($this->relations);
                 DB::commit();
                 return api_success(new PaymentResource($payment), 'تم إنشاء الدفعة بنجاح.', 201);
@@ -149,7 +228,7 @@ class PaymentController extends Controller
                 return api_error('فشل التحقق من صحة البيانات أثناء تخزين الدفعة.', $e->errors(), 422);
             } catch (Throwable $e) {
                 DB::rollBack();
-                return api_error('حدث خطأ أثناء حفظ الدفعة.', [], 500);
+                return api_error('حدث خطأ أثناء حفظ الدفعة: ' . $e->getMessage(), [], 500);
             }
         } catch (Throwable $e) {
             return api_exception($e);
@@ -214,7 +293,7 @@ class PaymentController extends Controller
                 return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
-            $payment = Payment::with(['company', 'creator'])->findOrFail($id);
+            $payment = Payment::with(['company', 'creator', 'financialTransaction'])->findOrFail($id);
 
             $canUpdate = false;
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
@@ -236,19 +315,61 @@ class PaymentController extends Controller
                 $validatedData = $request->validated();
                 $validatedData['updated_by'] = $authUser->id;
 
-                // التحقق من أن صندوق النقد وطريقة الدفع ينتميان لنفس الشركة إذا تم تغييرها
+                // التحقق من أن صندوق النقد ينتمي لنفس الشركة إذا تم تغييرها
                 if (isset($validatedData['cash_box_id']) && $validatedData['cash_box_id'] != $payment->cash_box_id) {
-                    $cashBox = \App\Models\CashBox::where('id', $validatedData['cash_box_id'])
+                    CashBox::where('id', $validatedData['cash_box_id'])
                         ->where('company_id', $companyId)
                         ->firstOrFail();
                 }
-                if (isset($validatedData['payment_method_id']) && $validatedData['payment_method_id'] != $payment->payment_method_id) {
-                    $paymentMethod = \App\Models\PaymentMethod::where('id', $validatedData['payment_method_id'])
-                        ->where('company_id', $companyId)
-                        ->firstOrFail();
-                }
+                // تم حذف التحقق من payment_method_id لأنه أصبح حقل نصي
 
                 $payment->update($validatedData);
+
+                // --------------------------------------------------------------------
+                // جزء المحاسبة: تحديث القيد المالي في FinancialTransactions
+                // --------------------------------------------------------------------
+                if ($payment->financialTransaction) {
+                    $financialTransaction = $payment->financialTransaction;
+
+                    $debitAccountId = null;
+                    $creditAccountId = null;
+
+                    // إعادة تحديد حسابات المدين والدائن بناءً على نوع الدفعة المحدث
+                    $cashBox = CashBox::find($payment->cash_box_id); // جلب الصندوق النقدي المحدث
+
+                    if ($payment->payment_type === 'inflow') {
+                        $debitAccountId = $cashBox->account_id ?? Account::where('company_id', $companyId)->where('name', 'like', '%Cash%')->first()->id;
+                        if ($payment->payable_type === 'App\\Models\\Invoice') {
+                            $creditAccountId = Account::where('company_id', $companyId)->where('name', 'like', '%Sales Revenue%')->first()->id;
+                        } else {
+                            $creditAccountId = Account::where('company_id', $companyId)->where('name', 'like', '%General Revenue%')->first()->id;
+                        }
+                    } elseif ($payment->payment_type === 'outflow') {
+                        if ($payment->payable_type === 'App\\Models\\Purchase') {
+                            $debitAccountId = Account::where('company_id', $companyId)->where('name', 'like', '%Purchases%')->first()->id;
+                        } else {
+                            $debitAccountId = Account::where('company_id', $companyId)->where('name', 'like', '%General Expense%')->first()->id;
+                        }
+                        $creditAccountId = $cashBox->account_id ?? Account::where('company_id', $companyId)->where('name', 'like', '%Cash%')->first()->id;
+                    }
+
+                    if (!$debitAccountId || !$creditAccountId) {
+                        throw new \Exception('لم يتم العثور على حسابات المدين أو الدائن لتحديث المعاملة المالية.');
+                    }
+
+                    $financialTransaction->update([
+                        'transaction_type' => $payment->payment_type === 'inflow' ? 'Payment Received' : 'Payment Made',
+                        'debit_account_id' => $debitAccountId,
+                        'credit_account_id' => $creditAccountId,
+                        'amount' => $payment->amount,
+                        'cash_box_id' => $payment->cash_box_id,
+                        'transaction_date' => $payment->payment_date,
+                        'note' => $payment->notes ?? 'دفعة مالية محدثة',
+                        // source_type و source_id لا تتغير هنا لأنها تشير إلى الدفعة نفسها
+                    ]);
+                }
+                // --------------------------------------------------------------------
+
                 $payment->load($this->relations);
                 DB::commit();
                 return api_success(new PaymentResource($payment), 'تم تحديث الدفعة بنجاح.');
@@ -257,7 +378,7 @@ class PaymentController extends Controller
                 return api_error('فشل التحقق من صحة البيانات أثناء تحديث الدفعة.', $e->errors(), 422);
             } catch (Throwable $e) {
                 DB::rollBack();
-                return api_error('حدث خطأ أثناء تحديث الدفعة.', [], 500);
+                return api_error('حدث خطأ أثناء تحديث الدفعة: ' . $e->getMessage(), [], 500);
             }
         } catch (Throwable $e) {
             return api_exception($e);
@@ -281,7 +402,7 @@ class PaymentController extends Controller
                 return api_unauthorized('يتطلب المصادقة أو الارتباط بالشركة.');
             }
 
-            $payment = Payment::with(['company', 'creator', 'installmentPaymentDetails'])->findOrFail($id);
+            $payment = Payment::with(['company', 'creator', 'installmentPaymentDetails', 'financialTransaction'])->findOrFail($id);
 
             $canDelete = false;
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
@@ -301,10 +422,19 @@ class PaymentController extends Controller
             DB::beginTransaction();
             try {
                 // تحقق مما إذا كانت الدفعة مرتبطة بأي تفاصيل دفعات أقساط
+                // هذا يمنع حذف دفعة إذا كانت قد غطت أقساطًا بالفعل
                 if ($payment->installmentPaymentDetails()->exists()) {
                     DB::rollBack();
                     return api_error('لا يمكن حذف الدفعة. إنها مرتبطة بتفاصيل دفعات أقساط موجودة.', [], 409);
                 }
+
+                // --------------------------------------------------------------------
+                // جزء المحاسبة: حذف القيد المالي المرتبط
+                // --------------------------------------------------------------------
+                if ($payment->financialTransaction) {
+                    $payment->financialTransaction->delete();
+                }
+                // --------------------------------------------------------------------
 
                 $deletedPayment = $payment->replicate();
                 $deletedPayment->setRelations($payment->getRelations());

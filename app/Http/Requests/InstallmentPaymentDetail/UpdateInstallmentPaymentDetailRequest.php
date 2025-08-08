@@ -14,7 +14,8 @@ class UpdateInstallmentPaymentDetailRequest extends FormRequest
     public function rules()
     {
         return [
-            'installment_payment_id' => 'sometimes|exists:installment_payments,id',
+            // تم تغيير 'installment_payment_id' ليرتبط بـ 'payment_id'
+            'payment_id' => 'sometimes|exists:payments,id',
             'installment_id' => 'sometimes|exists:installments,id',
             'amount_paid' => 'sometimes|numeric|min:0',
         ];

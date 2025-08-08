@@ -63,7 +63,6 @@ class UserResource extends JsonResource
         } else {
         }
 
-        // ... بقية الكود
         if ($this->hasPermissionTo(perm_key('admin.super'))) {
             return \App\Models\Company::all();
         }

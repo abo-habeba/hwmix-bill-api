@@ -28,23 +28,26 @@ return new class extends Migration {
             // المبلغ المتبقي
             $table->decimal('remaining_amount', 15, 2)->default(0);
 
-            // حالة الفاتورة
-            $table->enum('status', ['draft', 'confirmed', 'canceled'])->default('confirmed');
+            // إضافة حقل الربح التقديري الإجمالي للفاتورة
+            $table->decimal('estimated_profit', 15, 2)->default(0)->after('total_discount');
+
+            // حالة الفاتورة (تم إضافة 'partially_paid' و 'paid')
+            $table->enum('status', ['draft', 'confirmed', 'canceled', 'partially_paid', 'paid'])->default('confirmed');
             // ملاحظات
             $table->text('notes')->nullable();
 
             // معرف الشركة
-            $table->foreignId('company_id')->constrained()->onDelete('cascade');
+            $table->foreignId('company_id')->constrained('companies')->onDelete('cascade'); // تم تحديد اسم الجدول
             // معرف المنشئ
             $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
             // معرف آخر معدل
             $table->foreignId('updated_by')->nullable()->constrained('users')->nullOnDelete();
             // معرف المستخدم
-            $table->foreignId('user_id')->constrained()->onDelete('cascade');
+            $table->foreignId('user_id')->constrained('users')->onDelete('cascade'); // تم تحديد اسم الجدول
             // معرف نوع الفاتورة
-            $table->foreignId('invoice_type_id')->constrained()->onDelete('cascade');
+            $table->foreignId('invoice_type_id')->constrained('invoice_types')->onDelete('cascade'); // تم تحديد اسم الجدول
             // معرف صندوق النقد
-            $table->foreignId('cash_box_id')->nullable()->constrained()->nullOnDelete();
+            $table->foreignId('cash_box_id')->nullable()->constrained('cash_boxes')->nullOnDelete();
             // كود نوع الفاتورة
             $table->string('invoice_type_code')->nullable();
 
