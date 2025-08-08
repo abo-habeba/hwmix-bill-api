@@ -14,7 +14,7 @@ class InstallmentResource extends JsonResource
             'id' => $this->id,
             'installment_plan_id' => $this->installment_plan_id,
             'installment_number' => $this->installment_number,
-            'due_date' => $this->due_date ? $this->due_date->format('Y-m-d H:i:s') : null, // تنسيق التاريخ
+            'due_date' => $this->due_date ? $this->due_date->format('Y-m-d') : null, // تنسيق التاريخ
             'amount' => number_format($this->amount, 2, '.', ''), // تنسيق الرقم
             'status' => $this->status,
             'status_label' => $this->getStatusLabel(), // إضافة status_label
@@ -37,7 +37,9 @@ class InstallmentResource extends JsonResource
     {
         return match ($this->status) {
             'pending' => 'في الانتظار',
+            'لم يتم الدفع' => 'في الانتظار',
             'paid' => 'مدفوع',
+            'تم الدفع' => 'مدفوع',
             'partially_paid' => 'مدفوع جزئياً',
             'canceled' => 'ملغى',
             'overdue' => 'متأخر', // حالة محتملة للأقساط

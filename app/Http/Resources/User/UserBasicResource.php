@@ -20,7 +20,7 @@ class UserBasicResource extends JsonResource
         $avatarImage = $this->images->where('type', 'avatar')->first();
         return [
             'id' => $this->id,
-            'balance' => optional($this->cashBoxeDefault)->balance ?? 0,
+            'balance' => optional($this->cashBoxDefault)->balance ?? 0,
             'full_name' => $this->full_name,
             'nickname' => $this->nickname,
             'phone' => $this->phone,
@@ -29,7 +29,7 @@ class UserBasicResource extends JsonResource
             'email' => $this->email,
             'phone' => $this->phone,
             'position' => $this->position,
-            'cash_box_id' => optional($this->cashBoxeDefault)->id,
+            'cash_box_id' => optional($this->cashBoxDefault)->id,
             'avatar_url' => $avatarImage ? asset($avatarImage->url) : null,
             'status' => $this->status,
             'company_id' => $this->company_id,

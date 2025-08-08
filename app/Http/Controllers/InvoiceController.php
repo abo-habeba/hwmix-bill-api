@@ -27,7 +27,11 @@ class InvoiceController extends Controller
     public function __construct()
     {
         $this->relations = [
+<<<<<<< HEAD
             'user.cashBoxeDefault', // تم إرجاع العلاقة إلى cashBoxeDefault
+=======
+            'user.cashBoxDefault',
+>>>>>>> origin/master
             'company',
             'invoiceType',
             'items.variant', // تم الإبقاء على هذه العلاقة كما هي

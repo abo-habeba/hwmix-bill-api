@@ -39,7 +39,7 @@ class InstallmentPaymentService
                 throw new Exception('InstallmentPaymentService: خطة التقسيط غير موجودة.');
             }
 
-            $cashBoxId = $options['cash_box_id'] ?? $authUser->cashBoxeDefault?->id;
+            $cashBoxId = $options['cash_box_id'] ?? null;
             if (!$cashBoxId) {
                 throw new Exception('InstallmentPaymentService: لم يتم تحديد صندوق نقدي للموظف المستلم.');
             }
@@ -48,9 +48,8 @@ class InstallmentPaymentService
             if (!$clientUser) {
                 throw new Exception('InstallmentPaymentService: لم يتم العثور على العميل المرتبط بخطة التقسيط.');
             }
-            $clientCashBoxId = $options['user_cash_box_id'] ?? $clientUser->cashBoxeDefault?->id;
+            $clientCashBoxId = $options['user_cash_box_id'] ?? null;
             if (!$clientCashBoxId) {
-                $clientCashBoxId = $cashBoxId;
                 Log::warning('InstallmentPaymentService: لم يتم العثور على صندوق نقدي افتراضي للعميل. استخدام صندوق الموظف المستلم كبديل.', ['user_id' => $clientUser->id, 'fallback_cash_box_id' => $clientCashBoxId]);
             }
 
@@ -72,7 +71,6 @@ class InstallmentPaymentService
                 'notes' => $options['notes'] ?? '',
                 'cash_box_id' => $cashBoxId,
             ]);
-            Log::info('InstallmentPaymentService: تم إنشاء سجل الدفعة الرئيسي.', ['payment_id' => $installmentPayment->id, 'initial_amount' => $amount]);
 
             // **التعديل هنا: جلب الأقساط بطريقة تسمح بالتدفق التلقائي**
             // ابدأ بالأقساط المحددة ثم انتقل للمستحقة الأخرى
@@ -124,52 +122,24 @@ class InstallmentPaymentService
 
                 $remainingAmountToDistribute = bcsub($remainingAmountToDistribute, $amountToApplyToCurrentInstallment, 2);
                 $totalAmountSuccessfullyPaid = bcadd($totalAmountSuccessfullyPaid, $amountToApplyToCurrentInstallment, 2);
-
-                Log::info('InstallmentPaymentService: تم تطبيق دفعة على قسط.', [
-                    'installment_id' => $installment->id,
-                    'amount_applied' => $amountToApplyToCurrentInstallment,
-                    'new_remaining' => $newRemaining,
-                    'new_status' => $newStatus
-                ]);
                 // يفضل إعادة تحميل القسط بعد التحديث للتأكد من أنه يمثل حالته الأخيرة قبل إضافته للمجموعة
                 $affectedInstallments->push($installment->fresh());
             }
-
             $installmentPayment->update(['amount_paid' => $totalAmountSuccessfullyPaid]);
-            Log::info('InstallmentPaymentService: تم تحديث المبلغ المدفوع الكلي في سجل الدفعة الرئيسية.', ['payment_id' => $installmentPayment->id, 'actual_paid' => $totalAmountSuccessfullyPaid]);
-
             $this->updateInstallmentPlanStatus($installmentPlan);
-            Log::info('InstallmentPaymentService: تم تحديث حالة خطة التقسيط.', ['plan_id' => $installmentPlan->id, 'new_status' => $installmentPlan->status]);
-
             $depositResultStaff = $authUser->deposit($totalAmountSuccessfullyPaid, $cashBoxId);
             if ($depositResultStaff !== true) {
                 throw new Exception('InstallmentPaymentService: فشل إيداع المبلغ في خزنة الموظف: ' . json_encode($depositResultStaff));
             }
-            Log::info('InstallmentPaymentService: تم إيداع المبلغ في خزنة الموظف.', [
-                'user_id' => $authUser->id,
-                'cash_box_id' => $cashBoxId,
-                'amount' => $totalAmountSuccessfullyPaid
-            ]);
 
             $depositResultClient = $clientUser->deposit($totalAmountSuccessfullyPaid, $clientCashBoxId);
             if ($depositResultClient !== true) {
                 throw new Exception('InstallmentPaymentService: فشل تحديث رصيد العميل (تقليل الدين): ' . json_encode($depositResultClient));
             }
-            Log::info('InstallmentPaymentService: تم تحديث رصيد العميل (تقليل الدين).', [
-                'user_id' => $clientUser->id,
-                'cash_box_id' => $clientCashBoxId,
-                'amount' => $totalAmountSuccessfullyPaid
-            ]);
 
             DB::commit();
-            Log::info('InstallmentPaymentService: تمت عملية دفع الأقساط بنجاح.', ['installment_payment_id' => $installmentPayment->id]);
-
             if (bccomp($remainingAmountToDistribute, '0.00', 2) > 0) {
                 $installmentPayment->excess_amount = $remainingAmountToDistribute;
-                Log::info('InstallmentPaymentService: تم دفع جميع الأقساط وبقي مبلغ زائد.', [
-                    'installment_plan_id' => $installmentPlan->id,
-                    'excess_amount' => $remainingAmountToDistribute
-                ]);
             }
 
             return [

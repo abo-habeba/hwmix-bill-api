@@ -13,7 +13,7 @@
 
 namespace App\Models{
 /**
- * 
+ *
  *
  * @mixin IdeHelperActivityLog
  * @property int $id
@@ -71,7 +71,7 @@ namespace App\Models{
 
 namespace App\Models{
 /**
- * 
+ *
  *
  * @mixin IdeHelperAttribute
  * @property int $id
@@ -100,7 +100,7 @@ namespace App\Models{
 
 namespace App\Models{
 /**
- * 
+ *
  *
  * @mixin IdeHelperAttributeValue
  * @property int $id
@@ -127,7 +127,7 @@ namespace App\Models{
 
 namespace App\Models{
 /**
- * 
+ *
  *
  * @mixin IdeHelperBrand
  * @property int $id
@@ -156,7 +156,7 @@ namespace App\Models{
 
 namespace App\Models{
 /**
- * 
+ *
  *
  * @mixin IdeHelperCashBox
  * @property int $id
@@ -199,7 +199,7 @@ namespace App\Models{
 
 namespace App\Models{
 /**
- * 
+ *
  *
  * @mixin IdeHelperCashBoxType
  * @property int $id
@@ -230,7 +230,7 @@ namespace App\Models{
 
 namespace App\Models{
 /**
- * 
+ *
  *
  * @mixin IdeHelperCategory
  * @property int $id
@@ -264,7 +264,7 @@ namespace App\Models{
 
 namespace App\Models{
 /**
- * 
+ *
  *
  * @mixin IdeHelperCompany
  * @property int $id
@@ -325,7 +325,7 @@ namespace App\Models{
 
 namespace App\Models{
 /**
- * 
+ *
  *
  * @mixin IdeHelperImage
  * @property int $id
@@ -356,7 +356,7 @@ namespace App\Models{
 
 namespace App\Models{
 /**
- * 
+ *
  *
  * @mixin IdeHelperInstallment
  * @property int $id
@@ -397,7 +397,7 @@ namespace App\Models{
 
 namespace App\Models{
 /**
- * 
+ *
  *
  * @mixin IdeHelperInstallmentPayment
  * @property int $id
@@ -430,7 +430,7 @@ namespace App\Models{
 
 namespace App\Models{
 /**
- * 
+ *
  *
  * @mixin IdeHelperInstallmentPlan
  * @property int $id
@@ -481,7 +481,7 @@ namespace App\Models{
 
 namespace App\Models{
 /**
- * 
+ *
  *
  * @mixin IdeHelperInvoice
  * @property int $id
@@ -524,7 +524,7 @@ namespace App\Models{
 
 namespace App\Models{
 /**
- * 
+ *
  *
  * @mixin IdeHelperInvoiceItem
  * @property int $id
@@ -562,7 +562,7 @@ namespace App\Models{
 
 namespace App\Models{
 /**
- * 
+ *
  *
  * @mixin IdeHelperInvoiceType
  * @property int $id
@@ -594,7 +594,7 @@ namespace App\Models{
 
 namespace App\Models{
 /**
- * 
+ *
  *
  * @mixin IdeHelperOrder
  * @method static \Illuminate\Database\Eloquent\Builder<static>|Order newModelQuery()
@@ -606,7 +606,7 @@ namespace App\Models{
 
 namespace App\Models{
 /**
- * 
+ *
  *
  * @mixin IdeHelperPayment
  * @property int $id
@@ -646,7 +646,7 @@ namespace App\Models{
 
 namespace App\Models{
 /**
- * 
+ *
  *
  * @mixin IdeHelperPaymentMethod
  * @property int $id
@@ -672,7 +672,7 @@ namespace App\Models{
 
 namespace App\Models{
 /**
- * 
+ *
  *
  * @mixin IdeHelperProduct
  * @property int $id
@@ -720,7 +720,7 @@ namespace App\Models{
 
 namespace App\Models{
 /**
- * 
+ *
  *
  * @mixin IdeHelperProductVariant
  * @property int $id
@@ -775,7 +775,7 @@ namespace App\Models{
 
 namespace App\Models{
 /**
- * 
+ *
  *
  * @mixin IdeHelperProductVariantAttribute
  * @property int $id
@@ -808,7 +808,7 @@ namespace App\Models{
 
 namespace App\Models{
 /**
- * 
+ *
  *
  * @mixin IdeHelperProfit
  * @property int $id
@@ -849,7 +849,7 @@ namespace App\Models{
 
 namespace App\Models{
 /**
- * 
+ *
  *
  * @mixin IdeHelperQuotation
  * @method static \Illuminate\Database\Eloquent\Builder<static>|Quotation newModelQuery()
@@ -861,7 +861,7 @@ namespace App\Models{
 
 namespace App\Models{
 /**
- * 
+ *
  *
  * @mixin IdeHelperRevenue
  * @property int $id
@@ -907,7 +907,7 @@ namespace App\Models{
 
 namespace App\Models{
 /**
- * 
+ *
  *
  * @mixin IdeHelperRole
  * @property int $id
@@ -946,7 +946,7 @@ namespace App\Models{
 
 namespace App\Models{
 /**
- * 
+ *
  *
  * @mixin IdeHelperRoleCompany
  * @property int $id
@@ -976,7 +976,7 @@ namespace App\Models{
 
 namespace App\Models{
 /**
- * 
+ *
  *
  * @mixin IdeHelperService
  * @property int $id
@@ -1006,7 +1006,7 @@ namespace App\Models{
 
 namespace App\Models{
 /**
- * 
+ *
  *
  * @mixin IdeHelperStock
  * @property int $id
@@ -1055,7 +1055,7 @@ namespace App\Models{
 
 namespace App\Models{
 /**
- * 
+ *
  *
  * @mixin IdeHelperSubscription
  * @property int $id
@@ -1095,7 +1095,7 @@ namespace App\Models{
 
 namespace App\Models{
 /**
- * 
+ *
  *
  * @mixin IdeHelperTransaction
  * @property int $id
@@ -1143,7 +1143,7 @@ namespace App\Models{
 
 namespace App\Models{
 /**
- * 
+ *
  *
  * @mixin IdeHelperTranslation
  * @property int $id
@@ -1173,7 +1173,7 @@ namespace App\Models{
 
 namespace App\Models{
 /**
- * 
+ *
  *
  * @method void deposit(float|int $amount)
  * @mixin IdeHelperUser
@@ -1196,7 +1196,7 @@ namespace App\Models{
  * @property string|null $remember_token
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
- * @property-read \App\Models\CashBox|null $cashBoxeDefault
+ * @property-read \App\Models\CashBox|null $cashBoxDefault
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\CashBox> $cashBoxes
  * @property-read int|null $cash_boxes_count
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Company> $companies
@@ -1264,7 +1264,7 @@ namespace App\Models{
 
 namespace App\Models{
 /**
- * 
+ *
  *
  * @mixin IdeHelperVariant
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\VariantAttribute> $attributes
@@ -1279,7 +1279,7 @@ namespace App\Models{
 
 namespace App\Models{
 /**
- * 
+ *
  *
  * @mixin IdeHelperVariantAttribute
  * @property-read \App\Models\Attribute|null $attribute
@@ -1295,7 +1295,7 @@ namespace App\Models{
 
 namespace App\Models{
 /**
- * 
+ *
  *
  * @mixin IdeHelperWarehouse
  * @property int $id
