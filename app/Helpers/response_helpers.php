@@ -1,8 +1,10 @@
 <?php
 
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Pagination\AbstractPaginator;
+use Illuminate\Http\Resources\Json\ResourceCollection;
+use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 
@@ -12,46 +14,52 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 if (!function_exists('api_success')) {
     function api_success($data = [], string $message = 'تم بنجاح', int $code = 200): JsonResponse
     {
-        // إذا كانت البيانات هي عبارة عن Paginator (للباجينيشن)
+        $response = [
+            'status'  => true,
+            'message' => $message,
+            'data'    => [],
+        ];
+
+        // ✅ إذا كانت البيانات Paginator عادي (للبجينيشن)
         if ($data instanceof AbstractPaginator) {
-            return response()->json([
-                'status' => true,
-                'message' => $message,
-                'data' => $data->items(),
-                'total' => $data->total(),
-                'page' => $data->currentPage(),
-                'per_page' => $data->perPage(),
-            ], $code);
+            $response['data']  = $data->items();
+            $response['total'] = $data->total(); // مهم لـ v-data-table-server
+            return response()->json($response, $code);
         }
 
-        // إذا كانت البيانات هي عبارة عن Collection Resource
-        if ($data instanceof \Illuminate\Http\Resources\Json\ResourceCollection) {
+        // ✅ إذا كانت ResourceCollection (قد تكون مع Pagination)
+        if ($data instanceof ResourceCollection) {
             $original = $data->resource;
 
-            if ($original instanceof \Illuminate\Pagination\AbstractPaginator) {
-                return response()->json([
-                    'data' => $data->collection,
-                    'total' => $original->total(),
-                    'message' => $message,
-                    'status' => true,
-                ], $code);
+            // لو فيها Pagination
+            if ($original instanceof AbstractPaginator) {
+                $response['data']  = $data->collection;
+                $response['total'] = $original->total();
+            } else {
+                $response['data'] = $data->collection;
+                $response['total'] = $data->count(); // عدد العناصر
             }
-        }
-        // إذا كانت البيانات هي عبارة عن Single Resource
-        if ($data instanceof \Illuminate\Http\Resources\Json\JsonResource) {
-            return response()->json([
-                'status' => true,
-                'message' => $message,
-                'data' => $data,
-            ], $code);
+
+            return response()->json($response, $code);
         }
 
-        // إذا كانت البيانات عادية (مثال: Array أو Object)
-        return response()->json([
-            'status' => true,
-            'message' => $message,
-            'data' => $data,
-        ], $code);
+        // ✅ إذا كانت JsonResource (عنصر واحد)
+        if ($data instanceof JsonResource) {
+            $response['data']  = $data;
+            $response['total'] = 1;
+            return response()->json($response, $code);
+        }
+
+        // ✅ لو Array أو Collection عادية
+        if (is_array($data) || $data instanceof \Illuminate\Support\Collection) {
+            $response['data']  = $data;
+            $response['total'] = is_countable($data) ? count($data) : 0;
+            return response()->json($response, $code);
+        }
+
+        // ✅ لو نوع غير متوقع
+        $response['data'] = $data;
+        return response()->json($response, $code);
     }
 }
 /**

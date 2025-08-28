@@ -47,53 +47,65 @@ class InstallmentPlanController extends Controller
 
             $query = InstallmentPlan::with($this->relations);
 
-            // تطبيق فلترة الصلاحيات بناءً على صلاحيات العرض
+            // 🔒 تطبيق فلترة الصلاحيات بناءً على صلاحيات العرض
             if ($authUser->hasPermissionTo(perm_key('admin.super'))) {
                 // المسؤول العام يرى جميع خطط التقسيط (لا توجد قيود إضافية على الاستعلام)
             } elseif ($authUser->hasAnyPermission([perm_key('installment_plans.view_all'), perm_key('admin.company')])) {
-                // يرى جميع خطط التقسيط الخاصة بالشركة النشطة (بما في ذلك مديرو الشركة)
                 $query->whereCompanyIsCurrent();
             } elseif ($authUser->hasPermissionTo(perm_key('installment_plans.view_children'))) {
-                // يرى خطط التقسيط التي أنشأها المستخدم أو المستخدمون التابعون له، ضمن الشركة النشطة
                 $query->whereCompanyIsCurrent()->whereCreatedByUserOrChildren();
             } elseif ($authUser->hasPermissionTo(perm_key('installment_plans.view_self'))) {
-                // يرى خطط التقسيط التي أنشأها المستخدم فقط، ومرتبطة بالشركة النشطة
                 $query->whereCompanyIsCurrent()->whereCreatedByUser();
             } else {
                 return api_forbidden('ليس لديك إذن لعرض خطط التقسيط.');
             }
 
-            // التصفية بناءً على طلب المستخدم
+            // ✅ التصفية بناءً على حالة القسط
             if ($request->filled('status')) {
-                // إذا تم تحديد حالة، طبقها
                 $query->where('status', $request->input('status'));
             } else {
-                // افتراضياً، استثناء خطط التقسيط الملغاة
                 $query->where('status', '!=', 'canceled');
             }
 
+            // ✅ فلاتر إضافية
             if ($request->filled('invoice_id')) {
                 $query->where('invoice_id', $request->input('invoice_id'));
             }
             if ($request->filled('user_id')) {
                 $query->where('user_id', $request->input('user_id'));
             }
-            // يمكنك إضافة المزيد من فلاتر البحث هنا
-            // تحديد عدد العناصر في الصفحة والفرز
-            $perPage = (int) $request->input('per_page', 20); // استخدام 'limit' كاسم للمدخل
+
+            // ✅ منطق البحث (الاسم أو الهاتف من جدول المستخدمين)
+            if ($request->filled('search')) {
+                $search = trim($request->input('search'));
+
+                $query->whereHas('user', function ($q) use ($search) {
+                    $q->where(function ($qq) use ($search) {
+                        $qq->where('nickname', 'LIKE', "%{$search}%")
+                            ->orWhere('phone', 'LIKE', "%{$search}%");
+                        if (is_numeric($search)) {
+                            $qq->orWhere('id', $search);
+                        }
+                    });
+                });
+            }
+
+
+            // ✅ تحديد عدد العناصر في الصفحة والفرز
+            $perPage = (int) $request->input('per_page', 20);
             $sortField = $request->input('sort_by', 'created_at');
             $sortOrder = $request->input('sort_order', 'desc');
 
-            $query->orderBy($sortField, $sortOrder); // تطبيق الفرز
+            $query->orderBy($sortField, $sortOrder);
 
+            // ✅ جلب البيانات مع أو بدون الباجينيشن
             if ($perPage == -1) {
-                // جلب كل النتائج بدون تصفح
                 $plans = $query->get();
             } else {
-                // جلب النتائج مع التصفح
                 $plans = $query->paginate(max(1, $perPage));
             }
 
+            // ✅ بناء الاستجابة
             if ($plans->isEmpty()) {
                 return api_success([], 'لم يتم العثور على خطط تقسيط.');
             } else {
@@ -103,6 +115,7 @@ class InstallmentPlanController extends Controller
             return api_exception($e, 500);
         }
     }
+
 
     /**
      * تخزين خطة تقسيط جديدة.

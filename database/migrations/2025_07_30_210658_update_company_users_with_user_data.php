@@ -30,7 +30,6 @@ return new class extends Migration
                             'user_phone' => $user->phone,
                             'user_email' => $user->email,
                             'user_username' => $user->username,
-                            'user_username' => $user->username,
                             // 'balance_in_company' و 'customer_type_in_company' و 'status'
                             // هذه الحقول قد تحتاج إلى منطق خاص بها إذا لم تكن مرتبطة مباشرة بـ user
                             // إذا كانت قيمتها الافتراضية 0 أو 'default' أو 'active' كما في الكنترولر،

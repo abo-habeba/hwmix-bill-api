@@ -15,7 +15,7 @@ return new class extends Migration {
             $table->foreignId('created_by')->constrained('users')->onDelete('cascade'); // أنشئ بواسطة
             $table->date('payment_date'); // تاريخ الدفع
             $table->decimal('amount_paid', 15, 2); // المبلغ المدفوع
-            $table->foreignId('cash_box_id')->nullable()->constrained('cash_boxes')->onDelete('set null');
+            // $table->foreignId('cash_box_id')->nullable()->constrained('cash_boxes')->onDelete('set null');
             $table->string('payment_method'); // طريقة الدفع
             $table->text('notes')->nullable(); // ملاحظات
             $table->timestamps(); // التواريخ
