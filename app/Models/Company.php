@@ -19,11 +19,12 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
 
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+
 // #[ScopedBy([CompanyScope::class])]
 
-/**
- * @mixin IdeHelperCompany
- */
+
 class Company extends Model
 {
     use HasFactory, Notifiable, Translatable, HasRoles, Filterable, Scopes, RolePermissions, LogsActivity, HasImages;
@@ -41,10 +42,34 @@ class Company extends Model
     ];
 
     // Define the many-to-many relationship
-    public function users()
+
+    // يجيب المستخدمين مباشرة (Many To Many)
+    public function users(): BelongsToMany
     {
-        return $this->belongsToMany(User::class, 'company_user');
+        return $this
+            ->belongsToMany(User::class, 'company_user', 'company_id', 'user_id')
+            ->withTimestamps()
+            ->withPivot([
+                'nickname_in_company',
+                'full_name_in_company',
+                'position_in_company',
+                'balance_in_company',
+                'customer_type_in_company',
+                'status',
+                'user_phone',
+                'user_email',
+                'user_username',
+                'created_by'
+            ]);
     }
+
+    // يجيب العضويات (Pivot Model)
+    public function companyUsers(): HasMany
+    {
+        return $this->hasMany(CompanyUser::class, 'company_id');
+    }
+
+
 
     public function userCompanyCash()
     {

@@ -12,8 +12,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // تحديث الصفوف الموجودة في جدول company_users
-        DB::table('company_users')
+        // تحديث الصفوف الموجودة في جدول company_user
+        DB::table('company_user')
             ->get() // جلب جميع الصفوف لتحديثها
             ->each(function ($companyUser) {
                 // ابحث عن المستخدم الأساسي المرتبط بهذا السجل
@@ -21,7 +21,7 @@ return new class extends Migration
 
                 if ($user) {
                     // تحديث الحقول الجديدة ببيانات المستخدم الأساسية
-                    DB::table('company_users')
+                    DB::table('company_user')
                         ->where('id', $companyUser->id)
                         ->update([
                             'nickname_in_company' => $user->nickname, // أو أي حقل آخر تريد استخدامه كاسم مستعار

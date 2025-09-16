@@ -8,14 +8,20 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Traits\Blameable;
 use App\Traits\Scopes;
 
-/**
- * @mixin IdeHelperInvoiceItem
- */
+
 class InvoiceItem extends Model
 {
     use HasFactory, SoftDeletes, Blameable, Scopes;
 
     protected $guarded = [];
+
+    protected $casts = [
+        'quantity' => 'integer',
+        'unit_price' => 'float',
+        'discount' => 'float',
+        'tax' => 'float',
+        'total' => 'float',
+    ];
     // 🔗 العلاقة مع الفاتورة
     public function invoice()
     {

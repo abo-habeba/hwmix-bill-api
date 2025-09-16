@@ -16,7 +16,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 class CompanyUser extends Model
 {
     use HasFactory, Translatable, HasRoles, Filterable, Scopes, HasPermissions, LogsActivity, HasImages;
-
+    protected $table = 'company_user';
     /**
      * اسم الجدول المرتبط بالموديل.
      *

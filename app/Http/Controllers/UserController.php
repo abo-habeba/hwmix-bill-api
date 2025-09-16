@@ -28,7 +28,7 @@ class UserController extends Controller
             'cashBoxes',
             'cashBoxDefault',
             'creator',
-            'companyUsers',
+            'companies',
             'activeCompanyUser.company',
         ];
     }
@@ -66,37 +66,32 @@ class UserController extends Controller
             }
 
             $query = CompanyUser::with([
-                'user' => fn($q) => $q->with(['cashBoxes', 'creator', 'companies.logo']), // أضف علاقة companies.logo هنا أيضًا
+                'user' => fn($q) => $q->with(['cashBoxes', 'creator', 'companies.logo']),
                 'company',
             ]);
 
             // تطبيق منطق الصلاحيات بناءً على company_id للمستخدم الموثق
             if ($isSuperAdmin) {
-                // المدير العام يرى كل المستخدمين في كل الشركات (من خلال company_users)
+                // المدير العام يرى كل المستخدمين في كل الشركات (من خلال company_user)
                 // لا يوجد شرط company_id هنا
-            } elseif ($activeCompanyId) { // المستخدم لديه شركة نشطة
-                if ($isCompanyAdmin || $canViewAll) { // تم تصحيح $isSuperAdmin إلى $isCompanyAdmin
-                    // مدير الشركة أو من لديه صلاحية view_all يرى المستخدمين المرتبطين بشركته النشطة فقط
+            } elseif ($activeCompanyId) {
+                if ($isCompanyAdmin || $canViewAll) {
                     $query->where('company_id', $activeCompanyId);
                 } elseif ($canViewChildren) {
-                    // المستخدم يرى المستخدمين الذين أنشأهم هو أو من تحت إدارته في سياق شركته
-                    $descendantUserIds = $authUser->getDescendantUserIds(); // تحتاج لـ getDescendantUserIds معدلة
+                    $descendantUserIds = $authUser->getDescendantUserIds();
                     $query->where('company_id', $activeCompanyId)
-                        ->whereIn('user_id', $descendantUserIds); // التأكد من الشركة النشطة
+                        ->whereIn('user_id', $descendantUserIds);
                 } elseif ($canViewSelf) {
-                    // المستخدم يرى نفسه فقط في سياق شركته
                     $query->where('company_id', $activeCompanyId)
                         ->where('user_id', $authUser->id);
                 } else {
                     return api_forbidden('ليس لديك صلاحية لعرض المستخدمين في هذه الشركة.');
                 }
-            } else { // لا توجد شركة نشطة للمستخدم و ليس Super Admin
-                // إذا وصل هنا، فهذا يعني أنه ليس سوبر أدمن، وليس لديه شركة نشطة، وليس لديه صلاحية view_all/children
-                // إذا كان لديه view_self، فسيتم التعامل معها في بداية الدالة (إذا لم يكن هناك activeCompanyId)
+            } else {
                 return api_forbidden('ليس لديك صلاحية لعرض المستخدمين أو لا توجد شركة نشطة مرتبطة بك.');
             }
 
-            // تطبيق فلاتر البحث على حقول company_users أو user
+            // تطبيق فلاتر البحث على حقول company_user أو user
             if ($request->filled('nickname')) {
                 $query->where('nickname_in_company', 'like', '%' . $request->input('nickname') . '%');
             }
@@ -114,12 +109,10 @@ class UserController extends Controller
                 $query->where('status', $request->input('status')); // تم تصحيح اسم الحقل
             }
             if ($request->filled('created_at_from')) {
-                // يجب أن تكون هذه على `company_users.created_at`
-                $query->where('company_users.created_at', '>=', $request->input('created_at_from') . ' 00:00:00');
+                $query->where('company_user.created_at', '>=', $request->input('created_at_from') . ' 00:00:00');
             }
             if ($request->filled('created_at_to')) {
-                // يجب أن تكون هذه على `company_users.created_at`
-                $query->where('company_users.created_at', '<=', $request->input('created_at_to') . ' 23:59:59');
+                $query->where('company_user.created_at', '<=', $request->input('created_at_to') . ' 23:59:59');
             }
 
             // الفرز والتصفح
@@ -128,14 +121,14 @@ class UserController extends Controller
             $sortOrder = $request->input('sort_order', 'asc');
 
             // الفرز يجب أن يأخذ في الاعتبار حقول CompanyUser أو User
-            if (in_array($sortField, ['nickname_in_company', 'status', 'balance_in_company'])) { // تم تصحيح اسم الحقل
+            if (in_array($sortField, ['nickname_in_company', 'status', 'balance_in_company'])) {
                 $query->orderBy($sortField, $sortOrder);
             } elseif (in_array($sortField, ['user_phone', 'user_email', 'user_username'])) {
-                $query->join('users', 'company_users.user_id', '=', 'users.id')
+                $query->join('users', 'company_user.user_id', '=', 'users.id')
                     ->orderBy('users.' . str_replace('user_', '', $sortField), $sortOrder)
-                    ->select('company_users.*'); // اختر كل أعمدة company_users لتجنب تضارب الأسماء
+                    ->select('company_user.*');
             } else {
-                $query->orderBy('company_users.id', $sortOrder); // الترتيب الافتراضي لـ company_users id
+                $query->orderBy('company_user.id', $sortOrder);
             }
 
             $companyUsers = $query->paginate($perPage);
@@ -214,7 +207,7 @@ class UserController extends Controller
                     ->where('company_id', $activeCompanyId)
                     ->exists();
 
-                Log::info('Existing User found. Checking company_users relation.', [
+                Log::info('Existing User found. Checking company_user relation.', [
                     'user_id' => $user->id,
                     'active_company_id' => $activeCompanyId,
                     'company_user_exists' => $companyUserExists
@@ -253,7 +246,7 @@ class UserController extends Controller
             $companyUser = null; // تهيئة المتغير الذي سيتم إرجاعه
 
             // Scenario 1: Super Admin or Company Admin or users.update_all with company_ids array for multi-company sync
-            // هذا الجزء سيعالج إنشاء/تحديث سجلات company_users لجميع الشركات في company_ids
+            // هذا الجزء سيعالج إنشاء/تحديث سجلات company_user لجميع الشركات في company_ids
             if (($authUser->hasAnyPermission([perm_key('admin.super'), perm_key('admin.company'), perm_key('users.update_all')]) && array_key_exists('company_ids', $validatedData))) { // استخدام $validatedData
                 Log::info('Admin/Super Admin/UpdateAll handling company_ids for user creation.', ['user_id' => $user->id, 'company_ids_from_request' => $validatedData['company_ids']]);
 
@@ -265,18 +258,14 @@ class UserController extends Controller
                 foreach ($companyIdsFromRequest as $companyId) {
                     $currentCompanyUser = CompanyUser::updateOrCreate(
                         ['user_id' => $user->id, 'company_id' => $companyId],
-                        array_merge($companyUserData, ['company_id' => $companyId]) // تأكد من استخدام company_id الصحيح لكل دورة
+                        array_merge($companyUserData, ['company_id' => $companyId])
                     );
                     Log::info('CompanyUser relation updated/created (from company_ids loop).', ['user_id' => $user->id, 'company_id' => $companyId, 'company_user_id' => $currentCompanyUser->id]);
-
-                    // إذا كانت هذه هي الشركة النشطة للمستخدم الموثق، فاحتفظ بها كـ $companyUser الرئيسي
                     if ($companyId == $activeCompanyId) {
                         $companyUser = $currentCompanyUser;
                     }
                 }
 
-                // إذا لم يتم العثور على $companyUser للشركة النشطة ضمن company_ids التي تم إرسالها
-                // (وهذا قد يحدث إذا كانت الشركة النشطة للمستخدم الموثق ليست ضمن company_ids المرسلة)
                 if (!$companyUser && $activeCompanyId) {
                     $companyUser = CompanyUser::where('user_id', $user->id)
                         ->where('company_id', $activeCompanyId)
@@ -345,7 +334,7 @@ class UserController extends Controller
         // للـ Super Admin، يمكنه عرض أي مستخدم
         if ($isSuperAdmin) {
             // نعود بـ UserResource الذي يحمل بيانات المستخدم الأساسية وجميع علاقات companyUsers
-            $user->load($this->relations);
+            $user->load(relations: $this->relations);
             return api_success(new UserResource($user), 'تم جلب بيانات المستخدم بنجاح.');
         }
 
@@ -354,7 +343,7 @@ class UserController extends Controller
             $companyUser = $user->activeCompanyUser()->first();
             if ($companyUser) {
                 if ($useBasicResource) {
-                    return api_success(new CompanyUserBasicResource($companyUser), 'تم جلب بيانات المستخدم بنجاح.');
+                    return api_success(CompanyUserBasicResource::make($companyUser), 'تم جلب بيانات المستخدم بنجاح.');
                 } else {
                     $companyUser->load(['user.cashBoxes', 'user.cashBoxDefault', 'user.creator', 'company']);
                     return api_success(new CompanyUserResource($companyUser), 'تم جلب بيانات المستخدم بنجاح.');
@@ -375,7 +364,7 @@ class UserController extends Controller
             }
 
             if ($useBasicResource) {
-                return api_success(new CompanyUserBasicResource($companyUser), 'تم جلب بيانات المستخدم بنجاح في سياق الشركة.');
+                return api_success(CompanyUserBasicResource::make($companyUser), 'تم جلب بيانات المستخدم بنجاح في سياق الشركة.');
             } else {
                 $companyUser->load(['user.cashBoxes', 'user.cashBoxDefault', 'user.creator', 'company']);
                 return api_success(new CompanyUserResource($companyUser), 'تم جلب بيانات المستخدم بنجاح في سياق الشركة.');
@@ -396,7 +385,7 @@ class UserController extends Controller
             }
 
             if ($useBasicResource) {
-                return api_success(new CompanyUserBasicResource($companyUser), 'تم جلب بيانات المستخدم بنجاح في سياق الشركة.');
+                return api_success(CompanyUserBasicResource::make($companyUser), 'تم جلب بيانات المستخدم بنجاح في سياق الشركة.');
             } else {
                 $companyUser->load(['user.cashBoxes', 'user.cashBoxDefault', 'user.creator', 'company']);
                 return api_success(new CompanyUserResource($companyUser), 'تم جلب بيانات المستخدم بنجاح في سياق الشركة.');
@@ -464,7 +453,7 @@ class UserController extends Controller
                 return api_success(new UserResource($user->load($this->relations)), 'تم تحديث المستخدم بنجاح');
             }
 
-            // --- تحضير بيانات تحديث جدول الشركة-المستخدم الوسيط (company_users) ---
+            // --- تحضير بيانات تحديث جدول الشركة-المستخدم الوسيط (company_user) ---
             $companyUserDataToUpdate = [];
             if (isset($validated['nickname'])) $companyUserDataToUpdate['nickname_in_company'] = $validated['nickname'];
             if (isset($validated['full_name'])) $companyUserDataToUpdate['full_name_in_company'] = $validated['full_name'];
@@ -476,7 +465,7 @@ class UserController extends Controller
             if (isset($validated['email'])) $companyUserDataToUpdate['user_email'] = $validated['email'];
             if (isset($validated['username'])) $companyUserDataToUpdate['user_username'] = $validated['username'];
 
-            Log::info('CompanyUser Data To Update (company_users table) - Base data for syncing:', ['data' => $companyUserDataToUpdate]);
+            Log::info('CompanyUser Data To Update (company_user table) - Base data for syncing:', ['data' => $companyUserDataToUpdate]);
 
             // تحديد ما إذا كان مسموحًا بتحديث أي سجل company_user
             $canUpdateAnyCompanyUser = false;
@@ -600,7 +589,7 @@ class UserController extends Controller
                 if ($isSuperAdmin || $canDeleteAll) {
                     // حذف كامل للمستخدم وعلاقاته وصناديقه
                     $user->cashBoxes()->delete();
-                    $user->companyUsers()->delete(); // حذف جميع علاقات company_users
+                    $user->companyUsers()->delete(); // حذف جميع علاقات company_user
                     $user->delete();
                     $user->logForceDeleted('المستخدم ' . $user->username);
                     $deletedCount++;
@@ -773,19 +762,19 @@ class UserController extends Controller
                 ->when($request->filled('status'), fn($q) =>
                 $q->where('status', $request->input('status')))
                 ->when($request->filled('created_at_from'), fn($q) =>
-                $q->where('company_users.created_at', '>=', $request->input('created_at_from') . ' 00:00:00'))
+                $q->where('company_user.created_at', '>=', $request->input('created_at_from') . ' 00:00:00'))
                 ->when($request->filled('created_at_to'), fn($q) =>
-                $q->where('company_users.created_at', '<=', $request->input('created_at_to') . ' 23:59:59'));
+                $q->where('company_user.created_at', '<=', $request->input('created_at_to') . ' 23:59:59'));
 
             // الترتيب
             if (in_array($sortField, ['nickname_in_company', 'status', 'balance_in_company', 'position_in_company', 'customer_type_in_company', 'full_name_in_company', 'user_phone', 'user_email', 'user_username'])) {
-                $baseQuery->orderBy('company_users.' . $sortField, $sortOrder);
+                $baseQuery->orderBy('company_user.' . $sortField, $sortOrder);
             } elseif (in_array($sortField, ['username', 'email', 'phone'])) {
-                $baseQuery->join('users', 'company_users.user_id', '=', 'users.id')
+                $baseQuery->join('users', 'company_user.user_id', '=', 'users.id')
                     ->orderBy('users.' . $sortField, $sortOrder)
-                    ->select('company_users.*');
+                    ->select('company_user.*');
             } else {
-                $baseQuery->orderBy('company_users.id', $sortOrder);
+                $baseQuery->orderBy('company_user.id', $sortOrder);
             }
 
             // النتائج الأساسية

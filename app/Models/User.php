@@ -27,7 +27,6 @@ use Illuminate\Database\Eloquent\Relations\HasOne;   // إضافة HasOne
 
 /**
  * @method void deposit(float|int $amount)
- * @mixin IdeHelperUser
  */
 class User extends Authenticatable
 {
@@ -68,7 +67,7 @@ class User extends Authenticatable
     protected static function booted(): void
     {
         static::created(function (User $user) {
-            app(\App\Services\CashBoxService::class)->ensureCashBoxForUser($user);
+            app(CashBoxService::class)->ensureCashBoxForUser($user);
             // يجب تحديث هذه الدالة لإنشاء سجل CompanyUser الافتراضي أيضاً
             // For new users, ensure a default CompanyUser entry is created if not already (e.g., for system default company)
         });
@@ -98,18 +97,19 @@ class User extends Authenticatable
     /**
      * علاقة المستخدم بالشركات التي ينتمي إليها عبر جدول الوسيط company_user.
      */
+    // يجيب الشركات مباشرة (علاقة Many To Many)
     public function companies(): BelongsToMany
     {
         return $this
-            ->belongsToMany(Company::class, 'company_users', 'user_id', 'company_id')
+            ->belongsToMany(Company::class, 'company_user', 'user_id', 'company_id')
             ->withTimestamps()
             ->withPivot([
-                'nickname_in_company', // إضافة الحقول الجديدة هنا
+                'nickname_in_company',
                 'full_name_in_company',
                 'position_in_company',
                 'balance_in_company',
                 'customer_type_in_company',
-                'status', // الحقل 'status' موجود في جدول company_users الأصلي لديك
+                'status',
                 'user_phone',
                 'user_email',
                 'user_username',
@@ -117,21 +117,16 @@ class User extends Authenticatable
             ]);
     }
 
-    /**
-     * علاقة المستخدم بسجلات CompanyUser الخاصة به.
-     */
+    // يجيب سجلات العضوية نفسها (Pivot Model)
     public function companyUsers(): HasMany
     {
         return $this->hasMany(CompanyUser::class, 'user_id');
     }
 
-    /**
-     * الحصول على سجل CompanyUser الخاص بالمستخدم للشركة النشطة حاليًا.
-     * يفترض أنك تخزن company_id في المستخدم الموثق أو تمررها بطريقة ما.
-     */
+    // يجيب العضوية الخاصة بالشركة النشطة
     public function activeCompanyUser(): HasOne
     {
-        $activeCompanyId = Auth::user()->company_id ?? null; // أو أي طريقة أخرى للحصول على الشركة النشطة
+        $activeCompanyId = $this->company_id ?? null;
 
         return $this->hasOne(CompanyUser::class, 'user_id')
             ->where('company_id', $activeCompanyId);
@@ -236,7 +231,7 @@ class User extends Authenticatable
      * @param float $amount المبلغ المراد سحبه.
      * @param int|null $cashBoxId معرف صندوق النقدية المحدد (اختياري).
      * @return bool True عند النجاح.
-     * @throws \Exception عند الفشل (مثل عدم وجود خزنة أو رصيد غير كافٍ).
+     * @throws Exception عند الفشل (مثل عدم وجود خزنة أو رصيد غير كافٍ).
      */
     public function withdraw(float $amount, $cashBoxId = null): bool
     {
@@ -254,14 +249,14 @@ class User extends Authenticatable
                 // البحث عن الخزنة الافتراضية للمستخدم الحالي ($this) والتي تتبع الشركة النشطة للمستخدم الموثق
                 if (is_null($authCompanyId)) {
                     DB::rollBack();
-                    throw new \Exception("لا توجد شركة نشطة للمستخدم الحالي لتحديد الخزنة الافتراضية.");
+                    throw new Exception("لا توجد شركة نشطة للمستخدم الحالي لتحديد الخزنة الافتراضية.");
                 }
                 $cashBox = CashBox::query()->where('user_id', $this->id)->where('is_default', true)->where('company_id', $authCompanyId)->first();
             }
 
             if (!$cashBox) {
                 DB::rollBack();
-                throw new \Exception("لم يتم العثور على خزنة مناسبة للمستخدم : {$this->nickname}");
+                throw new Exception("لم يتم العثور على خزنة مناسبة للمستخدم : {$this->nickname}");
             }
 
             $cashBox->decrement('balance', $amount);
@@ -286,7 +281,7 @@ class User extends Authenticatable
      * @param float $amount المبلغ المراد إيداعه.
      * @param int|null $cashBoxId معرف صندوق النقدية المحدد (اختياري).
      * @return bool True عند النجاح.
-     * @throws \Exception عند الفشل (مثل عدم وجود خزنة).
+     * @throws Exception عند الفشل (مثل عدم وجود خزنة).
      */
 
     public function deposit(float $amount, $cashBoxId = null): bool
@@ -301,24 +296,24 @@ class User extends Authenticatable
                 $cashBox = CashBox::query()->where('id', $cashBoxId)->where('user_id', $this->id)->first();
                 if (!$cashBox) {
                     DB::rollBack();
-                    throw new \Exception(" معرف الخزنه cashBoxId{$cashBoxId}المستخدم ليس له خزنة.");
+                    throw new Exception(" معرف الخزنه cashBoxId{$cashBoxId}المستخدم ليس له خزنة.");
                 }
             } else {
                 if (is_null($authCompanyId)) {
                     DB::rollBack();
-                    throw new \Exception("لا توجد شركة نشطة {$authCompanyId} للمستخدم {$this->nickname} الحالي لتحديد الخزنة الافتراضية.");
+                    throw new Exception("لا توجد شركة نشطة {$authCompanyId} للمستخدم {$this->nickname} الحالي لتحديد الخزنة الافتراضية.");
                 }
                 $cashBox = CashBox::query()->where('user_id', $this->id)->where('is_default', 1)->where('company_id', $authCompanyId)->first();
 
                 if (!$cashBox) {
                     DB::rollBack();
-                    throw new \Exception(" المستخدم ليس له خزنة لنفس الشركة");
+                    throw new Exception(" المستخدم ليس له خزنة لنفس الشركة");
                 }
             }
 
             if (!$cashBox) {
                 DB::rollBack();
-                throw new \Exception("لم يتم العثور على خزنة مناسبة للمستخدم : {$this->nickname} ");
+                throw new Exception("لم يتم العثور على خزنة مناسبة للمستخدم : {$this->nickname} ");
             }
 
             $cashBox->increment('balance', $amount);
