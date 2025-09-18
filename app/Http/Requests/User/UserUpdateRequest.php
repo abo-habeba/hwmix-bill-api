@@ -36,7 +36,6 @@ class UserUpdateRequest extends FormRequest
             'email_verified_at' => 'nullable',
             'created_by' => 'nullable|exists:users,id',
             'images_ids' => 'nullable|array',
-            'images_ids.*' => 'integer|exists:images,id',
             'balance' => 'nullable|numeric',
             'status' => 'nullable',
             'company_id' => 'nullable|exists:companies,id',

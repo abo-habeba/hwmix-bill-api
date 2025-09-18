@@ -35,7 +35,6 @@ class UserRequest extends FormRequest
             'type' => 'nullable|in:system_owner,company_owner,sales,accounting,client,user',
             'balance' => 'nullable|numeric',
             'images_ids' => 'nullable|array',
-            'images_ids.*' => 'integer|exists:images,id',
             'status' => 'nullable|in:active,inactive',
             'company_id' => 'nullable|exists:companies,id',
             'company_ids' => 'nullable|array',
